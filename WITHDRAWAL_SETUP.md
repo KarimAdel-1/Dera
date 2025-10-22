@@ -61,19 +61,26 @@ NODE_ENV=development
 
 ### Frontend Configuration
 
-**2. Create `/Dera/frontend/.env.local`:**
+**2. Add frontend variables to `/Dera/.env`:**
+
+The frontend now uses the **same `.env` file** as the backend. Add these variables to `/Dera/.env`:
 
 ```bash
-# Copy from example
-cp frontend/.env.local.example frontend/.env.local
-
-# Then edit and fill in:
+# Frontend Environment Variables (add to the same .env file)
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+NEXT_PUBLIC_COINGECKO_API=https://api.coingecko.com/api/v3/
+NEXT_PUBLIC_HEDERA_NETWORK=testnet
 NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
 NEXT_PUBLIC_LENDING_POOL_ADDRESS=0.0.7094264
-NEXT_PUBLIC_HEDERA_NETWORK=testnet
+NEXT_PUBLIC_APP_NAME=Dera Platform
+NEXT_PUBLIC_APP_DESCRIPTION=Decentralized Lending & Borrowing on Hedera
 ```
+
+**Note**:
+- The frontend's `next.config.js` automatically loads environment variables from the parent directory's `.env` file
+- You do **NOT** need to create a separate `frontend/.env.local` file anymore
+- All configuration is now in one place: `/Dera/.env`
 
 ---
 
