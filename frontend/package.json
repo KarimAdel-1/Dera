@@ -16,7 +16,6 @@
     "react-dom": "^18.2.0",
     "@hashgraph/sdk": "^2.39.0",
     "@hashgraph/hashconnect": "^1.0.0",
-    "@bladelabs/blade-web3.js": "^0.7.0",
     "ethers": "^6.4.0",
     "axios": "^1.6.2",
     "recharts": "^2.10.3",
