@@ -7,11 +7,20 @@ class Database {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase configuration missing');
+      logger.warn('Database: Supabase configuration missing - running in disabled mode');
+      logger.warn('Add SUPABASE_URL and SUPABASE_SERVICE_KEY to .env to enable database');
+      this.client = null;
+      return;
     }
 
     this.client = createClient(supabaseUrl, supabaseKey);
     logger.info('Database client initialized');
+  }
+
+  _checkClient() {
+    if (!this.client) {
+      throw new Error('Database not configured - set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env');
+    }
   }
 
   /**
@@ -19,6 +28,7 @@ class Database {
    */
   async getUser(walletAddress) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('users')
         .select('*')
@@ -41,6 +51,7 @@ class Database {
    */
   async upsertUser(userData) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('users')
         .upsert(userData, { onConflict: 'wallet_address' })
@@ -60,6 +71,7 @@ class Database {
    */
   async getLoan(walletAddress) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('loans')
         .select('*')
@@ -83,6 +95,7 @@ class Database {
    */
   async createLoan(loanData) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('loans')
         .insert(loanData)
@@ -102,6 +115,7 @@ class Database {
    */
   async updateLoan(loanId, updates) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('loans')
         .update(updates)
@@ -122,6 +136,7 @@ class Database {
    */
   async getActiveLoans() {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('loans')
         .select('*')
@@ -140,6 +155,7 @@ class Database {
    */
   async createDeposit(depositData) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('deposits')
         .insert(depositData)
@@ -159,6 +175,7 @@ class Database {
    */
   async getUserDeposits(walletAddress) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('deposits')
         .select('*')
@@ -178,6 +195,7 @@ class Database {
    */
   async updatePoolStats(statsData) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('pool_stats')
         .upsert(statsData, { onConflict: 'id' })
@@ -197,6 +215,7 @@ class Database {
    */
   async getPoolStats() {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('pool_stats')
         .select('*')
@@ -220,6 +239,7 @@ class Database {
    */
   async createEventLog(eventData) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('event_logs')
         .insert(eventData)
@@ -239,6 +259,7 @@ class Database {
    */
   async getUserLoanHistory(walletAddress) {
     try {
+      this._checkClient();
       const { data, error } = await this.client
         .from('loans')
         .select('*')

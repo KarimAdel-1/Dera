@@ -27,7 +27,10 @@ class HederaClient {
       const privateKey = process.env.HEDERA_PRIVATE_KEY;
 
       if (!accountId || !privateKey) {
-        throw new Error('Hedera credentials not configured');
+        logger.warn('Hedera Client: Credentials not configured - running in disabled mode');
+        logger.warn('Add HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY to .env to enable Hedera operations');
+        this.client = null;
+        return;
       }
 
       this.operatorId = AccountId.fromString(accountId);
@@ -46,7 +49,17 @@ class HederaClient {
       logger.info(`Operator account: ${accountId}`);
     } catch (error) {
       logger.error('Failed to initialize Hedera client:', error);
-      throw error;
+      logger.warn('Hedera Client running in degraded mode');
+      this.client = null;
+    }
+  }
+
+  /**
+   * Check if client is initialized
+   */
+  _checkClient() {
+    if (!this.client) {
+      throw new Error('Hedera client not initialized - set HEDERA_ACCOUNT_ID and HEDERA_PRIVATE_KEY in .env');
     }
   }
 
@@ -55,6 +68,7 @@ class HederaClient {
    */
   async createAccount(initialBalance = 10) {
     try {
+      this._checkClient();
       // Generate new key pair
       const newAccountPrivateKey = PrivateKey.generateED25519();
       const newAccountPublicKey = newAccountPrivateKey.publicKey;
@@ -103,6 +117,7 @@ class HederaClient {
    */
   async transferHbar(fromAccountId, fromPrivateKey, toAccountId, amount) {
     try {
+      this._checkClient();
       const fromKey = PrivateKey.fromString(fromPrivateKey);
 
       const transaction = await new TransferTransaction()
@@ -131,6 +146,7 @@ class HederaClient {
    */
   async multiTransfer(fromAccountId, fromPrivateKey, transfers) {
     try {
+      this._checkClient();
       const fromKey = PrivateKey.fromString(fromPrivateKey);
 
       let transaction = new TransferTransaction();
@@ -166,6 +182,7 @@ class HederaClient {
    */
   async getAccountBalance(accountId) {
     try {
+      this._checkClient();
       const balance = await new AccountBalanceQuery()
         .setAccountId(accountId)
         .execute(this.client);
@@ -182,6 +199,7 @@ class HederaClient {
    */
   async getAccountInfo(accountId) {
     try {
+      this._checkClient();
       const info = await new AccountInfoQuery()
         .setAccountId(accountId)
         .execute(this.client);

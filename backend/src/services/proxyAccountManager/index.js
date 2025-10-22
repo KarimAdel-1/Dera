@@ -17,6 +17,7 @@ class ProxyAccountManager {
     this.masterPassword = process.env.MASTER_PASSWORD;
     this.stakingNodeId = process.env.STAKING_NODE_ID || '0.0.3';
     this.stakingPercentage = parseInt(process.env.STAKING_PERCENTAGE || '80');
+    this.isEnabled = false;
 
     // Reward distribution percentages
     this.rewardSplit = {
@@ -37,14 +38,32 @@ class ProxyAccountManager {
     try {
       await hederaClient.initialize();
 
-      if (!this.masterPassword) {
-        throw new Error('Master password not configured');
+      // Check if Hedera client is available
+      if (!hederaClient.client) {
+        logger.warn('Proxy Account Manager: Hedera client not available - running in disabled mode');
+        this.isEnabled = false;
+        return;
       }
 
+      if (!this.masterPassword) {
+        logger.warn('Proxy Account Manager: Master password not configured - running in disabled mode');
+        logger.warn('Add MASTER_PASSWORD to .env to enable proxy account management');
+        this.isEnabled = false;
+        return;
+      }
+
+      this.isEnabled = true;
       logger.info('Proxy Account Manager initialized');
     } catch (error) {
       logger.error('Failed to initialize Proxy Account Manager:', error);
-      throw error;
+      logger.warn('Proxy Account Manager running in degraded mode');
+      this.isEnabled = false;
+    }
+  }
+
+  _checkEnabled() {
+    if (!this.isEnabled) {
+      throw new Error('Proxy Account Manager not enabled - configure Hedera credentials and MASTER_PASSWORD in .env');
     }
   }
 
@@ -55,6 +74,7 @@ class ProxyAccountManager {
    */
   async createProxyAccount(borrowerAddress, collateralAmount) {
     try {
+      this._checkEnabled();
       logger.info(`Creating proxy account for ${borrowerAddress} with ${collateralAmount} HBAR collateral`);
 
       // Create new Hedera account
