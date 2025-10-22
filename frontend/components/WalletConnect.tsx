@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useWallet, WalletType, ConnectedWallet } from '../contexts/WalletContext';
-import { Wallet, ChevronDown, LogOut, Check, Plus, X } from 'lucide-react';
+import { Wallet, ChevronDown, LogOut, Check, Plus, X, HelpCircle } from 'lucide-react';
+import HashPackCleanupGuide from './HashPackCleanupGuide';
 
 const WalletConnect: React.FC = () => {
   const { wallets, activeWallet, isConnecting, connectWallet, disconnectWallet, switchActiveWallet, resetConnection } = useWallet();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [showCleanupGuide, setShowCleanupGuide] = useState(false);
 
   const walletOptions: { type: WalletType; name: string; icon: string; description: string }[] = [
     {
@@ -90,11 +92,27 @@ const WalletConnect: React.FC = () => {
                 ))}
               </div>
 
-              <div className="mt-6 text-sm text-gray-500 text-center">
+              <button
+                onClick={() => {
+                  setShowWalletModal(false);
+                  setShowCleanupGuide(true);
+                }}
+                className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700 py-2 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <HelpCircle className="w-4 h-4" />
+                Having connection issues? Click here for help
+              </button>
+
+              <div className="mt-4 text-sm text-gray-500 text-center">
                 By connecting a wallet, you agree to our Terms of Service
               </div>
             </div>
           </div>
+        )}
+
+        {/* Cleanup Guide Modal */}
+        {showCleanupGuide && (
+          <HashPackCleanupGuide onClose={() => setShowCleanupGuide(false)} />
         )}
       </>
     );
@@ -249,8 +267,24 @@ const WalletConnect: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={() => {
+                setShowWalletModal(false);
+                setShowCleanupGuide(true);
+              }}
+              className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700 py-2 hover:bg-blue-50 rounded-lg transition-colors"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Having connection issues? Click here for help
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Cleanup Guide Modal */}
+      {showCleanupGuide && (
+        <HashPackCleanupGuide onClose={() => setShowCleanupGuide(false)} />
       )}
     </>
   );

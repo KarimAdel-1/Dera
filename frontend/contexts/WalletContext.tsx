@@ -113,6 +113,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       }
 
       console.log('Creating new HashConnect instance...');
+
+      // CRITICAL: Clear ALL old HashConnect data before initializing
+      // This prevents old pairing sessions from causing decryption errors
+      console.log('Clearing old HashConnect data...');
+      clearHashConnectData();
+
       const hc = new HashConnect();
 
       // Initialize HashConnect
@@ -124,9 +130,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       };
 
       const network = process.env.NEXT_PUBLIC_HEDERA_NETWORK || 'testnet';
+
+      // Initialize with multiSession = false to prevent multiple sessions
       const initDataResult = await hc.init(appMetadata, network as 'testnet' | 'mainnet', false);
 
-      console.log('HashConnect initialized:', initDataResult);
+      console.log('HashConnect initialized with new topic:', initDataResult.topic);
 
       // Store globally to prevent multiple instances
       globalHashConnect = hc;
@@ -178,8 +186,31 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         console.log('Event listeners not available, using polling instead');
       }
 
-      // Don't load existing pairings on fresh initialization
-      // This prevents encryption mismatches
+      // Check for and disconnect any existing/stale pairings
+      try {
+        const existingPairings = hc.hcData?.pairingData;
+        if (existingPairings && existingPairings.length > 0) {
+          console.log(`Found ${existingPairings.length} old pairing(s), disconnecting...`);
+
+          // Disconnect all old pairings to prevent decryption errors
+          for (const pairing of existingPairings) {
+            try {
+              console.log('Disconnecting old pairing topic:', pairing.topic);
+              await hc.disconnect(pairing.topic);
+            } catch (disconnectError) {
+              console.error('Error disconnecting old pairing:', disconnectError);
+              // Continue even if disconnect fails
+            }
+          }
+
+          console.log('All old pairings disconnected');
+        } else {
+          console.log('No old pairings found - clean start');
+        }
+      } catch (pairingCheckError) {
+        console.error('Error checking for old pairings:', pairingCheckError);
+      }
+
       console.log('HashConnect ready for new connections');
 
     } catch (error) {
