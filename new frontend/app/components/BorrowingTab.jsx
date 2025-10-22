@@ -11,6 +11,8 @@ import {
   Award,
   Info,
 } from 'lucide-react';
+import { lendingBorrowingService } from '../../services/lendingBorrowingService';
+import { priceService } from '../../services/priceService';
 
 const BorrowingTab = () => {
   const { wallets, selectedWallet } = useSelector((state) => state.wallet);
@@ -35,20 +37,8 @@ const BorrowingTab = () => {
 
   const fetchUserScore = async () => {
     try {
-      const response = await fetch(`/api/users/score/${selectedWallet?.accountId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUserScore(data);
-      } else {
-        // Default score
-        setUserScore({
-          iscore: 500,
-          totalLoans: 0,
-          totalRepaid: '0',
-          onTimeRepayments: 0,
-          totalLiquidations: 0,
-        });
-      }
+      const data = await lendingBorrowingService.getUserScore(selectedWallet?.accountId);
+      setUserScore(data);
     } catch (error) {
       console.error('Error fetching user score:', error);
       setUserScore({ iscore: 500, totalLoans: 0, totalRepaid: '0', onTimeRepayments: 0, totalLiquidations: 0 });
@@ -57,11 +47,8 @@ const BorrowingTab = () => {
 
   const fetchUserLoans = async () => {
     try {
-      const response = await fetch(`/api/loans/${selectedWallet?.accountId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setLoans(data.loans || []);
-      }
+      const data = await lendingBorrowingService.getUserLoans(selectedWallet?.accountId);
+      setLoans(data.loans || []);
     } catch (error) {
       console.error('Error fetching user loans:', error);
     }
@@ -69,11 +56,8 @@ const BorrowingTab = () => {
 
   const fetchHbarPrice = async () => {
     try {
-      const response = await fetch('/api/price/hbar');
-      if (response.ok) {
-        const data = await response.json();
-        setHbarPrice(data.price);
-      }
+      const price = await priceService.fetchHbarPrice();
+      setHbarPrice(price);
     } catch (error) {
       console.error('Error fetching HBAR price:', error);
     }
@@ -133,18 +117,14 @@ const BorrowingTab = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/borrowing/borrow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: selectedWallet?.accountId,
-          collateralAmount: collateralAmount,
-          borrowAmountUsd: borrowAmountUsd,
-          iscore: userScore?.iscore || 500,
-        }),
-      });
+      const result = await lendingBorrowingService.createLoan(
+        selectedWallet?.accountId,
+        parseFloat(collateralAmount),
+        parseFloat(borrowAmountUsd),
+        userScore?.iscore || 500
+      );
 
-      if (response.ok) {
+      if (result.success) {
         alert(
           `Successfully borrowed $${borrowAmountUsd}! Your collateral is being staked for rewards.`
         );
@@ -154,7 +134,7 @@ const BorrowingTab = () => {
         await fetchUserLoans();
         setActiveSubTab('loans');
       } else {
-        alert('Failed to borrow. Please try again.');
+        alert(`Failed to borrow: ${result.error}`);
       }
     } catch (error) {
       console.error('Borrow error:', error);
@@ -172,24 +152,20 @@ const BorrowingTab = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/borrowing/repay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: selectedWallet?.accountId,
-          loanId,
-          repayAmount,
-        }),
-      });
+      const result = await lendingBorrowingService.repayLoan(
+        selectedWallet?.accountId,
+        loanId,
+        parseFloat(repayAmount)
+      );
 
-      if (response.ok) {
-        alert(`Successfully repaid $${repayAmount}!`);
+      if (result.success) {
+        alert(result.message);
         await fetchUserScore();
         await fetchUserLoans();
         setRepayAmount('');
         setSelectedLoan(null);
       } else {
-        alert('Failed to repay. Please try again.');
+        alert(`Failed to repay: ${result.error}`);
       }
     } catch (error) {
       console.error('Repay error:', error);
@@ -207,23 +183,19 @@ const BorrowingTab = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/borrowing/add-collateral', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: selectedWallet?.accountId,
-          loanId,
-          collateralAmount: additionalCollateral,
-        }),
-      });
+      const result = await lendingBorrowingService.addCollateral(
+        selectedWallet?.accountId,
+        loanId,
+        parseFloat(additionalCollateral)
+      );
 
-      if (response.ok) {
-        alert(`Successfully added ${additionalCollateral} HBAR as collateral!`);
+      if (result.success) {
+        alert(result.message);
         await fetchUserLoans();
         setAdditionalCollateral('');
         setSelectedLoan(null);
       } else {
-        alert('Failed to add collateral. Please try again.');
+        alert(`Failed to add collateral: ${result.error}`);
       }
     } catch (error) {
       console.error('Add collateral error:', error);

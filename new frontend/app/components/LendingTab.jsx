@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { ArrowUpRight, ArrowDownLeft, Clock, TrendingUp, Info } from 'lucide-react';
+import { lendingBorrowingService } from '../../services/lendingBorrowingService';
 
 const LendingTab = () => {
   const { wallets, selectedWallet } = useSelector((state) => state.wallet);
@@ -56,12 +57,8 @@ const LendingTab = () => {
 
   const fetchPoolStats = async () => {
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch(`/api/pool/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setPoolStats(data);
-      }
+      const data = await lendingBorrowingService.getPoolStats();
+      setPoolStats(data);
     } catch (error) {
       console.error('Error fetching pool stats:', error);
     }
@@ -69,12 +66,8 @@ const LendingTab = () => {
 
   const fetchUserDeposits = async () => {
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch(`/api/deposits/${selectedWallet?.accountId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUserDeposits(data.deposits || []);
-      }
+      const data = await lendingBorrowingService.getUserDeposits(selectedWallet?.accountId);
+      setUserDeposits(data.deposits || []);
     } catch (error) {
       console.error('Error fetching user deposits:', error);
     }
@@ -88,24 +81,19 @@ const LendingTab = () => {
 
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch('/api/lending/deposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: selectedWallet?.accountId,
-          tier: selectedTier,
-          amount: depositAmount,
-        }),
-      });
+      const result = await lendingBorrowingService.createDeposit(
+        selectedWallet?.accountId,
+        selectedTier,
+        parseFloat(depositAmount)
+      );
 
-      if (response.ok) {
+      if (result.success) {
         alert(`Successfully deposited ${depositAmount} HBAR to Tier ${selectedTier}!`);
         setDepositAmount('');
         await fetchPoolStats();
         await fetchUserDeposits();
       } else {
-        alert('Failed to deposit. Please try again.');
+        alert(`Failed to deposit: ${result.error}`);
       }
     } catch (error) {
       console.error('Deposit error:', error);
@@ -118,26 +106,18 @@ const LendingTab = () => {
   const handleWithdraw = async (depositId, tier) => {
     setLoading(true);
     try {
-      const endpoint = tier === 1 ? '/api/lending/withdraw' : '/api/lending/request-withdraw';
+      const result = await lendingBorrowingService.processWithdrawal(
+        selectedWallet?.accountId,
+        depositId,
+        tier
+      );
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: selectedWallet?.accountId,
-          depositId,
-        }),
-      });
-
-      if (response.ok) {
-        const message =
-          tier === 1
-            ? 'Successfully withdrawn!'
-            : `Withdrawal request submitted! Available in ${tier === 2 ? 30 : 90} days.`;
-        alert(message);
+      if (result.success) {
+        alert(result.message);
         await fetchUserDeposits();
+        await fetchPoolStats();
       } else {
-        alert('Failed to process withdrawal. Please try again.');
+        alert(`Failed to process withdrawal: ${result.error}`);
       }
     } catch (error) {
       console.error('Withdrawal error:', error);
