@@ -24,7 +24,7 @@ class HealthMonitor {
         ? 'https://mainnet.hashio.io/api'
         : 'https://testnet.hashio.io/api';
 
-      this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
       // Initialize contract
       const borrowingAddress = process.env.BORROWING_CONTRACT_ADDRESS;
@@ -88,7 +88,7 @@ class HealthMonitor {
     try {
       // Get health factor from contract
       const healthFactor = await this.borrowingContract.calculateHealthFactor(borrowerAddress);
-      const healthFactorValue = healthFactor.toNumber() / 100; // Convert from scaled value
+      const healthFactorValue = Number(healthFactor) / 100; // Convert from scaled value
 
       logger.info(`Health factor for ${borrowerAddress}: ${healthFactorValue}`);
 
@@ -126,7 +126,7 @@ class HealthMonitor {
       const loan = await this.borrowingContract.getLoan(borrowerAddress);
 
       // Calculate total debt
-      const totalDebtUSD = loan.borrowedAmountUSD.add(loan.accruedInterest);
+      const totalDebtUSD = loan.borrowedAmountUSD + loan.accruedInterest;
 
       // Note: In production, this would call a liquidator bot or marketplace
       // For now, we just log and update the database

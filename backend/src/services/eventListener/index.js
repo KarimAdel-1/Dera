@@ -105,8 +105,8 @@ class EventListener {
         const eventSignature = log.topics[0];
 
         // Event signatures (keccak256 hashes)
-        const DEPOSIT_EVENT = ethers.utils.id('Deposited(address,uint8,uint256,uint256)');
-        const WITHDRAW_EVENT = ethers.utils.id('Withdrawn(address,uint8,uint256,uint256)');
+        const DEPOSIT_EVENT = ethers.id('Deposited(address,uint8,uint256,uint256)');
+        const WITHDRAW_EVENT = ethers.id('Withdrawn(address,uint8,uint256,uint256)');
 
         if (eventSignature === DEPOSIT_EVENT) {
           await this.handleDepositEvent(log, tx);
@@ -127,10 +127,10 @@ class EventListener {
         const eventSignature = log.topics[0];
 
         // Event signatures
-        const COLLATERAL_DEPOSITED = ethers.utils.id('CollateralDeposited(address,uint256,uint256)');
-        const LOAN_CREATED = ethers.utils.id('LoanCreated(address,uint256,uint256,uint256,uint256)');
-        const LOAN_REPAID = ethers.utils.id('LoanRepaid(address,uint256,uint256)');
-        const LOAN_LIQUIDATED = ethers.utils.id('LoanLiquidated(address,address,uint256,uint256)');
+        const COLLATERAL_DEPOSITED = ethers.id('CollateralDeposited(address,uint256,uint256)');
+        const LOAN_CREATED = ethers.id('LoanCreated(address,uint256,uint256,uint256,uint256)');
+        const LOAN_REPAID = ethers.id('LoanRepaid(address,uint256,uint256)');
+        const LOAN_LIQUIDATED = ethers.id('LoanLiquidated(address,address,uint256,uint256)');
 
         if (eventSignature === COLLATERAL_DEPOSITED) {
           await this.handleCollateralDepositedEvent(log, tx);
@@ -150,19 +150,20 @@ class EventListener {
   async handleDepositEvent(log, tx) {
     try {
       // Decode event data
-      const [user, tier, amount, lpTokens] = ethers.utils.defaultAbiCoder.decode(
+      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+      const [user, tier, amount, lpTokens] = abiCoder.decode(
         ['address', 'uint8', 'uint256', 'uint256'],
         log.data
       );
 
-      logger.info(`Deposit event: ${user} deposited ${ethers.utils.formatEther(amount)} HBAR to tier ${tier}`);
+      logger.info(`Deposit event: ${user} deposited ${ethers.formatEther(amount)} HBAR to tier ${tier}`);
 
       // Create deposit record
       await database.createDeposit({
         user_wallet: user,
         tier,
-        amount: ethers.utils.formatEther(amount),
-        lp_tokens: ethers.utils.formatEther(lpTokens),
+        amount: ethers.formatEther(amount),
+        lp_tokens: ethers.formatEther(lpTokens),
         transaction_id: tx.hash,
         status: 'active',
         created_at: new Date(tx.timestamp).toISOString(),
@@ -183,12 +184,12 @@ class EventListener {
 
   async handleWithdrawEvent(log, tx) {
     try {
-      const [user, tier, amount, lpTokens] = ethers.utils.defaultAbiCoder.decode(
+      const [user, tier, amount, lpTokens] = ethers.AbiCoder.defaultAbiCoder().decode(
         ['address', 'uint8', 'uint256', 'uint256'],
         log.data
       );
 
-      logger.info(`Withdraw event: ${user} withdrew ${ethers.utils.formatEther(amount)} HBAR from tier ${tier}`);
+      logger.info(`Withdraw event: ${user} withdrew ${ethers.formatEther(amount)} HBAR from tier ${tier}`);
 
       // Log event
       await database.createEventLog({
@@ -205,18 +206,18 @@ class EventListener {
 
   async handleCollateralDepositedEvent(log, tx) {
     try {
-      const [borrower, collateralAmount, iScore] = ethers.utils.defaultAbiCoder.decode(
+      const [borrower, collateralAmount, iScore] = ethers.AbiCoder.defaultAbiCoder().decode(
         ['address', 'uint256', 'uint256'],
         log.data
       );
 
-      logger.info(`Collateral deposited: ${borrower} deposited ${ethers.utils.formatEther(collateralAmount)} HBAR`);
+      logger.info(`Collateral deposited: ${borrower} deposited ${ethers.formatEther(collateralAmount)} HBAR`);
 
       // Trigger proxy account creation
       if (global.services && global.services.proxyAccountManager) {
         const proxyAccount = await global.services.proxyAccountManager.createProxyAccount(
           borrower,
-          parseFloat(ethers.utils.formatEther(collateralAmount))
+          parseFloat(ethers.formatEther(collateralAmount))
         );
 
         logger.info(`Proxy account created: ${proxyAccount.accountId} for ${borrower}`);
@@ -228,19 +229,19 @@ class EventListener {
 
   async handleLoanCreatedEvent(log, tx) {
     try {
-      const [borrower, borrowedUSD, borrowedHBAR, interestRate, iScore] = ethers.utils.defaultAbiCoder.decode(
+      const [borrower, borrowedUSD, borrowedHBAR, interestRate, iScore] = ethers.AbiCoder.defaultAbiCoder().decode(
         ['address', 'uint256', 'uint256', 'uint256', 'uint256'],
         log.data
       );
 
-      logger.info(`Loan created: ${borrower} borrowed $${ethers.utils.formatUnits(borrowedUSD, 8)}`);
+      logger.info(`Loan created: ${borrower} borrowed $${ethers.formatUnits(borrowedUSD, 8)}`);
 
       // Create loan record
       await database.createLoan({
         user_wallet: borrower,
         collateral_amount: 0, // Will be updated
-        borrowed_amount_usd: parseFloat(ethers.utils.formatUnits(borrowedUSD, 8)),
-        borrowed_amount_hbar: parseFloat(ethers.utils.formatEther(borrowedHBAR)),
+        borrowed_amount_usd: parseFloat(ethers.formatUnits(borrowedUSD, 8)),
+        borrowed_amount_hbar: parseFloat(ethers.formatEther(borrowedHBAR)),
         interest_rate: interestRate.toNumber() / 100,
         iscore: iScore.toNumber(),
         status: 'active',
@@ -259,12 +260,12 @@ class EventListener {
 
   async handleLoanRepaidEvent(log, tx) {
     try {
-      const [borrower, repaidAmount, interestPaid] = ethers.utils.defaultAbiCoder.decode(
+      const [borrower, repaidAmount, interestPaid] = ethers.AbiCoder.defaultAbiCoder().decode(
         ['address', 'uint256', 'uint256'],
         log.data
       );
 
-      logger.info(`Loan repaid: ${borrower} repaid ${ethers.utils.formatEther(repaidAmount)} HBAR`);
+      logger.info(`Loan repaid: ${borrower} repaid ${ethers.formatEther(repaidAmount)} HBAR`);
 
       // Update loan status
       const loan = await database.getLoan(borrower);
@@ -285,7 +286,7 @@ class EventListener {
         // Update iScore
         if (global.services && global.services.iScoreCalculator) {
           await global.services.iScoreCalculator.updateScoreAfterEvent(borrower, 'loan_repaid', {
-            amount: parseFloat(ethers.utils.formatEther(repaidAmount)),
+            amount: parseFloat(ethers.formatEther(repaidAmount)),
             onTime: true,
           });
         }
@@ -297,7 +298,7 @@ class EventListener {
 
   async handleLoanLiquidatedEvent(log, tx) {
     try {
-      const [borrower, liquidator, debtPaid, collateralSeized] = ethers.utils.defaultAbiCoder.decode(
+      const [borrower, liquidator, debtPaid, collateralSeized] = ethers.AbiCoder.defaultAbiCoder().decode(
         ['address', 'address', 'uint256', 'uint256'],
         log.data
       );

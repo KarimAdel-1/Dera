@@ -25,7 +25,7 @@ class PriceOracleService {
         ? 'https://mainnet.hashio.io/api'
         : 'https://testnet.hashio.io/api';
 
-      this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
       // Initialize contract
       const oracleAddress = process.env.PRICE_ORACLE_ADDRESS;
@@ -127,7 +127,7 @@ class PriceOracleService {
   async getCurrentPrice() {
     try {
       const price = await this.contract.currentPrice();
-      return price.toNumber();
+      return Number(price);
     } catch (error) {
       logger.error('Failed to get current price:', error);
       throw error;
