@@ -143,48 +143,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setHashConnect(hc);
       setInitData(initDataResult);
 
-      // Set up event listeners (with safety checks and error handling)
-      try {
-        if (hc.pairingEvent && typeof hc.pairingEvent.on === 'function') {
-          hc.pairingEvent.on((data) => {
-            try {
-              console.log('Pairing event received:', data);
-              setPairingData(data);
-
-              // Handle successful pairing
-              if (data.accountIds && data.accountIds.length > 0) {
-                handlePairingSuccess(data);
-              }
-            } catch (pairingError) {
-              console.error('Error handling pairing event:', pairingError);
-              // Ignore decryption errors in events - polling will handle it
-            }
-          });
-        }
-
-        if (hc.disconnectionEvent && typeof hc.disconnectionEvent.on === 'function') {
-          hc.disconnectionEvent.on((data) => {
-            try {
-              console.log('Disconnection event:', data);
-              handleDisconnection(data);
-            } catch (disconnectError) {
-              console.error('Error handling disconnection event:', disconnectError);
-            }
-          });
-        }
-
-        if (hc.connectionStatusChangeEvent && typeof hc.connectionStatusChangeEvent.on === 'function') {
-          hc.connectionStatusChangeEvent.on((state) => {
-            try {
-              console.log('Connection status changed:', state);
-            } catch (statusError) {
-              console.error('Error handling status change:', statusError);
-            }
-          });
-        }
-      } catch (eventError) {
-        console.log('Event listeners not available, using polling instead');
-      }
+      // SKIP event listeners entirely - they cause decryption errors with old sessions
+      // We rely 100% on polling mechanism instead
+      console.log('Event listeners disabled - using polling-only mode for reliability');
 
       // Check for and disconnect any existing/stale pairings
       try {
