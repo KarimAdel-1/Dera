@@ -26,7 +26,7 @@ interface WalletContextType {
   refreshBalances: () => Promise<void>;
   signTransaction: (transaction: any) => Promise<any>;
   hashConnect: HashConnect | null;
-  resetConnection: () => void;
+  resetConnection: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -43,6 +43,10 @@ interface WalletProviderProps {
   children: ReactNode;
 }
 
+// Global HashConnect instance to prevent multiple instances
+let globalHashConnect: HashConnect | null = null;
+let globalInitData: HashConnectTypes.InitilizationData | null = null;
+
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [wallets, setWallets] = useState<ConnectedWallet[]>([]);
   const [activeWallet, setActiveWallet] = useState<ConnectedWallet | null>(null);
@@ -50,11 +54,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [hashConnect, setHashConnect] = useState<HashConnect | null>(null);
   const [initData, setInitData] = useState<HashConnectTypes.InitilizationData | null>(null);
   const [pairingData, setPairingData] = useState<HashConnectTypes.SavedPairingData | null>(null);
+  const initializingRef = React.useRef(false);
 
-  // Initialize HashConnect on mount
+  // Initialize HashConnect on mount - only once
   useEffect(() => {
-    initializeHashConnect();
-    loadSavedWallets();
+    if (!initializingRef.current) {
+      initializingRef.current = true;
+      initializeHashConnect();
+      loadSavedWallets();
+    }
   }, []);
 
   const clearHashConnectData = () => {
@@ -96,9 +104,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   const initializeHashConnect = async () => {
     try {
-      // Clear any stale HashConnect data to prevent encryption errors
-      clearHashConnectData();
+      // Check if we already have a global instance
+      if (globalHashConnect && globalInitData) {
+        console.log('Using existing HashConnect instance');
+        setHashConnect(globalHashConnect);
+        setInitData(globalInitData);
+        return;
+      }
 
+      console.log('Creating new HashConnect instance...');
       const hc = new HashConnect();
 
       // Initialize HashConnect
@@ -113,6 +127,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const initDataResult = await hc.init(appMetadata, network as 'testnet' | 'mainnet', false);
 
       console.log('HashConnect initialized:', initDataResult);
+
+      // Store globally to prevent multiple instances
+      globalHashConnect = hc;
+      globalInitData = initDataResult;
 
       setHashConnect(hc);
       setInitData(initDataResult);
@@ -546,21 +564,48 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
-  const resetConnection = () => {
+  const resetConnection = async () => {
     console.log('Manually resetting wallet connections...');
 
-    // Clear all HashConnect data
-    clearHashConnectData();
+    try {
+      // Disconnect existing HashConnect instance if it exists
+      if (globalHashConnect) {
+        try {
+          console.log('Disconnecting existing HashConnect instance...');
+          await globalHashConnect.disconnect();
+        } catch (disconnectError) {
+          console.error('Error disconnecting:', disconnectError);
+        }
+      }
 
-    // Clear state
-    setWallets([]);
-    setActiveWallet(null);
-    setPairingData(null);
+      // Clear global instances
+      globalHashConnect = null;
+      globalInitData = null;
 
-    // Reinitialize HashConnect
-    initializeHashConnect();
+      // Clear all HashConnect data from localStorage
+      clearHashConnectData();
 
-    toast.success('Connection reset. Please reconnect your wallet.');
+      // Clear state
+      setWallets([]);
+      setActiveWallet(null);
+      setPairingData(null);
+      setHashConnect(null);
+      setInitData(null);
+
+      // Allow ref to reinitialize
+      initializingRef.current = false;
+
+      // Small delay to ensure cleanup completes
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Reinitialize HashConnect
+      await initializeHashConnect();
+
+      toast.success('Connection reset. Please reconnect your wallet.');
+    } catch (error) {
+      console.error('Error during reset:', error);
+      toast.error('Failed to reset connection. Please refresh the page.');
+    }
   };
 
   const value: WalletContextType = {

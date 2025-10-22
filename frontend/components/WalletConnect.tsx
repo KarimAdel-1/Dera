@@ -203,9 +203,9 @@ const WalletConnect: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                resetConnection();
+              onClick={async () => {
                 setShowManageModal(false);
+                await resetConnection();
               }}
               className="w-full mt-2 text-sm text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
               title="Clear all wallet data and reset connection (use if experiencing connection issues)"
