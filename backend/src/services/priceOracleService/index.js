@@ -20,6 +20,16 @@ class PriceOracleService {
 
   async start() {
     try {
+      // Check if contract address is configured
+      const oracleAddress = process.env.PRICE_ORACLE_ADDRESS;
+      const privateKey = process.env.HEDERA_PRIVATE_KEY;
+
+      if (!oracleAddress || !privateKey) {
+        logger.warn('Price Oracle Service: Contract address not configured - running in disabled mode');
+        logger.warn('Deploy contracts and add PRICE_ORACLE_ADDRESS to .env to enable this service');
+        return;
+      }
+
       // Initialize ethers provider
       const network = process.env.HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet';
       const rpcUrl = network === 'mainnet'
@@ -27,14 +37,6 @@ class PriceOracleService {
         : 'https://testnet.hashio.io/api';
 
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
-
-      // Initialize contract
-      const oracleAddress = process.env.PRICE_ORACLE_ADDRESS;
-      const privateKey = process.env.HEDERA_PRIVATE_KEY;
-
-      if (!oracleAddress || !privateKey) {
-        throw new Error('Price oracle configuration missing');
-      }
 
       // Convert Hedera DER key to raw format for ethers
       const rawPrivateKey = convertHederaPrivateKey(privateKey);

@@ -1,6 +1,37 @@
 const winston = require('winston');
 const path = require('path');
 
+// Safe JSON stringify that handles circular references and errors
+function safeStringify(obj) {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    // Handle circular references
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+
+    // Extract useful info from Error objects
+    if (value instanceof Error) {
+      return {
+        message: value.message,
+        stack: value.stack,
+        code: value.code,
+        ...value
+      };
+    }
+
+    // Skip request/response objects from axios
+    if (key === 'request' || key === 'response' || key === 'config') {
+      return '[Object]';
+    }
+
+    return value;
+  });
+}
+
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
@@ -14,7 +45,11 @@ const consoleFormat = winston.format.combine(
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let msg = `${timestamp} [${level}]: ${message}`;
     if (Object.keys(meta).length > 0) {
-      msg += ` ${JSON.stringify(meta)}`;
+      try {
+        msg += ` ${safeStringify(meta)}`;
+      } catch (e) {
+        msg += ` [Error serializing metadata]`;
+      }
     }
     return msg;
   })

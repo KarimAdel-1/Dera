@@ -19,6 +19,16 @@ class HealthMonitor {
 
   async start() {
     try {
+      // Check if contract address is configured
+      const borrowingAddress = process.env.BORROWING_CONTRACT_ADDRESS;
+      const privateKey = process.env.HEDERA_PRIVATE_KEY;
+
+      if (!borrowingAddress || !privateKey) {
+        logger.warn('Health Monitor Service: Contract address not configured - running in disabled mode');
+        logger.warn('Deploy contracts and add BORROWING_CONTRACT_ADDRESS to .env to enable this service');
+        return;
+      }
+
       // Initialize ethers provider
       const network = process.env.HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet';
       const rpcUrl = network === 'mainnet'
@@ -26,14 +36,6 @@ class HealthMonitor {
         : 'https://testnet.hashio.io/api';
 
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
-
-      // Initialize contract
-      const borrowingAddress = process.env.BORROWING_CONTRACT_ADDRESS;
-      const privateKey = process.env.HEDERA_PRIVATE_KEY;
-
-      if (!borrowingAddress || !privateKey) {
-        throw new Error('Borrowing contract configuration missing');
-      }
 
       // Convert Hedera DER key to raw format for ethers
       const rawPrivateKey = convertHederaPrivateKey(privateKey);
