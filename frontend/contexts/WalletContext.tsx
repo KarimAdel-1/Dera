@@ -76,28 +76,38 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setHashConnect(hc);
       setInitData(initDataResult);
 
-      // Set up event listeners
-      hc.pairingEvent.on((data) => {
-        console.log('Pairing event received:', data);
-        setPairingData(data);
+      // Set up event listeners (with safety checks)
+      try {
+        if (hc.pairingEvent && typeof hc.pairingEvent.on === 'function') {
+          hc.pairingEvent.on((data) => {
+            console.log('Pairing event received:', data);
+            setPairingData(data);
 
-        // Handle successful pairing
-        if (data.accountIds && data.accountIds.length > 0) {
-          handlePairingSuccess(data);
+            // Handle successful pairing
+            if (data.accountIds && data.accountIds.length > 0) {
+              handlePairingSuccess(data);
+            }
+          });
         }
-      });
 
-      hc.disconnectionEvent.on((data) => {
-        console.log('Disconnection event:', data);
-        handleDisconnection(data);
-      });
+        if (hc.disconnectionEvent && typeof hc.disconnectionEvent.on === 'function') {
+          hc.disconnectionEvent.on((data) => {
+            console.log('Disconnection event:', data);
+            handleDisconnection(data);
+          });
+        }
 
-      hc.connectionStatusChangeEvent.on((state) => {
-        console.log('Connection status changed:', state);
-      });
+        if (hc.connectionStatusChangeEvent && typeof hc.connectionStatusChangeEvent.on === 'function') {
+          hc.connectionStatusChangeEvent.on((state) => {
+            console.log('Connection status changed:', state);
+          });
+        }
+      } catch (eventError) {
+        console.log('Event listeners not available, using polling instead');
+      }
 
       // Check for existing pairings
-      const savedPairings = hc.hcData.pairingData;
+      const savedPairings = hc.hcData?.pairingData;
       if (savedPairings && savedPairings.length > 0) {
         console.log('Found existing pairings:', savedPairings);
         setPairingData(savedPairings[0]);
@@ -196,6 +206,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       console.log('Connecting to HashPack...');
       console.log('Using topic:', initData.topic);
 
+      // Store the initial pairing count
+      const initialPairingCount = hashConnect.hcData?.pairingData?.length || 0;
+      console.log('Initial pairing count:', initialPairingCount);
+
       // Generate pairing string with the topic from init data
       const pairingString = hashConnect.generatePairingString(
         initData.topic,
@@ -211,43 +225,65 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       console.log('HashPack connection dialog should now be open...');
       toast.loading('Waiting for HashPack approval...', { duration: 2000 });
 
-      // Wait for pairing event
+      // Wait for pairing to complete
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Connection timeout. Please try again.'));
         }, 90000); // 90 second timeout
 
-        // Listen for pairing event
+        let checkCount = 0;
+        const maxChecks = 180; // 90 seconds at 500ms intervals
+
+        // Poll for new pairing
         const checkPairing = () => {
-          // Check if we have pairing data
-          if (hashConnect.hcData.pairingData && hashConnect.hcData.pairingData.length > 0) {
-            const latestPairing = hashConnect.hcData.pairingData[hashConnect.hcData.pairingData.length - 1];
+          checkCount++;
 
-            if (latestPairing.accountIds && latestPairing.accountIds.length > 0) {
+          try {
+            // Check if we have NEW pairing data (more than we started with)
+            const currentPairings = hashConnect.hcData?.pairingData;
+
+            if (currentPairings && currentPairings.length > initialPairingCount) {
+              // Get the newest pairing
+              const latestPairing = currentPairings[currentPairings.length - 1];
+
+              if (latestPairing.accountIds && latestPairing.accountIds.length > 0) {
+                clearTimeout(timeout);
+
+                const accountId = latestPairing.accountIds[0];
+                const wallet: ConnectedWallet = {
+                  id: `hashpack-${accountId}`,
+                  type: 'hashpack',
+                  accountId,
+                  network: latestPairing.network,
+                  isActive: true,
+                  connectedAt: new Date(),
+                };
+
+                console.log('HashPack connected successfully:', wallet);
+                setPairingData(latestPairing);
+                resolve(wallet);
+                return;
+              }
+            }
+
+            // Continue checking if we haven't exceeded max checks
+            if (checkCount < maxChecks) {
+              setTimeout(checkPairing, 500);
+            } else {
               clearTimeout(timeout);
-
-              const accountId = latestPairing.accountIds[0];
-              const wallet: ConnectedWallet = {
-                id: `hashpack-${accountId}`,
-                type: 'hashpack',
-                accountId,
-                network: latestPairing.network,
-                isActive: true,
-                connectedAt: new Date(),
-              };
-
-              console.log('HashPack connected successfully:', wallet);
-              resolve(wallet);
-              return;
+              reject(new Error('Max connection attempts reached'));
+            }
+          } catch (error) {
+            console.error('Error during pairing check:', error);
+            // Continue checking despite errors
+            if (checkCount < maxChecks) {
+              setTimeout(checkPairing, 500);
             }
           }
-
-          // Check again after a short delay
-          setTimeout(checkPairing, 500);
         };
 
-        // Start checking
-        checkPairing();
+        // Start checking after a short delay
+        setTimeout(checkPairing, 1000);
       });
     } catch (error) {
       console.error('HashPack connection error:', error);
