@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: rgb(254, 78, 0);
+    --color-primary-opacity: rgba(254, 76, 0, 0.1);
+    --color-primary-light: #ff6b1a;
+    --color-bg-primary: #e8edee;
+    --color-bg-secondary: #f8f9fa;
+    --color-bg-tertiary: #dde2e5;
+    --color-bg-card: #fff;
+    --color-bg-hover: #0000000d;
+    --color-bg-input: #fff;
+    --color-border-primary: #0000001a;
+    --color-border-secondary: #e5e7eb;
+    --color-border-tertiary: #d1d5db;
+    --color-border-input: #d1d5db;
+    --color-text-primary: #111827;
+    --color-text-secondary: #374151;
+    --color-text-muted: #000000b3;
+    --color-text-placeholder: #9ca3af;
+    --color-error: #ef4444;
+    --color-shadow-primary: #fe4e0033;
+    --color-sidebar-bg: #f8f9fa;
+    --color-sidebar-active-bg: #fe4e001a;
+    --color-sidebar-active-border: #fe4e0033;
+    --sidebar-width: 120px;
+
+    --bprogress-color: var(--color-primary);
+    --bprogress-height: 1px;
+    --bprogress-spinner-size: 18px;
+    --bprogress-spinner-animation-duration: 400ms;
+    --bprogress-spinner-border-size: 2px;
+    --bprogress-box-shadow: 0 0 10px var(--color-primary),
+      0 0 5px var(--color-primary);
+    --bprogress-z-index: 99999;
+    --bprogress-spinner-top: 15px;
+    --bprogress-spinner-bottom: auto;
+    --bprogress-spinner-right: 15px;
+    --bprogress-spinner-left: auto;
+  }
+
+  .dark {
+    --color-bg-primary: #020202;
+    --color-bg-secondary: #0d0d0d;
+    --color-bg-tertiary: #151515;
+    --color-bg-card: #0d0d0d;
+    --color-bg-hover: #ffffff14;
+    --color-bg-input: #1f1f1fcc;
+    --color-border-primary: #222;
+    --color-border-secondary: #404040;
+    --color-border-tertiary: #4a4a4a;
+    --color-border-input: #404040;
+    --color-text-primary: #fff;
+    --color-text-secondary: #e5e5e7;
+    --color-text-muted: #ffffffb3;
+    --color-text-placeholder: #797979;
+    --color-sidebar-bg: var(--color-bg-secondary);
+    --color-sidebar-active-bg: #fe4e001a;
+    --color-sidebar-active-border: #fe4e0033;
+  }
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+  }
+}
+
+/* Card Animation Keyframes */
+@keyframes frontCardToBack {
+  0% {
+    transform: translateX(10px) translateY(13px) rotateZ(-5deg);
+  }
+  20% {
+    transform: translateX(10px) translateY(12.2448px) rotateX(0.539443deg)
+      rotateZ(-5deg);
+  }
+  60% {
+    transform: translateX(19.4457px) translateY(18.0674px) rotateX(20deg)
+      rotateZ(4.44565deg);
+  }
+  100% {
+    transform: translateX(15px) translateY(10px);
+  }
+}
+
+@keyframes backCardToFront {
+  0% {
+    transform: translateX(15px) translateY(10px);
+  }
+  20% {
+    transform: translateX(15.1349px) translateY(10.2697px) rotateX(0.539443deg)
+      rotateZ(0.134861deg);
+  }
+  60% {
+    transform: translateX(13.8022px) translateY(-1.6784px) rotateX(19.9999deg)
+      rotateZ(-1.19783deg);
+  }
+  80% {
+    transform: translateX(10px) translateY(13.1368px) rotateX(-0.0987652deg)
+      rotateZ(-5deg);
+  }
+  100% {
+    transform: translateX(10px) translateY(13px) rotateZ(-5deg);
+  }
+}
