@@ -236,15 +236,30 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       }
 
       if (newWallet) {
-        // Check if wallet already connected
-        const existing = wallets.find(w => w.accountId === newWallet!.accountId);
-        if (existing) {
-          toast.error('This wallet is already connected');
+        // Check if this exact wallet is already connected
+        const existingIndex = wallets.findIndex(
+          w => w.accountId === newWallet!.accountId && w.type === type
+        );
+
+        if (existingIndex !== -1) {
+          // Wallet already exists - just switch to it instead of adding duplicate
+          console.log('Wallet already connected, switching to it:', newWallet.accountId);
+
+          const updatedWallets = wallets.map((w, i) => ({
+            ...w,
+            isActive: i === existingIndex,
+          }));
+
+          setWallets(updatedWallets);
+          setActiveWallet(updatedWallets[existingIndex]);
+          saveWallets(updatedWallets);
+
+          toast.success(`Switched to ${type.charAt(0).toUpperCase() + type.slice(1)} wallet`);
           setIsConnecting(false);
           return;
         }
 
-        // Deactivate other wallets
+        // New wallet - add it to the list
         const updatedWallets = wallets.map(w => ({ ...w, isActive: false }));
         updatedWallets.push(newWallet);
 
