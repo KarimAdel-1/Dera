@@ -7,8 +7,6 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import DashboardTab from '../components/DashboardTab';
 import YourWalletsTab from '../components/YourWalletsTab';
-import LendingTab from '../components/LendingTab';
-import BorrowingTab from '../components/BorrowingTab';
 import MarketplaceTab from '../components/MarketplaceTab';
 import TransactionsTab from '../components/TransactionsTab';
 import SettingsTab from '../components/SettingsTab';
@@ -41,10 +39,6 @@ export default function Dashboard() {
         return <DashboardTab />;
       case 'wallets':
         return <YourWalletsTab />;
-      case 'lending':
-        return <LendingTab />;
-      case 'borrowing':
-        return <BorrowingTab />;
       case 'marketplace':
         return <MarketplaceTab />;
       case 'transactions':
@@ -64,10 +58,6 @@ export default function Dashboard() {
         return 'Dashboard';
       case 'wallets':
         return 'Your Wallets';
-      case 'lending':
-        return 'Lending';
-      case 'borrowing':
-        return 'Borrowing';
       case 'marketplace':
         return 'Marketplace';
       case 'transactions':
