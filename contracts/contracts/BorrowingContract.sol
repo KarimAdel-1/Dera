@@ -106,7 +106,7 @@ contract BorrowingContract is Ownable, ReentrancyGuard {
      */
     constructor(
         address _priceOracle,
-        address _lendingPool,
+        address payable _lendingPool,
         address _iScoreProvider
     ) Ownable(msg.sender) {
         require(_priceOracle != address(0), "Invalid price oracle");
