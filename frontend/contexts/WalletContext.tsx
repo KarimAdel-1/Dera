@@ -47,6 +47,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [activeWallet, setActiveWallet] = useState<ConnectedWallet | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [hashConnect, setHashConnect] = useState<HashConnect | null>(null);
+  const [initData, setInitData] = useState<HashConnectTypes.InitilizationData | null>(null);
   const [pairingData, setPairingData] = useState<HashConnectTypes.SavedPairingData | null>(null);
 
   // Initialize HashConnect on mount
@@ -63,18 +64,27 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const appMetadata: HashConnectTypes.AppMetadata = {
         name: 'Dera Platform',
         description: 'DeFi Lending Platform on Hedera',
-        icon: '/logo.png',
+        icon: `${window.location.origin}/logo.png`,
         url: window.location.origin,
       };
 
-      await hc.init(appMetadata, process.env.NEXT_PUBLIC_HEDERA_NETWORK as 'testnet' | 'mainnet' || 'testnet', false);
+      const network = process.env.NEXT_PUBLIC_HEDERA_NETWORK || 'testnet';
+      const initDataResult = await hc.init(appMetadata, network as 'testnet' | 'mainnet', false);
+
+      console.log('HashConnect initialized:', initDataResult);
 
       setHashConnect(hc);
+      setInitData(initDataResult);
 
       // Set up event listeners
       hc.pairingEvent.on((data) => {
-        console.log('Pairing event:', data);
+        console.log('Pairing event received:', data);
         setPairingData(data);
+
+        // Handle successful pairing
+        if (data.accountIds && data.accountIds.length > 0) {
+          handlePairingSuccess(data);
+        }
       });
 
       hc.disconnectionEvent.on((data) => {
@@ -86,9 +96,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         console.log('Connection status changed:', state);
       });
 
+      // Check for existing pairings
+      const savedPairings = hc.hcData.pairingData;
+      if (savedPairings && savedPairings.length > 0) {
+        console.log('Found existing pairings:', savedPairings);
+        setPairingData(savedPairings[0]);
+      }
+
     } catch (error) {
       console.error('Failed to initialize HashConnect:', error);
+      toast.error('Failed to initialize wallet connection');
     }
+  };
+
+  const handlePairingSuccess = (data: HashConnectTypes.SavedPairingData) => {
+    // This will be called when pairing event fires
+    // The actual wallet addition is handled in connectHashPack/connectKabila
+    console.log('Pairing successful with accounts:', data.accountIds);
   };
 
   const loadSavedWallets = () => {
@@ -161,42 +185,69 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   const connectHashPack = async (): Promise<ConnectedWallet | null> => {
     if (!hashConnect) {
-      throw new Error('HashConnect not initialized');
+      throw new Error('HashConnect not initialized. Please refresh the page.');
+    }
+
+    if (!initData) {
+      throw new Error('HashConnect initialization data not available. Please refresh the page.');
     }
 
     try {
-      // Create pairing
+      console.log('Connecting to HashPack...');
+      console.log('Using topic:', initData.topic);
+
+      // Generate pairing string with the topic from init data
       const pairingString = hashConnect.generatePairingString(
-        pairingData?.topic || '',
+        initData.topic,
         process.env.NEXT_PUBLIC_HEDERA_NETWORK as 'testnet' | 'mainnet' || 'testnet',
         false
       );
 
+      console.log('Pairing string generated:', pairingString);
+
       // Open HashPack
       hashConnect.connectToLocalWallet(pairingString);
 
-      // Wait for pairing
+      console.log('HashPack connection dialog should now be open...');
+      toast.loading('Waiting for HashPack approval...', { duration: 2000 });
+
+      // Wait for pairing event
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Connection timeout'));
-        }, 60000);
+          reject(new Error('Connection timeout. Please try again.'));
+        }, 90000); // 90 second timeout
 
-        const unsubscribe = hashConnect.pairingEvent.on((data) => {
-          clearTimeout(timeout);
-          unsubscribe();
+        // Listen for pairing event
+        const checkPairing = () => {
+          // Check if we have pairing data
+          if (hashConnect.hcData.pairingData && hashConnect.hcData.pairingData.length > 0) {
+            const latestPairing = hashConnect.hcData.pairingData[hashConnect.hcData.pairingData.length - 1];
 
-          const accountId = data.accountIds[0];
-          const wallet: ConnectedWallet = {
-            id: `hashpack-${accountId}`,
-            type: 'hashpack',
-            accountId,
-            network: data.network,
-            isActive: true,
-            connectedAt: new Date(),
-          };
+            if (latestPairing.accountIds && latestPairing.accountIds.length > 0) {
+              clearTimeout(timeout);
 
-          resolve(wallet);
-        });
+              const accountId = latestPairing.accountIds[0];
+              const wallet: ConnectedWallet = {
+                id: `hashpack-${accountId}`,
+                type: 'hashpack',
+                accountId,
+                network: latestPairing.network,
+                isActive: true,
+                connectedAt: new Date(),
+              };
+
+              console.log('HashPack connected successfully:', wallet);
+              resolve(wallet);
+              return;
+            }
+          }
+
+          // Check again after a short delay
+          setTimeout(checkPairing, 500);
+        };
+
+        // Start checking
+        checkPairing();
       });
     } catch (error) {
       console.error('HashPack connection error:', error);
@@ -205,42 +256,58 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const connectKabila = async (): Promise<ConnectedWallet | null> => {
-    // Kabila also uses HashConnect
     if (!hashConnect) {
-      throw new Error('HashConnect not initialized');
+      throw new Error('HashConnect not initialized. Please refresh the page.');
+    }
+
+    if (!initData) {
+      throw new Error('HashConnect initialization data not available. Please refresh the page.');
     }
 
     try {
+      console.log('Connecting to Kabila...');
+
       const pairingString = hashConnect.generatePairingString(
-        pairingData?.topic || '',
+        initData.topic,
         process.env.NEXT_PUBLIC_HEDERA_NETWORK as 'testnet' | 'mainnet' || 'testnet',
         false
       );
 
-      // Kabila uses the same protocol
       hashConnect.connectToLocalWallet(pairingString);
+      toast.loading('Waiting for Kabila approval...', { duration: 2000 });
 
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Connection timeout'));
-        }, 60000);
+          reject(new Error('Connection timeout. Please try again.'));
+        }, 90000);
 
-        const unsubscribe = hashConnect.pairingEvent.on((data) => {
-          clearTimeout(timeout);
-          unsubscribe();
+        const checkPairing = () => {
+          if (hashConnect.hcData.pairingData && hashConnect.hcData.pairingData.length > 0) {
+            const latestPairing = hashConnect.hcData.pairingData[hashConnect.hcData.pairingData.length - 1];
 
-          const accountId = data.accountIds[0];
-          const wallet: ConnectedWallet = {
-            id: `kabila-${accountId}`,
-            type: 'kabila',
-            accountId,
-            network: data.network,
-            isActive: true,
-            connectedAt: new Date(),
-          };
+            if (latestPairing.accountIds && latestPairing.accountIds.length > 0) {
+              clearTimeout(timeout);
 
-          resolve(wallet);
-        });
+              const accountId = latestPairing.accountIds[0];
+              const wallet: ConnectedWallet = {
+                id: `kabila-${accountId}`,
+                type: 'kabila',
+                accountId,
+                network: latestPairing.network,
+                isActive: true,
+                connectedAt: new Date(),
+              };
+
+              console.log('Kabila connected successfully:', wallet);
+              resolve(wallet);
+              return;
+            }
+          }
+
+          setTimeout(checkPairing, 500);
+        };
+
+        checkPairing();
       });
     } catch (error) {
       console.error('Kabila connection error:', error);
