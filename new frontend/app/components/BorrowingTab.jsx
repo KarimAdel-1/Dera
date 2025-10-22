@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import {
   TrendingUp,
@@ -15,7 +15,15 @@ import { lendingBorrowingService } from '../../services/lendingBorrowingService'
 import { priceService } from '../../services/priceService';
 
 const BorrowingTab = () => {
-  const { wallets, selectedWallet } = useSelector((state) => state.wallet);
+  const { wallets, activeWalletId } = useSelector((state) => state.wallet);
+
+  // Get the currently active wallet
+  const selectedWallet = useMemo(() => {
+    return wallets.find((w) => w.id === activeWalletId) || wallets[0] || null;
+  }, [wallets, activeWalletId]);
+
+  // Get wallet address (accountId or address)
+  const walletAddress = selectedWallet?.accountId || selectedWallet?.address;
   const [activeSubTab, setActiveSubTab] = useState('borrow');
   const [collateralAmount, setCollateralAmount] = useState('');
   const [borrowAmountUsd, setBorrowAmountUsd] = useState('');
@@ -37,7 +45,7 @@ const BorrowingTab = () => {
 
   const fetchUserScore = async () => {
     try {
-      const data = await lendingBorrowingService.getUserScore(selectedWallet?.accountId);
+      const data = await lendingBorrowingService.getUserScore(walletAddress);
       setUserScore(data);
     } catch (error) {
       console.error('Error fetching user score:', error);
@@ -47,7 +55,7 @@ const BorrowingTab = () => {
 
   const fetchUserLoans = async () => {
     try {
-      const data = await lendingBorrowingService.getUserLoans(selectedWallet?.accountId);
+      const data = await lendingBorrowingService.getUserLoans(walletAddress);
       setLoans(data.loans || []);
     } catch (error) {
       console.error('Error fetching user loans:', error);
@@ -99,6 +107,11 @@ const BorrowingTab = () => {
   };
 
   const handleBorrow = async () => {
+    if (!walletAddress) {
+      alert('Please connect a wallet first');
+      return;
+    }
+
     if (!collateralAmount || parseFloat(collateralAmount) <= 0) {
       alert('Please enter valid collateral amount');
       return;
@@ -118,7 +131,7 @@ const BorrowingTab = () => {
     setLoading(true);
     try {
       const result = await lendingBorrowingService.createLoan(
-        selectedWallet?.accountId,
+        walletAddress,
         parseFloat(collateralAmount),
         parseFloat(borrowAmountUsd),
         userScore?.iscore || 500
@@ -145,6 +158,11 @@ const BorrowingTab = () => {
   };
 
   const handleRepay = async (loanId) => {
+    if (!walletAddress) {
+      alert('Please connect a wallet first');
+      return;
+    }
+
     if (!repayAmount || parseFloat(repayAmount) <= 0) {
       alert('Please enter valid repay amount');
       return;
@@ -153,7 +171,7 @@ const BorrowingTab = () => {
     setLoading(true);
     try {
       const result = await lendingBorrowingService.repayLoan(
-        selectedWallet?.accountId,
+        walletAddress,
         loanId,
         parseFloat(repayAmount)
       );
@@ -176,6 +194,11 @@ const BorrowingTab = () => {
   };
 
   const handleAddCollateral = async (loanId) => {
+    if (!walletAddress) {
+      alert('Please connect a wallet first');
+      return;
+    }
+
     if (!additionalCollateral || parseFloat(additionalCollateral) <= 0) {
       alert('Please enter valid collateral amount');
       return;
@@ -184,7 +207,7 @@ const BorrowingTab = () => {
     setLoading(true);
     try {
       const result = await lendingBorrowingService.addCollateral(
-        selectedWallet?.accountId,
+        walletAddress,
         loanId,
         parseFloat(additionalCollateral)
       );

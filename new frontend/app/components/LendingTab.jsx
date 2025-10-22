@@ -1,12 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { ArrowUpRight, ArrowDownLeft, Clock, TrendingUp, Info } from 'lucide-react';
 import { lendingBorrowingService } from '../../services/lendingBorrowingService';
 
 const LendingTab = () => {
-  const { wallets, selectedWallet } = useSelector((state) => state.wallet);
+  const { wallets, activeWalletId } = useSelector((state) => state.wallet);
+
+  // Get the currently active wallet
+  const selectedWallet = useMemo(() => {
+    return wallets.find((w) => w.id === activeWalletId) || wallets[0] || null;
+  }, [wallets, activeWalletId]);
+
+  // Get wallet address (accountId or address)
+  const walletAddress = selectedWallet?.accountId || selectedWallet?.address;
   const [activeSubTab, setActiveSubTab] = useState('deposit');
   const [selectedTier, setSelectedTier] = useState(1);
   const [depositAmount, setDepositAmount] = useState('');
@@ -66,7 +74,7 @@ const LendingTab = () => {
 
   const fetchUserDeposits = async () => {
     try {
-      const data = await lendingBorrowingService.getUserDeposits(selectedWallet?.accountId);
+      const data = await lendingBorrowingService.getUserDeposits(walletAddress);
       setUserDeposits(data.deposits || []);
     } catch (error) {
       console.error('Error fetching user deposits:', error);
@@ -79,10 +87,15 @@ const LendingTab = () => {
       return;
     }
 
+    if (!walletAddress) {
+      alert('Please connect a wallet first');
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await lendingBorrowingService.createDeposit(
-        selectedWallet?.accountId,
+        walletAddress,
         selectedTier,
         parseFloat(depositAmount)
       );
@@ -104,10 +117,15 @@ const LendingTab = () => {
   };
 
   const handleWithdraw = async (depositId, tier) => {
+    if (!walletAddress) {
+      alert('Please connect a wallet first');
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await lendingBorrowingService.processWithdrawal(
-        selectedWallet?.accountId,
+        walletAddress,
         depositId,
         tier
       );
