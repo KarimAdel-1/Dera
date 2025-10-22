@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { ethers } = require('ethers');
 const database = require('../../utils/database');
 const logger = require('../../utils/logger');
+const { convertHederaPrivateKey } = require('../../utils/keyConverter');
 
 /**
  * Health Monitor Service
@@ -34,7 +35,9 @@ class HealthMonitor {
         throw new Error('Borrowing contract configuration missing');
       }
 
-      const wallet = new ethers.Wallet(privateKey, this.provider);
+      // Convert Hedera DER key to raw format for ethers
+      const rawPrivateKey = convertHederaPrivateKey(privateKey);
+      const wallet = new ethers.Wallet(rawPrivateKey, this.provider);
 
       const borrowingAbi = [
         'function calculateHealthFactor(address borrower) external view returns (uint256)',

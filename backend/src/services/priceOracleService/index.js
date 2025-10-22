@@ -2,6 +2,7 @@ const axios = require('axios');
 const cron = require('node-cron');
 const { ethers } = require('ethers');
 const logger = require('../../utils/logger');
+const { convertHederaPrivateKey } = require('../../utils/keyConverter');
 
 /**
  * Price Oracle Service
@@ -35,7 +36,9 @@ class PriceOracleService {
         throw new Error('Price oracle configuration missing');
       }
 
-      const wallet = new ethers.Wallet(privateKey, this.provider);
+      // Convert Hedera DER key to raw format for ethers
+      const rawPrivateKey = convertHederaPrivateKey(privateKey);
+      const wallet = new ethers.Wallet(rawPrivateKey, this.provider);
 
       const oracleAbi = [
         'function updatePrice(uint256 _newPrice) external',
