@@ -1,5 +1,6 @@
 import { supabase } from './supabaseService';
 import { priceService } from './priceService';
+import { hederaTransactionService } from './hederaTransactionService';
 
 class LendingBorrowingService {
   constructor() {
@@ -100,7 +101,17 @@ class LendingBorrowingService {
     try {
       console.log('💰 Creating deposit:', { walletAddress, tier, amount });
 
-      // Get user_id from wallets table
+      // STEP 1: Execute Hedera transaction first (actual HBAR transfer)
+      console.log('🔄 Executing Hedera transaction...');
+      const txResult = await hederaTransactionService.createDeposit(walletAddress, amount);
+
+      if (!txResult.success) {
+        throw new Error(txResult.error || 'Transaction failed');
+      }
+
+      console.log('✅ Hedera transaction successful:', txResult.transactionId);
+
+      // STEP 2: Get user_id from wallets table
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
         .select('user_id')
@@ -113,7 +124,7 @@ class LendingBorrowingService {
       // LP tokens = deposit amount (1:1 initially)
       const lpTokens = amount;
 
-      // Create deposit record
+      // STEP 3: Save to database (only after successful transaction)
       const { data: depositData, error: depositError } = await supabase
         .from('deposits')
         .insert([
@@ -124,6 +135,7 @@ class LendingBorrowingService {
             amount: amount,
             lp_tokens: lpTokens,
             status: 'active',
+            transaction_id: txResult.transactionId, // Store Hedera transaction ID
           },
         ])
         .select()
@@ -134,10 +146,11 @@ class LendingBorrowingService {
       // Update pool stats
       await this.updatePoolStats(tier, amount, 'deposit');
 
-      console.log('✅ Deposit created successfully:', depositData.id);
+      console.log('✅ Deposit saved to database:', depositData.id);
       return {
         success: true,
         deposit: depositData,
+        transactionId: txResult.transactionId,
       };
     } catch (error) {
       console.error('❌ Error creating deposit:', error);
@@ -360,7 +373,27 @@ class LendingBorrowingService {
     try {
       console.log('💵 Creating loan:', { walletAddress, collateralAmount, borrowAmountUsd, iscore });
 
-      // Get user_id from wallets table
+      // Get HBAR price
+      const hbarPrice = await priceService.fetchHbarPrice();
+
+      // Calculate borrowed amount in HBAR
+      const borrowAmountHbar = borrowAmountUsd / hbarPrice;
+
+      // STEP 1: Execute Hedera transaction first (send collateral)
+      console.log('🔄 Executing Hedera borrow transaction...');
+      const txResult = await hederaTransactionService.createBorrowTransaction(
+        walletAddress,
+        collateralAmount,
+        borrowAmountHbar
+      );
+
+      if (!txResult.success) {
+        throw new Error(txResult.error || 'Transaction failed');
+      }
+
+      console.log('✅ Collateral sent successfully:', txResult.collateralTransactionId);
+
+      // STEP 2: Get user_id from wallets table
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
         .select('user_id')
@@ -370,19 +403,13 @@ class LendingBorrowingService {
 
       if (walletError) throw walletError;
 
-      // Get HBAR price
-      const hbarPrice = await priceService.fetchHbarPrice();
-
-      // Calculate borrowed amount in HBAR
-      const borrowAmountHbar = borrowAmountUsd / hbarPrice;
-
       // Calculate interest rate based on iScore
       const interestRate = this.calculateInterestRate(iscore);
 
       // Calculate initial health factor
       const healthFactor = this.calculateHealthFactor(collateralAmount, borrowAmountUsd, hbarPrice);
 
-      // Create loan record
+      // STEP 3: Save loan to database (only after successful transaction)
       const { data: loanData, error: loanError } = await supabase
         .from('loans')
         .insert([
@@ -397,6 +424,7 @@ class LendingBorrowingService {
             status: 'active',
             health_factor: healthFactor,
             last_health_check: new Date().toISOString(),
+            transaction_id: txResult.collateralTransactionId, // Store transaction ID
           },
         ])
         .select()
@@ -411,6 +439,8 @@ class LendingBorrowingService {
       return {
         success: true,
         loan: loanData,
+        transactionId: txResult.collateralTransactionId,
+        note: txResult.note,
       };
     } catch (error) {
       console.error('❌ Error creating loan:', error);
@@ -444,6 +474,24 @@ class LendingBorrowingService {
       const remainingAmount = parseFloat(loan.borrowed_amount_usd);
       const isFullRepayment = repayAmount >= remainingAmount;
 
+      // Get HBAR price to convert USD to HBAR
+      const hbarPrice = await priceService.fetchHbarPrice();
+      const repayAmountHbar = repayAmount / hbarPrice;
+
+      // STEP 1: Execute Hedera repayment transaction first
+      console.log('🔄 Executing Hedera repayment transaction...');
+      const txResult = await hederaTransactionService.createRepayment(
+        walletAddress,
+        repayAmountHbar,
+        loanId
+      );
+
+      if (!txResult.success) {
+        throw new Error(txResult.error || 'Repayment transaction failed');
+      }
+
+      console.log('✅ Repayment transaction successful:', txResult.transactionId);
+
       if (isFullRepayment) {
         // Full repayment - mark as repaid
         const { error: updateError } = await supabase
@@ -464,6 +512,7 @@ class LendingBorrowingService {
           success: true,
           message: 'Loan fully repaid successfully',
           fullRepayment: true,
+          transactionId: txResult.transactionId,
         };
       } else {
         // Partial repayment
@@ -487,6 +536,7 @@ class LendingBorrowingService {
           message: 'Partial repayment successful',
           fullRepayment: false,
           remaining: newBorrowedAmount,
+          transactionId: txResult.transactionId,
         };
       }
     } catch (error) {
@@ -508,7 +558,21 @@ class LendingBorrowingService {
     try {
       console.log('🛡️ Adding collateral:', { walletAddress, loanId, collateralAmount });
 
-      // Get loan details
+      // STEP 1: Execute Hedera transaction first (send additional collateral)
+      console.log('🔄 Executing Hedera add collateral transaction...');
+      const txResult = await hederaTransactionService.addCollateral(
+        walletAddress,
+        collateralAmount,
+        loanId
+      );
+
+      if (!txResult.success) {
+        throw new Error(txResult.error || 'Add collateral transaction failed');
+      }
+
+      console.log('✅ Add collateral transaction successful:', txResult.transactionId);
+
+      // STEP 2: Get loan details
       const { data: loan, error: fetchError } = await supabase
         .from('loans')
         .select('*')
@@ -531,7 +595,7 @@ class LendingBorrowingService {
         hbarPrice
       );
 
-      // Update loan
+      // STEP 3: Update loan in database (only after successful transaction)
       const { error: updateError } = await supabase
         .from('loans')
         .update({
@@ -543,11 +607,12 @@ class LendingBorrowingService {
 
       if (updateError) throw updateError;
 
-      console.log('✅ Collateral added successfully');
+      console.log('✅ Collateral added to database');
       return {
         success: true,
         message: 'Collateral added successfully',
         newHealthFactor: newHealthFactor,
+        transactionId: txResult.transactionId,
       };
     } catch (error) {
       console.error('❌ Error adding collateral:', error);
