@@ -26,6 +26,7 @@ interface WalletContextType {
   refreshBalances: () => Promise<void>;
   signTransaction: (transaction: any) => Promise<any>;
   hashConnect: HashConnect | null;
+  resetConnection: () => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -56,8 +57,48 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     loadSavedWallets();
   }, []);
 
+  const clearHashConnectData = () => {
+    try {
+      // Clear all HashConnect related data from localStorage
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('hashconnect') || key.includes('hc:'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => {
+        console.log('Clearing stale HashConnect data:', key);
+        localStorage.removeItem(key);
+      });
+
+      // Also clear saved wallet connections for HashPack/Kabila
+      // since they depend on HashConnect session data
+      try {
+        const saved = localStorage.getItem('dera_wallets');
+        if (saved) {
+          const savedWallets = JSON.parse(saved);
+          // Only keep Blade wallets
+          const bladeWallets = savedWallets.filter((w: ConnectedWallet) => w.type === 'blade');
+          if (bladeWallets.length > 0) {
+            localStorage.setItem('dera_wallets', JSON.stringify(bladeWallets));
+          } else {
+            localStorage.removeItem('dera_wallets');
+          }
+        }
+      } catch (storageError) {
+        console.error('Error clearing wallet storage:', storageError);
+      }
+    } catch (error) {
+      console.error('Error clearing HashConnect data:', error);
+    }
+  };
+
   const initializeHashConnect = async () => {
     try {
+      // Clear any stale HashConnect data to prevent encryption errors
+      clearHashConnectData();
+
       const hc = new HashConnect();
 
       // Initialize HashConnect
@@ -76,42 +117,52 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setHashConnect(hc);
       setInitData(initDataResult);
 
-      // Set up event listeners (with safety checks)
+      // Set up event listeners (with safety checks and error handling)
       try {
         if (hc.pairingEvent && typeof hc.pairingEvent.on === 'function') {
           hc.pairingEvent.on((data) => {
-            console.log('Pairing event received:', data);
-            setPairingData(data);
+            try {
+              console.log('Pairing event received:', data);
+              setPairingData(data);
 
-            // Handle successful pairing
-            if (data.accountIds && data.accountIds.length > 0) {
-              handlePairingSuccess(data);
+              // Handle successful pairing
+              if (data.accountIds && data.accountIds.length > 0) {
+                handlePairingSuccess(data);
+              }
+            } catch (pairingError) {
+              console.error('Error handling pairing event:', pairingError);
+              // Ignore decryption errors in events - polling will handle it
             }
           });
         }
 
         if (hc.disconnectionEvent && typeof hc.disconnectionEvent.on === 'function') {
           hc.disconnectionEvent.on((data) => {
-            console.log('Disconnection event:', data);
-            handleDisconnection(data);
+            try {
+              console.log('Disconnection event:', data);
+              handleDisconnection(data);
+            } catch (disconnectError) {
+              console.error('Error handling disconnection event:', disconnectError);
+            }
           });
         }
 
         if (hc.connectionStatusChangeEvent && typeof hc.connectionStatusChangeEvent.on === 'function') {
           hc.connectionStatusChangeEvent.on((state) => {
-            console.log('Connection status changed:', state);
+            try {
+              console.log('Connection status changed:', state);
+            } catch (statusError) {
+              console.error('Error handling status change:', statusError);
+            }
           });
         }
       } catch (eventError) {
         console.log('Event listeners not available, using polling instead');
       }
 
-      // Check for existing pairings
-      const savedPairings = hc.hcData?.pairingData;
-      if (savedPairings && savedPairings.length > 0) {
-        console.log('Found existing pairings:', savedPairings);
-        setPairingData(savedPairings[0]);
-      }
+      // Don't load existing pairings on fresh initialization
+      // This prevents encryption mismatches
+      console.log('HashConnect ready for new connections');
 
     } catch (error) {
       console.error('Failed to initialize HashConnect:', error);
@@ -495,6 +546,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
+  const resetConnection = () => {
+    console.log('Manually resetting wallet connections...');
+
+    // Clear all HashConnect data
+    clearHashConnectData();
+
+    // Clear state
+    setWallets([]);
+    setActiveWallet(null);
+    setPairingData(null);
+
+    // Reinitialize HashConnect
+    initializeHashConnect();
+
+    toast.success('Connection reset. Please reconnect your wallet.');
+  };
+
   const value: WalletContextType = {
     wallets,
     activeWallet,
@@ -505,6 +573,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     refreshBalances,
     signTransaction,
     hashConnect,
+    resetConnection,
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

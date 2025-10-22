@@ -3,7 +3,7 @@ import { useWallet, WalletType, ConnectedWallet } from '../contexts/WalletContex
 import { Wallet, ChevronDown, LogOut, Check, Plus, X } from 'lucide-react';
 
 const WalletConnect: React.FC = () => {
-  const { wallets, activeWallet, isConnecting, connectWallet, disconnectWallet, switchActiveWallet } = useWallet();
+  const { wallets, activeWallet, isConnecting, connectWallet, disconnectWallet, switchActiveWallet, resetConnection } = useWallet();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
 
@@ -200,6 +200,17 @@ const WalletConnect: React.FC = () => {
             >
               <Plus className="w-5 h-5" />
               <span className="font-medium">Add Another Wallet</span>
+            </button>
+
+            <button
+              onClick={() => {
+                resetConnection();
+                setShowManageModal(false);
+              }}
+              className="w-full mt-2 text-sm text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
+              title="Clear all wallet data and reset connection (use if experiencing connection issues)"
+            >
+              Reset All Connections
             </button>
           </div>
         </div>
