@@ -5,7 +5,32 @@ const path = require("path");
 async function main() {
   console.log("Starting Dera platform deployment...\n");
 
-  const [deployer] = await hre.ethers.getSigners();
+  // Check if private key is configured
+  const signers = await hre.ethers.getSigners();
+  if (signers.length === 0) {
+    console.error("❌ ERROR: No private key configured!");
+    console.error("\nPlease set up your .env file with your Hedera credentials:");
+    console.error("1. Copy .env.example to .env:");
+    console.error("   cp .env.example .env");
+    console.error("\n2. Edit .env and add your Hedera testnet credentials:");
+    console.error("   HEDERA_NETWORK=testnet");
+    console.error("   HEDERA_ACCOUNT_ID=0.0.xxxxx");
+    console.error("   HEDERA_PRIVATE_KEY=302e020100300506032b657004220420xxxxxxxx...");
+    console.error("\n3. Get testnet credentials from: https://portal.hedera.com/");
+    process.exit(1);
+  }
+
+  const [deployer] = signers;
+
+  if (!deployer || !deployer.address) {
+    console.error("❌ ERROR: Invalid deployer account!");
+    console.error("\nPlease check your HEDERA_PRIVATE_KEY in the .env file.");
+    console.error("It should be either:");
+    console.error("  - A DER-encoded Hedera private key (starts with 302e...)");
+    console.error("  - A 64-character hex string (32 bytes)");
+    process.exit(1);
+  }
+
   console.log("Deploying contracts with account:", deployer.address);
   console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
   console.log();
