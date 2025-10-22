@@ -16,6 +16,7 @@ const EventListener = require('./services/eventListener');
 const iScoreRouter = require('./routes/iScore');
 const loansRouter = require('./routes/loans');
 const poolsRouter = require('./routes/pools');
+const withdrawalsRouter = require('./routes/withdrawals');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +31,7 @@ app.use(morgan('combined', { stream: { write: message => logger.info(message.tri
 app.use('/api/iscore', iScoreRouter);
 app.use('/api/loans', loansRouter);
 app.use('/api/pools', poolsRouter);
+app.use('/api/withdrawals', withdrawalsRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

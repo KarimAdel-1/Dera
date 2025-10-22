@@ -171,56 +171,59 @@ class LendingBorrowingService {
     try {
       console.log('💸 Processing withdrawal:', { walletAddress, depositId, tier });
 
-      // Get deposit details
-      const { data: deposit, error: fetchError } = await supabase
-        .from('deposits')
-        .select('*')
-        .eq('id', depositId)
-        .eq('user_wallet', walletAddress)
-        .single();
+      // Call backend API to process withdrawal
+      // Backend will handle Hedera transaction and database updates
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
-      if (fetchError) throw fetchError;
+      console.log('🔄 Calling backend API for withdrawal...');
+      const response = await fetch(`${backendUrl}/api/withdrawals/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          depositId,
+          userWallet: walletAddress,
+          tier,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process withdrawal');
+      }
+
+      console.log('✅ Backend withdrawal response:', result);
 
       if (tier === 1) {
-        // Instant withdrawal for Tier 1
-        const { error: updateError } = await supabase
-          .from('deposits')
-          .update({
-            status: 'withdrawn',
-            withdrawn_at: new Date().toISOString(),
-          })
-          .eq('id', depositId);
-
-        if (updateError) throw updateError;
-
-        // Update pool stats
-        await this.updatePoolStats(tier, -parseFloat(deposit.amount), 'withdrawal');
-
-        console.log('✅ Tier 1 withdrawal completed');
+        console.log('✅ Tier 1 instant withdrawal completed');
+        console.log('Transaction ID:', result.transactionId);
         return {
           success: true,
-          message: 'Withdrawal completed successfully',
+          message: 'Withdrawal completed successfully! HBAR sent to your wallet.',
+          transactionId: result.transactionId,
+          amount: result.amount,
         };
       } else {
-        // Request withdrawal for Tier 2/3
-        const { error: updateError } = await supabase
-          .from('deposits')
-          .update({
-            status: 'pending_withdrawal',
-            withdrawal_request_date: new Date().toISOString(),
-          })
-          .eq('id', depositId);
-
-        if (updateError) throw updateError;
-
         console.log('✅ Withdrawal request submitted');
         return {
           success: true,
-          message: `Withdrawal request submitted. Available in ${tier === 2 ? 30 : 90} days.`,
+          message: result.message,
+          availableDate: result.availableDate,
         };
       }
     } catch (error) {
       console.error('❌ Error processing withdrawal:', error);
+
+      // Check if backend is not running
+      if (error.message?.includes('fetch') || error.message?.includes('NetworkError')) {
+        return {
+          success: false,
+          error: 'Backend service is not available. Please ensure the backend server is running on port 3001.',
+        };
+      }
+
       return {
         success: false,
         error: error.message,
