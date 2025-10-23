@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { AuthButton } from '../components/AuthButton';
+import { AuthButton } from '../components/auth/AuthButton';
 
 export default function ConnectWalletPage() {
   const router = useRouter();

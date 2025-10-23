@@ -3,15 +3,15 @@
 import { useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
-import Sidebar from '../components/Sidebar';
-import Header from '../components/Header';
-import DashboardTab from '../components/DashboardTab';
-import YourWalletsTab from '../components/YourWalletsTab';
+import Sidebar from '../components/layout/Sidebar';
+import Header from '../components/layout/Header';
+import DashboardTab from '../components/features/dashboard/DashboardTab';
+import YourWalletsTab from '../components/features/wallets/YourWalletsTab';
 
-import TransactionsTab from '../components/TransactionsTab';
-import SettingsTab from '../components/SettingsTab';
-import HederaStatsTab from '../components/HederaStatsTab';
-import LendingBorrowingTab from '../components/LendingBorrowingTab';
+import TransactionsTab from '../components/features/transactions/TransactionsTab';
+import SettingsTab from '../components/features/settings/SettingsTab';
+import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
+import LendingBorrowingTab from '../components/features/lending-borrowing/LendingBorrowingTab';
 
 export default function Dashboard() {
   const { isConnected } = useSelector((state) => state.wallet);

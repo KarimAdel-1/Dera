@@ -1,5 +1,5 @@
 import { Wallet } from 'lucide-react'
-import { StatCardSkeleton } from '../SkeletonLoaders'
+import { StatCardSkeleton } from '../../common/SkeletonLoaders'
 
 export default function WalletStatsCards({ isLoading, wallets, walletsData, hbarPrice, walletDetails, network }) {
   if (isLoading) {

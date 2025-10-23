@@ -1,12 +1,12 @@
 import React from 'react';
 import { Search, Folder, Rocket, Plus, MessageCircle } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { setActiveTab } from '../store/nftSlice';
-import NFTExplore from './nft/NFTExplore';
-import NFTCollections from './nft/NFTCollections';
-import NFTLaunchpad from './nft/NFTLaunchpad';
-import NFTCreate from './nft/NFTCreate';
-import NFTMessages from './nft/NFTMessages';
+import { setActiveTab } from '../../store/nftSlice';
+import NFTExplore from '../nft/NFTExplore';
+import NFTCollections from '../nft/NFTCollections';
+import NFTLaunchpad from '../nft/NFTLaunchpad';
+import NFTCreate from '../nft/NFTCreate';
+import NFTMessages from '../nft/NFTMessages';
 
 const MarketplaceTab = () => {
   const dispatch = useDispatch();

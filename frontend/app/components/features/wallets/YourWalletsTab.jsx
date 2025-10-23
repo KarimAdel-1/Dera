@@ -1,13 +1,13 @@
 import React, { useState, memo } from 'react';
 import { Plus } from 'lucide-react';
-import { useWalletManagement } from '../hooks/useWalletManagement';
-import { WalletCardSkeleton, WalletDetailsSkeleton } from './SkeletonLoaders';
-import WalletStatsCards from './wallet/WalletStatsCards';
-import WalletCard from './wallet/WalletCard';
-import WalletDetails from './wallet/WalletDetails';
-import ConnectWalletModal from './wallet/ConnectWalletModal';
-import AssetsModal from './wallet/AssetsModal';
-import EmptyWalletState from './wallet/EmptyWalletState';
+import { useWalletManagement } from '../../hooks/useWalletManagement';
+import { WalletCardSkeleton, WalletDetailsSkeleton } from '../../common/SkeletonLoaders';
+import WalletStatsCards from './WalletStatsCards';
+import WalletCard from './WalletCard';
+import WalletDetails from './WalletDetails';
+import ConnectWalletModal from './ConnectWalletModal';
+import AssetsModal from './AssetsModal';
+import EmptyWalletState from './EmptyWalletState';
 
 /**
  * Your Wallets Tab Component

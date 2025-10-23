@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { markAsRead, markAllAsRead, removeNotification, clearAllNotifications } from '../store/notificationSlice'
+import { markAsRead, markAllAsRead, removeNotification, clearAllNotifications } from '../../store/notificationSlice'
 
 export default function NotificationPanel() {
   const [isOpen, setIsOpen] = useState(false)

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useTransactions } from '../hooks/useTransactions';
-import TransactionStatsCards from './transactions/TransactionStatsCards';
-import WalletFilterDropdown from './transactions/WalletFilterDropdown';
-import TransactionFilters from './transactions/TransactionFilters';
-import TransactionTable from './transactions/TransactionTable';
-import TransactionList from './transactions/TransactionList';
-import TransactionModal from './transactions/TransactionModal';
-import Pagination from './transactions/Pagination';
+import { useTransactions } from '../../hooks/useTransactions';
+import TransactionStatsCards from './TransactionStatsCards';
+import WalletFilterDropdown from './WalletFilterDropdown';
+import TransactionFilters from './TransactionFilters';
+import TransactionTable from './TransactionTable';
+import TransactionList from './TransactionList';
+import TransactionModal from './TransactionModal';
+import Pagination from './Pagination';
 
 /**
  * Main Transactions Tab Component

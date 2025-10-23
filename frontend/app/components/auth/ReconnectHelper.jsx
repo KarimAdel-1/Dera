@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '../../hooks/useWallet';
 import { hashpackService } from '../../services/hashpackService';
 
 /**

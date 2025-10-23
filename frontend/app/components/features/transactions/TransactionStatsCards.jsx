@@ -1,6 +1,6 @@
 import React from 'react';
 import { Coins, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { StatCardSkeleton } from '../SkeletonLoaders';
+import { StatCardSkeleton } from '../../common/SkeletonLoaders';
 
 /**
  * Display transaction statistics as cards

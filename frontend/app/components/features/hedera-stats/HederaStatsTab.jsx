@@ -1,11 +1,11 @@
 import React from 'react';
 import { RefreshCcw } from 'lucide-react';
-import { useHederaStats } from '../hooks/useHederaStats';
+import { useHederaStats } from '../../hooks/useHederaStats';
 import HederaStatsSkeleton from './HederaStatsSkeleton';
-import OverviewCards from './hedera/OverviewCards';
-import NetworkPerformanceCards from './hedera/NetworkPerformanceCards';
-import TransactionStatsCards from './hedera/TransactionStatsCards';
-import TransactionTypeChart from './hedera/TransactionTypeChart';
+import OverviewCards from './OverviewCards';
+import NetworkPerformanceCards from './NetworkPerformanceCards';
+import TransactionStatsCards from './TransactionStatsCards';
+import TransactionTypeChart from './TransactionTypeChart';
 
 /**
  * Main Hedera Stats Tab Component
