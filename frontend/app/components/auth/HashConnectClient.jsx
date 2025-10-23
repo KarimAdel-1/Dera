@@ -28,7 +28,7 @@ export const HashConnectClient = () => {
       // If no current user, create one using the first wallet
       if (!currentUser) {
         try {
-          const { supabaseService } = await import('../../services/supabaseService');
+          const { supabaseService } = await import('../../../services/supabaseService');
           const uniqueIdentifier = generateUniqueIdentifier(connectedAccountIds[0]);
           currentUser = await supabaseService.createOrGetUser(uniqueIdentifier);
           dispatch(setCurrentUser(currentUser));

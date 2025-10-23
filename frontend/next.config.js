@@ -6,18 +6,48 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
+    // Fallback for Node.js modules in browser
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       net: false,
       tls: false,
       crypto: false,
+      stream: false,
+      buffer: false,
+      util: false,
+      http: false,
+      https: false,
+      zlib: false,
+      path: false,
+      os: false,
     };
+
+    // For server-side, ignore these modules completely
+    if (isServer) {
+      // Add externals to prevent bundling hashconnect on server
+      const externals = config.externals || [];
+      config.externals = [
+        ...externals,
+        function({ request }, callback) {
+          // Externalize hashconnect and hedera-wallet-connect on server
+          if (
+            /^hashconnect/.test(request) ||
+            /^@hashgraph\/hedera-wallet-connect/.test(request)
+          ) {
+            return callback(null, 'commonjs ' + request);
+          }
+          callback();
+        }
+      ];
+    }
 
     config.ignoreWarnings = [
       { module: /node_modules\/@hashgraph\/hedera-wallet-connect/ },
-      { message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/ }
+      { module: /node_modules\/hashconnect/ },
+      { message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/ },
+      { message: /Can't resolve 'crypto'/ }
     ];
 
     return config;

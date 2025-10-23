@@ -1,9 +1,29 @@
-import {
-  HashConnect,
-  HashConnectConnectionState,
-  SessionData,
-} from 'hashconnect';
-import { LedgerId } from '@hashgraph/sdk';
+// Dynamic imports to avoid SSR issues with crypto module
+let HashConnect = null;
+let HashConnectConnectionState = null;
+let LedgerId = null;
+
+// Lazy load hashconnect only on client-side
+async function loadHashConnect() {
+  if (typeof window === 'undefined') {
+    // Return mock objects for server-side
+    return {
+      HashConnect: null,
+      HashConnectConnectionState: { Disconnected: 'Disconnected', Paired: 'Paired' },
+      LedgerId: null,
+    };
+  }
+
+  if (!HashConnect) {
+    const hashconnect = await import('hashconnect');
+    const sdk = await import('@hashgraph/sdk');
+    HashConnect = hashconnect.HashConnect;
+    HashConnectConnectionState = hashconnect.HashConnectConnectionState;
+    LedgerId = sdk.LedgerId;
+  }
+
+  return { HashConnect, HashConnectConnectionState, LedgerId };
+}
 
 class HashPackService {
   constructor() {
@@ -21,7 +41,7 @@ class HashPackService {
           ? window.location.origin
           : 'http://localhost:3000',
     };
-    this.state = HashConnectConnectionState.Disconnected;
+    this.state = 'Disconnected';
     this.pairingData = null;
     this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id';
     this.eventListenersSetup = false;
@@ -29,6 +49,18 @@ class HashPackService {
 
   async initialize(forceNew = false) {
     try {
+      // Load HashConnect dynamically
+      const { HashConnect: HC, HashConnectConnectionState: State, LedgerId: Ledger } = await loadHashConnect();
+
+      if (!HC) {
+        console.log('HashConnect not available on server-side');
+        return false;
+      }
+
+      HashConnect = HC;
+      HashConnectConnectionState = State;
+      LedgerId = Ledger;
+
       // If forcing new connection, disconnect first
       if (forceNew && this.hashconnect) {
         console.log('Forcing new HashConnect instance...');
@@ -83,7 +115,7 @@ class HashPackService {
     this.hashconnect.disconnectionEvent.on((data) => {
       console.log('Disconnection event:', data);
       this.pairingData = null;
-      this.state = HashConnectConnectionState.Disconnected;
+      this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
     });
 
     // Listen for connection status changes
@@ -196,7 +228,7 @@ class HashPackService {
 
       // Clear local pairing data
       this.pairingData = null;
-      this.state = HashConnectConnectionState.Disconnected;
+      this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
 
       // Clear any stored session data
       if (typeof window !== 'undefined') {
@@ -221,7 +253,7 @@ class HashPackService {
 
       // Still clear local state even if disconnect fails
       this.pairingData = null;
-      this.state = HashConnectConnectionState.Disconnected;
+      this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
 
       // Clear storage regardless
       if (typeof window !== 'undefined') {
@@ -264,7 +296,7 @@ class HashPackService {
 
       // Clear local state
       this.pairingData = null;
-      this.state = HashConnectConnectionState.Disconnected;
+      this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
 
       // Clear all HashConnect related data from localStorage
       if (typeof window !== 'undefined') {
@@ -288,7 +320,7 @@ class HashPackService {
 
       // Force clear everything
       this.pairingData = null;
-      this.state = HashConnectConnectionState.Disconnected;
+      this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
 
       if (typeof window !== 'undefined') {
         localStorage.clear(); // Nuclear option - clears everything
@@ -349,7 +381,7 @@ class HashPackService {
 
   isConnected() {
     return (
-      this.state === HashConnectConnectionState.Paired &&
+      this.state === (HashConnectConnectionState?.Paired || 'Paired') &&
       this.pairingData !== null
     );
   }
@@ -361,8 +393,8 @@ class HashPackService {
   clearPairing() {
     console.log('Clearing pairing state...');
     this.pairingData = null;
-    this.state = HashConnectConnectionState.Disconnected;
-    
+    this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
+
     // Clear HashConnect modal if it's open
     if (this.hashconnect) {
       try {
