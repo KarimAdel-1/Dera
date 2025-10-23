@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Shield, Bell, Palette, Globe } from 'lucide-react';
-import { LogoutButton } from './LogoutButton';
+import { LogoutButton } from '../../auth/LogoutButton';
 
 const SettingsTab = () => {
   const [activeTab, setActiveTab] = useState('profile');

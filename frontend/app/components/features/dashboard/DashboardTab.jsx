@@ -1,10 +1,10 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
-import DashboardHeader from './dashboard/DashboardHeader';
-import WalletSection from './dashboard/WalletSection';
-import SidebarSection from './dashboard/SidebarSection';
-import TransactionsSection from './dashboard/TransactionsSection';
-import StatisticsSection from './dashboard/StatisticsSection';
+import DashboardHeader from '../dashboard/DashboardHeader';
+import WalletSection from '../dashboard/WalletSection';
+import SidebarSection from '../dashboard/SidebarSection';
+import TransactionsSection from '../dashboard/TransactionsSection';
+import StatisticsSection from '../dashboard/StatisticsSection';
 
 const DashboardTab = () => {
   const { walletType } = useSelector((state) => state.wallet);

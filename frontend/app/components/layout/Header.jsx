@@ -1,7 +1,7 @@
 import React from 'react';
 import { Menu, Globe, Monitor, Search, RefreshCw } from 'lucide-react';
 import { useSelector } from 'react-redux';
-import NotificationPanel from './NotificationPanel';
+import NotificationPanel from '../common/NotificationPanel';
 
 const Header = ({ title = 'Dashboard' }) => {
   const { address, isConnected, currentUser } = useSelector((state) => state.wallet);

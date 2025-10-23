@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import LendTab from './lend/LendTab'
-import BorrowTab from './borrow/BorrowTab'
+import LendTab from './LendTab'
+import BorrowTab from './BorrowTab'
 
 export default function LendingBorrowingTab() {
   const { isConnected } = useSelector((state) => state.wallet)

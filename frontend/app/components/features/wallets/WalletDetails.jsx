@@ -1,7 +1,7 @@
 import { Wallet, Copy, Eye, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { setDefaultWalletInDB } from '../../store/walletSlice'
+import { setDefaultWalletInDB } from '../../../store/walletSlice'
 import { toast } from 'react-hot-toast'
 
 export default function WalletDetails({ 

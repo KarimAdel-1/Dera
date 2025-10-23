@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { Plus } from 'lucide-react';
-import { useWalletManagement } from '../../hooks/useWalletManagement';
+import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import { WalletCardSkeleton, WalletDetailsSkeleton } from '../../common/SkeletonLoaders';
 import WalletStatsCards from './WalletStatsCards';
 import WalletCard from './WalletCard';

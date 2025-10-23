@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCcw } from 'lucide-react';
-import { useHederaStats } from '../../hooks/useHederaStats';
+import { useHederaStats } from '../../../hooks/useHederaStats';
 import HederaStatsSkeleton from './HederaStatsSkeleton';
 import OverviewCards from './OverviewCards';
 import NetworkPerformanceCards from './NetworkPerformanceCards';

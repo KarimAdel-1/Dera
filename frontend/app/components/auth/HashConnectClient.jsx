@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
-import { hashpackService } from "../../services/hashpackService.js";
-import { connectWallet, disconnectWallet, setNetwork, deleteTempWallet, processWalletConnection, generateUniqueIdentifier, setCurrentUser } from "../store/walletSlice";
-import { store } from "../store/store.js";
+import { hashpackService } from "../../../services/hashpackService.js";
+import { connectWallet, disconnectWallet, setNetwork, deleteTempWallet, processWalletConnection, generateUniqueIdentifier, setCurrentUser } from "../../store/walletSlice";
+import { store } from "../../store/store.js";
 
 export const HashConnectClient = () => {
   const dispatch = useDispatch();

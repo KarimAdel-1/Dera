@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTransactions } from '../../hooks/useTransactions';
+import { useTransactions } from '../../../hooks/useTransactions';
 import TransactionStatsCards from './TransactionStatsCards';
 import WalletFilterDropdown from './WalletFilterDropdown';
 import TransactionFilters from './TransactionFilters';

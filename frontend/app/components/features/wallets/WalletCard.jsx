@@ -1,6 +1,6 @@
 import { Wallet, Edit3 } from 'lucide-react'
 import { useDispatch } from 'react-redux'
-import { switchWallet } from '../../store/walletSlice'
+import { switchWallet } from '../../../store/walletSlice'
 
 export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit }) {
   const dispatch = useDispatch()
