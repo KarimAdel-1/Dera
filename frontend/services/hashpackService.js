@@ -23,7 +23,7 @@ class HashPackService {
     };
     this.state = HashConnectConnectionState.Disconnected;
     this.pairingData = null;
-    this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+    this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id';
     this.eventListenersSetup = false;
   }
 
@@ -126,6 +126,8 @@ class HashPackService {
       // Wait for pairing to complete
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+          console.log('Connection timeout - clearing pairing state');
+          this.clearPairing();
           reject(
             new Error(
               'Connection timeout - please scan QR code or approve in HashPack'
@@ -354,6 +356,21 @@ class HashPackService {
 
   getConnectedAccountIds() {
     return this.pairingData?.accountIds || [];
+  }
+
+  clearPairing() {
+    console.log('Clearing pairing state...');
+    this.pairingData = null;
+    this.state = HashConnectConnectionState.Disconnected;
+    
+    // Clear HashConnect modal if it's open
+    if (this.hashconnect) {
+      try {
+        this.hashconnect.closePairingModal();
+      } catch (error) {
+        console.log('Error closing pairing modal:', error);
+      }
+    }
   }
 }
 

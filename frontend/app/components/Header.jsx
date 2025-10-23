@@ -1,6 +1,7 @@
 import React from 'react';
-import { Menu, Globe, Monitor, Search, RefreshCw, Bell } from 'lucide-react';
+import { Menu, Globe, Monitor, Search, RefreshCw } from 'lucide-react';
 import { useSelector } from 'react-redux';
+import NotificationPanel from './NotificationPanel';
 
 const Header = ({ title = 'Dashboard' }) => {
   const { address, isConnected, currentUser } = useSelector((state) => state.wallet);
@@ -64,17 +65,7 @@ const Header = ({ title = 'Dashboard' }) => {
           </button>
         </div>
 
-        <div className="relative">
-          <button
-            className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            <span className="absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 bg-red-500 text-white text-[10px] sm:text-xs rounded-full w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center font-medium">
-              2
-            </span>
-          </button>
-        </div>
+        <NotificationPanel />
 
         <div className="border-l border-[var(--color-border-primary)] h-4 sm:h-6 mx-2 sm:mx-4 me-2 sm:me-3"></div>
 

@@ -22,11 +22,11 @@ export default function NFTCard() {
           margin: 5rem auto;
           border: 1px solid var(--color-border-secondary);
           background-color: var(--color-bg-card);
-          background: linear-gradient(0deg, var(--color-bg-card) 0%, var(--color-primary-opacity) 100%);
-          box-shadow: 0 7px 20px 5px var(--color-shadow-primary);
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
           border-radius: .7rem;
-          backdrop-filter: blur(7px);
-          -webkit-backdrop-filter: blur(7px);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
           overflow: hidden;
           transition: .5s all;
           position: relative;
@@ -128,7 +128,7 @@ export default function NFTCard() {
         .nft::before {
           position: fixed;
           content: "";
-          box-shadow: 0 0 100px 40px var(--color-primary-opacity);
+          box-shadow: 0 0 100px 40px rgba(255, 255, 255, 0.05);
           top: -10%;
           left: -100%;
           transform: rotate(-45deg);
@@ -137,10 +137,10 @@ export default function NFTCard() {
         }
         
         .nft:hover {
-          border: 1px solid var(--color-primary);
-          box-shadow: 0 7px 50px 10px var(--color-shadow-primary);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.5);
           transform: scale(1.015);
-          filter: brightness(1.3);
+          filter: brightness(1.1);
         }
         
         .nft:hover::before {

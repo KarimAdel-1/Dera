@@ -2,11 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 console.log('🔗 Supabase config:', { 
   url: supabaseUrl, 
   hasKey: !!supabaseAnonKey,
-  keyLength: supabaseAnonKey?.length 
+  keyLength: supabaseAnonKey?.length,
+  hasServiceKey: !!supabaseServiceKey
 });
 
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -14,7 +16,23 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
 console.log('✅ Supabase client created');
+
+// Test connection
+supabase.from('users').select('count', { count: 'exact', head: true })
+  .then(({ error, count }) => {
+    if (error) {
+      console.error('❌ Supabase connection test failed:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+    } else {
+      console.log('✅ Supabase connection test passed. Users table exists with', count, 'rows');
+    }
+  });
 
 class SupabaseService {
   constructor() {
@@ -26,38 +44,43 @@ class SupabaseService {
       console.log('🔍 Creating/getting user with identifier:', uniqueIdentifier);
       
       // Try to get existing user
-      const { data: existingUser, error: fetchError } = await supabase
+      const { data: existingUser, error: fetchError } = await supabaseAdmin
         .from('users')
         .select('*')
         .eq('unique_identifier', uniqueIdentifier)
         .single();
 
-      console.log('📊 Existing user query result:', { existingUser, fetchError });
-
       if (existingUser) {
         console.log('✅ Found existing user, updating last login');
-        // Update last login
-        await supabase
+        await supabaseAdmin
           .from('users')
           .update({ last_login: new Date().toISOString() })
           .eq('id', existingUser.id);
-        
         return existingUser;
       }
 
-      console.log('🆕 Creating new user');
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
       // Create new user
-      const { data: newUser, error: createError } = await supabase
+      const { data: newUser, error: createError } = await supabaseAdmin
         .from('users')
         .insert([{ unique_identifier: uniqueIdentifier }])
         .select()
         .single();
 
-      console.log('📊 New user creation result:', { newUser, createError });
       if (createError) throw createError;
+      console.log('✅ Created new user:', newUser);
       return newUser;
     } catch (error) {
-      console.error('❌ Error creating/getting user:', error);
+      console.error('❌ Error creating/getting user:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        fullError: error
+      });
       throw error;
     }
   }
@@ -67,7 +90,7 @@ class SupabaseService {
       console.log('💾 Saving wallet to database:', { userId, walletData });
       
       // Check if user has any existing wallets
-      const { data: existingWallets } = await supabase
+      const { data: existingWallets } = await supabaseAdmin
         .from('wallets')
         .select('id')
         .eq('user_id', userId)
@@ -88,7 +111,7 @@ class SupabaseService {
       
       console.log('📝 Wallet record to insert:', walletRecord);
       
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('wallets')
         .upsert([walletRecord], {
           onConflict: 'user_id,wallet_address'
@@ -134,39 +157,6 @@ class SupabaseService {
       return data[0];
     } catch (error) {
       console.error('Error deactivating wallet:', error);
-      throw error;
-    }
-  }
-
-  async deactivateAllUserWallets(userId) {
-    try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .update({ is_active: false })
-        .eq('user_id', userId)
-        .select();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error deactivating all wallets:', error);
-      throw error;
-    }
-  }
-
-  async updateWalletCardSkin(walletAddress, cardSkin) {
-    try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .update({ card_skin: cardSkin })
-        .eq('wallet_address', walletAddress)
-        .eq('is_active', true)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error updating wallet card skin:', error);
       throw error;
     }
   }
@@ -260,7 +250,8 @@ class SupabaseService {
           isNewWallet: false
         };
       } else {
-        console.log('🆕 New wallet, creating user and wallet');
+        console.log('🆕 New wallet detected');
+        
         // Create new user for this wallet
         const uniqueIdentifier = `user_${walletAddress}`;
         const user = await this.createOrGetUser(uniqueIdentifier);
@@ -268,7 +259,8 @@ class SupabaseService {
         // Save the new wallet
         const wallet = await this.saveWallet(user.id, {
           ...walletData,
-          address: walletAddress
+          address: walletAddress,
+          walletId: walletAddress
         });
         
         return {
@@ -278,7 +270,45 @@ class SupabaseService {
         };
       }
     } catch (error) {
-      console.error('❌ Error processing wallet connection:', error);
+      console.error('❌ Error processing wallet connection:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        fullError: error
+      });
+      throw error;
+    }
+  }
+
+  async addWalletToExistingUser(userId, walletAddress, walletData) {
+    try {
+      console.log('➕ Adding wallet to existing user:', { userId, walletAddress });
+      
+      // Check if wallet already exists for this user
+      const { data: existingWallet } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('wallet_address', walletAddress)
+        .single();
+      
+      if (existingWallet) {
+        console.log('⚠️ Wallet already exists for this user');
+        return existingWallet;
+      }
+      
+      // Add new wallet to existing user
+      const wallet = await this.saveWallet(userId, {
+        ...walletData,
+        address: walletAddress,
+        walletId: walletAddress
+      });
+      
+      console.log('✅ Wallet added to existing user:', wallet);
+      return wallet;
+    } catch (error) {
+      console.error('❌ Error adding wallet to existing user:', error);
       throw error;
     }
   }

@@ -159,9 +159,17 @@ export const HashConnectButton = () => {
                 
                 // Navigate to dashboard after successful connection
                 router.push('/dashboard');
+              } else {
+                console.log('No accounts returned or pairing cancelled');
               }
             } catch (error) {
               console.error('Connection failed:', error);
+              // Reset HashConnect state on error
+              try {
+                await hashpackService.clearPairing();
+              } catch (clearError) {
+                console.error('Error clearing pairing:', clearError);
+              }
             } finally {
               setIsOpening(false);
             }

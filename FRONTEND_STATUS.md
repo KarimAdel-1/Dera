@@ -95,7 +95,7 @@ export default MyApp;
 **User Flows to Implement:**
 
 #### Deposit Flow
-```typescript
+```
 1. Select tier (Instant/Warm/Cold)
 2. Enter HBAR amount
 3. Show preview:
@@ -112,7 +112,7 @@ export default MyApp;
 #### Withdrawal Flows
 
 **Tier 1 (Instant):**
-```typescript
+```
 1. Enter amount to withdraw
 2. Check available liquidity
 3. Show what will be received
@@ -121,7 +121,7 @@ export default MyApp;
 ```
 
 **Tier 2 (30-Day Notice):**
-```typescript
+```
 1. Request withdrawal (enter amount)
 2. System registers 30-day notice
 3. Show countdown timer
@@ -132,7 +132,7 @@ export default MyApp;
 ```
 
 **Tier 3 (90-Day Locked):**
-```typescript
+```
 1. Show days remaining in lock period
 2. Withdrawal disabled until period ends
 3. After 90 days:
@@ -156,7 +156,7 @@ export default MyApp;
 **User Flows to Implement:**
 
 #### New Borrow Flow
-```typescript
+```
 1. Display user's iScore (300-1000)
 2. Show terms based on iScore:
    - Collateral ratio (130%-200%)
@@ -180,7 +180,7 @@ export default MyApp;
 ```
 
 #### Repayment Flow
-```typescript
+```
 1. Show loan status:
    - Principal borrowed
    - Interest accrued
@@ -197,7 +197,7 @@ export default MyApp;
 ```
 
 #### Health Factor Monitoring
-```typescript
+```
 // Color-coded health factor
 > 1.5  : Green  (Safe)
 1.2-1.5: Yellow (Monitor)
@@ -217,7 +217,7 @@ export default MyApp;
 **Sections Needed:**
 
 #### 1. Portfolio Overview
-```typescript
+```
 // Summary Cards
 - Total Deposited
 - Total Borrowed
@@ -236,7 +236,7 @@ export default MyApp;
 #### 2. Performance Charts
 
 **Earnings Over Time (recharts LineChart)**
-```typescript
+```
 - Interest earned
 - Staking rewards
 - Total earnings
@@ -244,28 +244,28 @@ export default MyApp;
 ```
 
 **Deposit Distribution (recharts PieChart)**
-```typescript
+```
 - Tier 1 deposits
 - Tier 2 deposits
 - Tier 3 deposits
 ```
 
 **Health Factor History (recharts AreaChart)**
-```typescript
+```
 - Health factor over time
 - Warning threshold line (1.2)
 - Liquidation threshold line (1.0)
 ```
 
 **iScore Progression (recharts LineChart)**
-```typescript
+```
 - iScore over time
 - Markers for each loan
 - Show impact of repayments
 ```
 
 #### 3. Transaction History
-```typescript
+```
 - Recent deposits
 - Recent withdrawals
 - Recent borrows
@@ -318,7 +318,7 @@ All frontend features need backend API endpoints. Current backend has services b
 ### Required API Routes
 
 **Lending:**
-```typescript
+```
 POST   /api/lend/deposit              // Deposit to tier
 POST   /api/lend/withdraw             // Withdraw from tier
 POST   /api/lend/request-withdraw     // Request withdrawal (Tier 2)
@@ -328,7 +328,7 @@ GET    /api/pools/:tier/apy            // Current APY
 ```
 
 **Borrowing:**
-```typescript
+```
 POST   /api/borrow/calculate           // Calculate collateral
 POST   /api/borrow/deposit-collateral  // Deposit collateral
 POST   /api/borrow/borrow              // Execute borrow
@@ -339,7 +339,7 @@ GET    /api/borrow/health/:loanId      // Loan health
 ```
 
 **Analytics:**
-```typescript
+```
 GET    /api/analytics/portfolio/:wallet      // Summary
 GET    /api/analytics/earnings/:wallet       // Earnings history
 GET    /api/analytics/transactions/:wallet   // Transaction history
@@ -348,7 +348,7 @@ GET    /api/analytics/iscore-history/:wallet // iScore progression
 ```
 
 **iScore:**
-```typescript
+```
 GET    /api/iscore/:wallet            // Current iScore
 GET    /api/iscore/history/:wallet    // iScore over time
 GET    /api/iscore/factors/:wallet    // iScore breakdown

@@ -8,6 +8,8 @@ import {
   Settings,
   ChevronLeft,
   Store,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 
 const HederaIcon = () => (
@@ -37,7 +39,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
   const menuItems = [
     { icon: House, label: 'Dashboard', id: 'dashboard' },
     { icon: CreditCard, label: 'Your Wallets', id: 'wallets' },
-    { icon: Store, label: 'Marketplace', id: 'marketplace' },
+    { icon: TrendingUp, label: 'Lending', id: 'lending' },
     { icon: ArrowRightLeft, label: 'Transactions', id: 'transactions' },
     { icon: HederaIcon, label: 'Hedera Stats', id: 'hedera-stats' },
   ];
