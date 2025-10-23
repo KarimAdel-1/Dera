@@ -1,0 +1,347 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import {
+  connectWallet,
+  setWalletDetails,
+  setWalletLoading,
+  setDefaultWallet,
+  createTempWallet,
+  updateTempWallet,
+  deleteTempWallet,
+  updateWallet,
+  saveWalletToSupabase,
+  setWalletData,
+  setHbarPrice,
+} from '../store/walletSlice';
+import { supabaseService } from '../../services/supabaseService';
+
+/**
+ * Custom hook for managing wallet operations
+ * Handles wallet connections, data fetching, and user interactions
+ */
+export const useWalletManagement = () => {
+  const dispatch = useDispatch();
+  const {
+    address,
+    isConnected,
+    walletType,
+    network,
+    walletDetails,
+    wallets,
+    activeWalletId,
+    tempWallet,
+    walletsData,
+    currentUser,
+    hbarPrice,
+  } = useSelector((state) => state.wallet);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [newlyConnectedWallet, setNewlyConnectedWallet] = useState(null);
+
+  // Load user's wallets from Supabase when currentUser changes
+  useEffect(() => {
+    const loadUserWallets = async () => {
+      if (!currentUser) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const userWallets = await supabaseService.getUserWallets(currentUser.id);
+
+        // Load wallets in parallel
+        await Promise.all(
+          userWallets.map(async (wallet) => {
+            dispatch(
+              connectWallet({
+                address: wallet.wallet_address,
+                walletType: wallet.wallet_type,
+                cardSkin: wallet.card_skin,
+              })
+            );
+
+            // Fetch wallet data
+            try {
+              const { hederaService } = await import('../../services/hederaService');
+              const [balanceData, transactions, tokenBalances] = await Promise.all([
+                hederaService.getAccountBalance(wallet.wallet_address),
+                hederaService.getAccountTransactions(wallet.wallet_address, 10),
+                hederaService.getTokenBalances(wallet.wallet_address),
+              ]);
+
+              dispatch(
+                setWalletData({
+                  accountId: wallet.wallet_address,
+                  data: {
+                    hbarBalance: balanceData.hbarBalance,
+                    transactions,
+                    tokenBalances: tokenBalances || [],
+                  },
+                })
+              );
+            } catch (error) {
+              console.error(
+                `Error fetching data for wallet ${wallet.wallet_address}:`,
+                error
+              );
+            }
+          })
+        );
+
+        setTimeout(() => setIsLoading(false), 1500);
+      } catch (error) {
+        console.error('Failed to load user wallets:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadUserWallets();
+  }, [currentUser, dispatch]);
+
+  // Fetch HBAR price with auto-refresh
+  useEffect(() => {
+    const fetchHbarPrice = async () => {
+      const { priceService } = await import('../../services/priceService');
+      const price = await priceService.fetchHbarPrice();
+      dispatch(setHbarPrice(price));
+    };
+
+    fetchHbarPrice();
+    const interval = setInterval(fetchHbarPrice, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [dispatch]);
+
+  // Update wallet details when wallets change
+  useEffect(() => {
+    const updateAllWalletDetails = async () => {
+      if (wallets.length === 0) return;
+
+      dispatch(setWalletLoading(true));
+      try {
+        dispatch(
+          setWalletDetails({
+            balance: '$0.00',
+            hbarBalance: '0',
+            network: network,
+          })
+        );
+      } catch (error) {
+        console.error('Failed to update wallet details:', error);
+      } finally {
+        dispatch(setWalletLoading(false));
+      }
+    };
+
+    updateAllWalletDetails();
+  }, [wallets.length, network, dispatch]);
+
+  // HashPack connection event listener
+  useEffect(() => {
+    const handleHashPackConnection = (event) => {
+      const walletData = {
+        address: event.detail.address,
+        walletType: event.detail.walletType,
+        cardSkin: 'Card-1.png',
+      };
+
+      dispatch(saveWalletToSupabase(walletData));
+      setNewlyConnectedWallet(event.detail);
+    };
+
+    window.addEventListener('hashpackConnected', handleHashPackConnection);
+    return () =>
+      window.removeEventListener('hashpackConnected', handleHashPackConnection);
+  }, [dispatch]);
+
+  // Connect to HashPack
+  const connectToHashPack = useCallback(async () => {
+    dispatch(createTempWallet({ walletType: 'hashpack' }));
+    setIsConnecting(true);
+
+    try {
+      const { hashpackService } = await import('../../services/hashpackService');
+      const accounts = await hashpackService.connectWallet();
+
+      if (accounts && accounts.length > 0) {
+        const existingAddresses = wallets.map((w) => w.address);
+        const newAccounts = accounts.filter(
+          (acc) => !existingAddresses.includes(acc.accountId)
+        );
+
+        if (newAccounts.length > 0) {
+          const newAccount = newAccounts[0];
+
+          dispatch(
+            updateTempWallet({
+              id: `temp_hashpack_${newAccount.accountId.replace(/\./g, '_')}`,
+              walletAddress: newAccount.accountId,
+              walletId: newAccount.accountId,
+              connectedAt: new Date().toISOString(),
+            })
+          );
+
+          const walletData = {
+            address: newAccount.accountId,
+            walletType: 'hashpack',
+            cardSkin: tempWallet?.cardSkin || 'Card-1.png',
+            walletId: newAccount.accountId,
+            connectedAt: new Date().toISOString(),
+          };
+
+          dispatch(connectWallet(walletData));
+          await dispatch(saveWalletToSupabase(walletData));
+
+          setNewlyConnectedWallet({
+            address: newAccount.accountId,
+            walletType: 'hashpack',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('HashPack connection failed:', error);
+      dispatch(deleteTempWallet());
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [dispatch, wallets, tempWallet]);
+
+  // Connect to Kabila
+  const connectToKabila = useCallback(async () => {
+    if (!tempWallet) return;
+
+    setIsConnecting(true);
+    try {
+      if (window.kabila && window.kabila.isKabila) {
+        const accounts = await window.kabila.request({
+          method: 'hedera_requestAccounts',
+        });
+        const address = accounts[0];
+
+        if (address) {
+          const walletData = {
+            address,
+            walletType: 'kabila',
+            cardSkin: tempWallet.cardSkin,
+          };
+
+          dispatch(connectWallet(walletData));
+          dispatch(saveWalletToSupabase(walletData));
+          dispatch(deleteTempWallet());
+
+          setNewlyConnectedWallet({ address, walletType: 'kabila' });
+        }
+      }
+    } catch (error) {
+      console.error('Kabila connection failed:', error);
+      dispatch(deleteTempWallet());
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [dispatch, tempWallet]);
+
+  // Connect to Blade
+  const connectToBlade = useCallback(async () => {
+    if (!tempWallet) return;
+
+    setIsConnecting(true);
+    try {
+      if (window.bladeWallet) {
+        const result = await window.bladeWallet.connect();
+
+        if (result.accountId) {
+          const walletData = {
+            address: result.accountId,
+            walletType: 'blade',
+            cardSkin: tempWallet.cardSkin,
+          };
+
+          dispatch(connectWallet(walletData));
+          dispatch(saveWalletToSupabase(walletData));
+          dispatch(deleteTempWallet());
+
+          setNewlyConnectedWallet({
+            address: result.accountId,
+            walletType: 'blade',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Blade connection failed:', error);
+      dispatch(deleteTempWallet());
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [dispatch, tempWallet]);
+
+  // Refresh wallet details
+  const refreshWalletDetails = useCallback(async () => {
+    if (!address || !isConnected) return;
+
+    dispatch(setWalletLoading(true));
+    try {
+      dispatch(
+        setWalletDetails({
+          balance: '$0.00',
+          hbarBalance: '0',
+          network: network,
+        })
+      );
+    } catch (error) {
+      console.error('Failed to refresh wallet details:', error);
+    } finally {
+      dispatch(setWalletLoading(false));
+    }
+  }, [address, isConnected, network, dispatch]);
+
+  // Update wallet card skin
+  const updateWalletCardSkin = useCallback(
+    async (walletId, address, newCardSkin) => {
+      dispatch(
+        updateWallet({
+          id: walletId,
+          updates: { cardSkin: newCardSkin },
+        })
+      );
+
+      try {
+        await supabaseService.updateWalletCardSkin(address, newCardSkin);
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to update card skin in database:', error);
+        return { success: false, error };
+      }
+    },
+    [dispatch]
+  );
+
+  return {
+    // State
+    wallets,
+    activeWalletId,
+    walletsData,
+    hbarPrice,
+    walletDetails,
+    network,
+    tempWallet,
+    isLoading,
+    isConnecting,
+    newlyConnectedWallet,
+
+    // Actions
+    connectToHashPack,
+    connectToKabila,
+    connectToBlade,
+    refreshWalletDetails,
+    updateWalletCardSkin,
+    setNewlyConnectedWallet,
+
+    // Dispatch helpers
+    dispatch,
+    createTempWallet: () => dispatch(createTempWallet({ walletType: 'hashpack' })),
+    updateTempWallet: (updates) => dispatch(updateTempWallet(updates)),
+    deleteTempWallet: () => dispatch(deleteTempWallet()),
+    setDefaultWallet: (id) => dispatch(setDefaultWallet(id)),
+  };
+};
