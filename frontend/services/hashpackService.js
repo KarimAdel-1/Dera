@@ -154,18 +154,49 @@ class HashPackService {
         throw new Error('HashConnect not initialized');
       }
 
-      // If there's an existing pairing, we need to completely clean up and start fresh
-      if (this.pairingData?.topic) {
-        console.log('Existing pairing found, performing complete cleanup...');
-        const oldTopic = this.pairingData.topic;
+      // Check if there's an existing pairing - either by topic OR by state being "Paired"
+      const isPaired = this.state === (HashConnectConnectionState?.Paired || 'Paired');
+      const hasPairingTopic = this.pairingData?.topic;
 
-        // Step 1: Disconnect the pairing and close modal
+      if (isPaired || hasPairingTopic) {
+        console.log('Existing pairing detected - performing complete cleanup...');
+        console.log('State:', this.state, 'Has topic:', !!hasPairingTopic);
+        const oldTopic = this.pairingData?.topic;
+
+        // Step 1: Disconnect ALL pairings (not just the current one)
         try {
-          console.log('Disconnecting pairing topic:', oldTopic);
-          await this.hashconnect.disconnect(oldTopic);
-          console.log('Pairing disconnected successfully');
-        } catch (disconnectError) {
-          console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+          // Get all active pairings from HashConnect
+          const allPairings = this.hashconnect.hcData?.pairingData || [];
+          console.log(`Found ${allPairings.length} active pairings to disconnect`);
+
+          // Disconnect each one
+          for (const pairing of allPairings) {
+            if (pairing?.topic) {
+              try {
+                console.log('Disconnecting pairing topic:', pairing.topic);
+                await this.hashconnect.disconnect(pairing.topic);
+                console.log('Pairing disconnected successfully');
+              } catch (disconnectError) {
+                console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+              }
+            }
+          }
+
+          // Also disconnect the current topic if it exists and wasn't in the list
+          if (oldTopic && !allPairings.some(p => p.topic === oldTopic)) {
+            try {
+              console.log('Disconnecting current topic:', oldTopic);
+              await this.hashconnect.disconnect(oldTopic);
+            } catch (disconnectError) {
+              console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+            }
+          }
+
+          if (allPairings.length === 0 && !oldTopic) {
+            console.log('No topics to disconnect, but state is Paired - clearing state');
+          }
+        } catch (error) {
+          console.warn('Error getting/disconnecting pairings (continuing cleanup):', error);
         }
 
         try {
@@ -209,6 +240,8 @@ class HashPackService {
 
       console.log('Opening pairing modal...');
       console.log('Current HashConnect state:', this.state);
+      console.log('Current pairingData:', this.pairingData);
+      console.log('HashConnect instance ID:', this.hashconnect ? 'exists' : 'null');
 
       // Open pairing modal with fresh HashConnect instance
       this.hashconnect.openPairingModal();
