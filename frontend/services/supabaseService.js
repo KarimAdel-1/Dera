@@ -409,6 +409,160 @@ class SupabaseService {
       throw error;
     }
   }
+
+  // ============================================================================
+  // WalletConnect Session Persistence Methods
+  // ============================================================================
+
+  /**
+   * Save WalletConnect session to database for persistence
+   * This allows sessions to survive localStorage clears
+   */
+  async saveWalletConnectSession(userId, walletAddress, sessionData) {
+    try {
+      console.log('💾 Saving WalletConnect session to database:', {
+        userId,
+        walletAddress,
+        topic: sessionData.topic
+      });
+
+      const { data, error} = await supabase
+        .from('walletconnect_sessions')
+        .upsert([{
+          user_id: userId,
+          wallet_address: walletAddress,
+          pairing_topic: sessionData.topic,
+          relay_protocol: sessionData.relay?.protocol || 'irn',
+          sym_key: sessionData.symKey || '',
+          expiry_timestamp: sessionData.expiry,
+          network: sessionData.network || 'testnet',
+          is_active: true,
+          last_used_at: new Date().toISOString()
+        }], {
+          onConflict: 'pairing_topic'
+        })
+        .select();
+
+      if (error) throw error;
+
+      console.log('✅ WalletConnect session saved successfully');
+      return data?.[0];
+    } catch (error) {
+      console.error('❌ Error saving WalletConnect session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get active WalletConnect session for a wallet
+   */
+  async getWalletConnectSession(userId, walletAddress) {
+    try {
+      console.log('🔍 Looking for WalletConnect session:', { userId, walletAddress });
+
+      const { data, error } = await supabase
+        .from('walletconnect_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('wallet_address', walletAddress)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        console.log('✅ Found WalletConnect session:', data[0].pairing_topic);
+        return data[0];
+      }
+
+      console.log('ℹ️ No active WalletConnect session found');
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting WalletConnect session:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all active WalletConnect sessions for a user
+   */
+  async getUserWalletConnectSessions(userId) {
+    try {
+      console.log('🔍 Getting all WalletConnect sessions for user:', userId);
+
+      const { data, error } = await supabase
+        .from('walletconnect_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false });
+
+      if (error) throw error;
+
+      console.log(`✅ Found ${data?.length || 0} active sessions`);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error getting user WalletConnect sessions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update session last used timestamp
+   */
+  async updateSessionLastUsed(pairingTopic) {
+    try {
+      const { error } = await supabase
+        .from('walletconnect_sessions')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('pairing_topic', pairingTopic);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('❌ Error updating session last used:', error);
+    }
+  }
+
+  /**
+   * Deactivate WalletConnect session
+   */
+  async deactivateWalletConnectSession(pairingTopic) {
+    try {
+      console.log('🔄 Deactivating WalletConnect session:', pairingTopic);
+
+      const { error } = await supabase
+        .from('walletconnect_sessions')
+        .update({ is_active: false })
+        .eq('pairing_topic', pairingTopic);
+
+      if (error) throw error;
+
+      console.log('✅ WalletConnect session deactivated');
+    } catch (error) {
+      console.error('❌ Error deactivating WalletConnect session:', error);
+    }
+  }
+
+  /**
+   * Delete old/expired WalletConnect sessions
+   */
+  async cleanupExpiredSessions() {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+
+      const { error } = await supabase
+        .from('walletconnect_sessions')
+        .delete()
+        .lt('expiry_timestamp', now);
+
+      if (error) throw error;
+
+      console.log('✅ Cleaned up expired WalletConnect sessions');
+    } catch (error) {
+      console.error('❌ Error cleaning up expired sessions:', error);
+    }
+  }
 }
 
 export const supabaseService = new SupabaseService();

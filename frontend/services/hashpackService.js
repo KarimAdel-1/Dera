@@ -345,6 +345,12 @@ class HashPackService {
           console.log('All accounts to be returned:', allAccounts);
 
           this.pairingData = pairingData;
+
+          // Save session to database for persistence across localStorage clears
+          this.saveSessionToDatabase(pairingData).catch(err => {
+            console.warn('Failed to save session to database:', err);
+          });
+
           resolve(allAccounts);
         };
 
@@ -360,12 +366,14 @@ class HashPackService {
     try {
       console.log('Starting disconnect process...');
 
-      if (this.hashconnect && this.pairingData?.topic) {
-        console.log('Disconnecting topic:', this.pairingData.topic);
+      const topicToDeactivate = this.pairingData?.topic;
+
+      if (this.hashconnect && topicToDeactivate) {
+        console.log('Disconnecting topic:', topicToDeactivate);
 
         try {
           // Disconnect from HashConnect - this removes the pairing from HashPack
-          await this.hashconnect.disconnect(this.pairingData.topic);
+          await this.hashconnect.disconnect(topicToDeactivate);
           console.log('Successfully disconnected from HashPack');
         } catch (disconnectError) {
           console.warn('Error during disconnect (continuing cleanup):', disconnectError);
@@ -377,6 +385,11 @@ class HashPackService {
         } catch (modalError) {
           console.log('No modal to close or already closed');
         }
+
+        // Deactivate session in database
+        this.deactivateSessionInDatabase(topicToDeactivate).catch(err => {
+          console.warn('Failed to deactivate session in database:', err);
+        });
       }
 
       // Clear local pairing data
@@ -652,6 +665,156 @@ class HashPackService {
       console.log(`Successfully cleared ${keysToRemove.length} WalletConnect/HashConnect items`);
     } catch (error) {
       console.error('Error clearing WalletConnect data:', error);
+    }
+  }
+
+  // ============================================================================
+  // Session Persistence Methods (Database-backed localStorage)
+  // ============================================================================
+
+  /**
+   * Backup all WalletConnect localStorage data and save to database
+   * This allows session recovery after localStorage is cleared
+   */
+  async saveSessionToDatabase(pairingData) {
+    try {
+      if (typeof window === 'undefined') return;
+
+      console.log('📦 Backing up WalletConnect session to database...');
+
+      // Get current user from Redux store
+      const { store } = await import('../app/store/store.js');
+      const state = store.getState();
+      const currentUser = state.wallet.currentUser;
+
+      if (!currentUser || !pairingData?.accountIds?.[0]) {
+        console.log('⚠️ No user or account ID, skipping session backup');
+        return;
+      }
+
+      const walletAddress = pairingData.accountIds[0];
+
+      // Backup all WalletConnect data from localStorage
+      const wcData = {};
+      const allKeys = Object.keys(localStorage);
+
+      allKeys.forEach(key => {
+        if (key.startsWith('wc@2:') ||
+            key.startsWith('wc_') ||
+            key.startsWith('hashconnect') ||
+            key.includes('walletconnect')) {
+          try {
+            wcData[key] = localStorage.getItem(key);
+          } catch (e) {
+            console.warn(`Failed to backup key ${key}:`, e);
+          }
+        }
+      });
+
+      console.log(`📦 Backed up ${Object.keys(wcData).length} localStorage keys`);
+
+      // Save to database
+      const { supabaseService } = await import('./supabaseService');
+
+      const sessionData = {
+        topic: pairingData.topic,
+        network: pairingData.network,
+        expiry: pairingData.expiry,
+        symKey: JSON.stringify(wcData), // Store all localStorage data as JSON
+        relay: pairingData.relay
+      };
+
+      await supabaseService.saveWalletConnectSession(
+        currentUser.id,
+        walletAddress,
+        sessionData
+      );
+
+      console.log('✅ Session backed up to database successfully');
+    } catch (error) {
+      console.error('❌ Error backing up session to database:', error);
+    }
+  }
+
+  /**
+   * Restore WalletConnect localStorage data from database
+   * Called during initialization if localStorage is empty
+   */
+  async restoreSessionFromDatabase(userId, walletAddress) {
+    try {
+      if (typeof window === 'undefined') return false;
+
+      console.log('🔄 Attempting to restore session from database...');
+
+      const { supabaseService } = await import('./supabaseService');
+      const session = await supabaseService.getWalletConnectSession(userId, walletAddress);
+
+      if (!session || !session.sym_key) {
+        console.log('ℹ️ No session found in database to restore');
+        return false;
+      }
+
+      // Parse the backed up localStorage data
+      let wcData;
+      try {
+        wcData = JSON.parse(session.sym_key);
+      } catch (e) {
+        console.error('Failed to parse session data:', e);
+        return false;
+      }
+
+      if (!wcData || Object.keys(wcData).length === 0) {
+        console.log('ℹ️ No localStorage data to restore');
+        return false;
+      }
+
+      console.log(`🔄 Restoring ${Object.keys(wcData).length} localStorage keys...`);
+
+      // Restore all WalletConnect data to localStorage
+      Object.entries(wcData).forEach(([key, value]) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          console.warn(`Failed to restore key ${key}:`, e);
+        }
+      });
+
+      console.log('✅ Session restored from database successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error restoring session from database:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if we should attempt session restoration
+   * Returns true if localStorage is empty but we might have session in database
+   */
+  shouldRestoreSession() {
+    if (typeof window === 'undefined') return false;
+
+    // Check if localStorage has any WalletConnect data
+    const allKeys = Object.keys(localStorage);
+    const hasWCData = allKeys.some(key =>
+      key.startsWith('wc@2:') ||
+      key.startsWith('wc_') ||
+      key.startsWith('hashconnect')
+    );
+
+    return !hasWCData; // Should restore if no WC data in localStorage
+  }
+
+  /**
+   * Deactivate session in database when disconnecting
+   */
+  async deactivateSessionInDatabase(pairingTopic) {
+    try {
+      const { supabaseService } = await import('./supabaseService');
+      await supabaseService.deactivateWalletConnectSession(pairingTopic);
+      console.log('✅ Session deactivated in database');
+    } catch (error) {
+      console.error('❌ Error deactivating session in database:', error);
     }
   }
 }
