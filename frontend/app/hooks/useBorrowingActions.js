@@ -1,51 +1,69 @@
 import { useDispatch } from 'react-redux'
-import { 
-  addLoan, 
-  updateLoan, 
-  updateIScore, 
-  addStakingReward, 
+import {
+  addLoan,
+  updateLoan,
+  updateIScore,
+  addStakingReward,
   updateHealthFactor,
-  setLoading, 
-  setError 
+  setLoading,
+  setError
 } from '../store/borrowingSlice'
 import { addNotification, addHealthFactorWarning } from '../store/notificationSlice'
-import { apiService } from '../../services/apiService'
+import { contractService } from '../../services/contractService'
 
 export const useBorrowingActions = () => {
   const dispatch = useDispatch()
 
-  const borrow = async (collateralAmount, borrowAmount, interestRate, walletId) => {
+  const borrow = async (collateralAmount, borrowAmountUSD, iScore, walletId) => {
     try {
       dispatch(setLoading({ borrow: true }))
-      
-      // TODO: Replace with actual API call
-      const mockLoan = {
-        id: `loan_${Date.now()}`,
-        borrowed: borrowAmount.toString(),
-        collateral: collateralAmount.toString(),
-        totalDebt: borrowAmount.toString(),
-        interestRate,
-        healthFactor: (parseFloat(collateralAmount) * 0.8) / parseFloat(borrowAmount), // 80% LTV
+
+      // Call smart contract to deposit collateral and borrow
+      const receipt = await contractService.depositCollateralAndBorrow(
+        collateralAmount,
+        borrowAmountUSD,
+        iScore
+      )
+
+      // Get loan details from contract
+      const loanData = await contractService.getLoan(walletId)
+      const healthFactor = await contractService.calculateHealthFactor(walletId)
+
+      const loan = {
+        id: receipt.hash,
+        borrowed: loanData.borrowedAmountHBAR,
+        borrowedUSD: loanData.borrowedAmountUSD,
+        collateral: loanData.collateralAmount,
+        totalDebt: loanData.borrowedAmountHBAR,
+        interestRate: loanData.interestRate,
+        healthFactor,
         stakingRewards: '0',
-        createdAt: new Date().toISOString(),
+        accruedInterest: loanData.accruedInterest,
+        iScore: loanData.iScore,
+        createdAt: new Date(loanData.createdAt * 1000).toISOString(),
         status: 'active',
-        walletId
+        walletId,
+        transactionHash: receipt.hash,
+        blockNumber: receipt.blockNumber
       }
-      
-      dispatch(addLoan(mockLoan))
+
+      dispatch(addLoan(loan))
       dispatch(addNotification({
         type: 'success',
         title: 'Loan Created',
-        message: `Successfully borrowed ${borrowAmount} HBAR with ${collateralAmount} HBAR collateral`
+        message: `Successfully borrowed $${borrowAmountUSD} with ${collateralAmount} HBAR collateral`,
+        txHash: receipt.hash
       }))
-      
-      return mockLoan
+
+      return loan
     } catch (error) {
-      dispatch(setError(error.message))
+      console.error('Borrow error:', error)
+      const errorMessage = error.reason || error.message || 'Failed to create loan'
+      dispatch(setError(errorMessage))
       dispatch(addNotification({
         type: 'error',
         title: 'Borrow Failed',
-        message: error.message
+        message: errorMessage
       }))
       throw error
     } finally {
@@ -53,43 +71,62 @@ export const useBorrowingActions = () => {
     }
   }
 
-  const repayLoan = async (loanId, repayAmount, isFullRepayment = false) => {
+  const repayLoan = async (repayAmount, isFullRepayment = false, walletId) => {
     try {
       dispatch(setLoading({ repay: true }))
-      
-      // TODO: Replace with actual API call
+
+      // Call smart contract to repay loan
+      const receipt = await contractService.repayLoan(repayAmount, isFullRepayment)
+
       if (isFullRepayment) {
-        dispatch(updateLoan({ 
-          id: loanId, 
+        dispatch(updateLoan({
+          id: walletId,
           status: 'repaid',
-          totalDebt: '0'
+          totalDebt: '0',
+          active: false
         }))
-        
+
         // Improve iScore on successful repayment
-        dispatch(updateIScore({ 
-          change: 10, 
-          reason: 'Loan repaid successfully' 
+        dispatch(updateIScore({
+          change: 10,
+          reason: 'Loan repaid successfully'
         }))
-        
+
         dispatch(addNotification({
           type: 'success',
           title: 'Loan Repaid',
-          message: 'Loan fully repaid! Collateral will be returned with staking rewards.'
+          message: 'Loan fully repaid! Collateral has been returned.',
+          txHash: receipt.hash
         }))
       } else {
-        // Partial repayment
+        // Partial repayment - update loan details
+        const loanData = await contractService.getLoan(walletId)
+        const healthFactor = await contractService.calculateHealthFactor(walletId)
+
+        dispatch(updateLoan({
+          id: walletId,
+          totalDebt: loanData.borrowedAmountHBAR,
+          accruedInterest: loanData.accruedInterest,
+          healthFactor
+        }))
+
         dispatch(addNotification({
           type: 'success',
           title: 'Payment Processed',
-          message: `Successfully repaid ${repayAmount} HBAR`
+          message: `Successfully repaid ${repayAmount} HBAR`,
+          txHash: receipt.hash
         }))
       }
+
+      return receipt
     } catch (error) {
-      dispatch(setError(error.message))
+      console.error('Repayment error:', error)
+      const errorMessage = error.reason || error.message || 'Failed to repay loan'
+      dispatch(setError(errorMessage))
       dispatch(addNotification({
         type: 'error',
         title: 'Repayment Failed',
-        message: error.message
+        message: errorMessage
       }))
       throw error
     } finally {
@@ -97,42 +134,117 @@ export const useBorrowingActions = () => {
     }
   }
 
-  const addCollateral = async (loanId, collateralAmount) => {
+  const addCollateral = async (collateralAmount, walletId) => {
     try {
       dispatch(setLoading({ addCollateral: true }))
-      
-      // TODO: Replace with actual API call
+
+      // Call smart contract to add collateral
+      const receipt = await contractService.addCollateral(collateralAmount)
+
+      // Get updated loan details
+      const loanData = await contractService.getLoan(walletId)
+      const healthFactor = await contractService.calculateHealthFactor(walletId)
+
+      dispatch(updateLoan({
+        id: walletId,
+        collateral: loanData.collateralAmount,
+        healthFactor
+      }))
+
       dispatch(addNotification({
         type: 'success',
         title: 'Collateral Added',
-        message: `Successfully added ${collateralAmount} HBAR collateral`
+        message: `Successfully added ${collateralAmount} HBAR collateral`,
+        txHash: receipt.hash
       }))
+
+      return receipt
     } catch (error) {
-      dispatch(setError(error.message))
+      console.error('Add collateral error:', error)
+      const errorMessage = error.reason || error.message || 'Failed to add collateral'
+      dispatch(setError(errorMessage))
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Add Collateral Failed',
+        message: errorMessage
+      }))
       throw error
     } finally {
       dispatch(setLoading({ addCollateral: false }))
     }
   }
 
-  const checkHealthFactor = (loanId, currentHealthFactor) => {
-    dispatch(updateHealthFactor({ loanId, healthFactor: currentHealthFactor }))
-    
-    if (currentHealthFactor < 1.2) {
-      dispatch(addHealthFactorWarning({ loanId, healthFactor: currentHealthFactor }))
+  const checkHealthFactor = async (walletId) => {
+    try {
+      const healthFactor = await contractService.calculateHealthFactor(walletId)
+
+      dispatch(updateHealthFactor({ loanId: walletId, healthFactor }))
+
+      if (healthFactor < 1.2) {
+        dispatch(addHealthFactorWarning({ loanId: walletId, healthFactor }))
+        dispatch(addNotification({
+          type: 'warning',
+          title: 'Low Health Factor Warning',
+          message: `Your health factor is ${healthFactor.toFixed(2)}. Consider adding collateral to avoid liquidation.`
+        }))
+      }
+
+      return healthFactor
+    } catch (error) {
+      console.error('Health factor check error:', error)
+      throw error
+    }
+  }
+
+  const getLoanTerms = async (iScore, borrowAmountUSD) => {
+    try {
+      const terms = await contractService.getLoanTerms(iScore, borrowAmountUSD)
+      return terms
+    } catch (error) {
+      console.error('Failed to get loan terms:', error)
+      throw error
+    }
+  }
+
+  const getUserLoan = async (walletId) => {
+    try {
+      const loanData = await contractService.getLoan(walletId)
+
+      if (!loanData.active) {
+        return null
+      }
+
+      const healthFactor = await contractService.calculateHealthFactor(walletId)
+
+      return {
+        borrowed: loanData.borrowedAmountHBAR,
+        borrowedUSD: loanData.borrowedAmountUSD,
+        collateral: loanData.collateralAmount,
+        totalDebt: loanData.borrowedAmountHBAR,
+        interestRate: loanData.interestRate,
+        healthFactor,
+        accruedInterest: loanData.accruedInterest,
+        iScore: loanData.iScore,
+        createdAt: new Date(loanData.createdAt * 1000).toISOString(),
+        status: 'active',
+        walletId
+      }
+    } catch (error) {
+      console.error('Failed to get user loan:', error)
+      return null
     }
   }
 
   const distributeStakingRewards = (loanId, totalRewards) => {
     const borrowerShare = totalRewards * 0.4 // 40% to borrower
-    
+
     dispatch(addStakingReward({
       loanId,
       amount: borrowerShare,
       timestamp: new Date().toISOString(),
       type: 'staking_reward'
     }))
-    
+
     dispatch(addNotification({
       type: 'info',
       title: 'Staking Rewards',
@@ -145,6 +257,8 @@ export const useBorrowingActions = () => {
     repayLoan,
     addCollateral,
     checkHealthFactor,
+    getLoanTerms,
+    getUserLoan,
     distributeStakingRewards
   }
 }
