@@ -1,23 +1,103 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
+import { useBorrowingActions } from '../../hooks/useBorrowingActions'
+import { contractService } from '../../../services/contractService'
+import toast from 'react-hot-toast'
 
 export default function BorrowForm({ borrowAmount, collateralAmount }) {
-  const { isConnected } = useSelector((state) => state.wallet)
+  const { isConnected, activeWallet } = useSelector((state) => state.wallet)
+  const { loading, userData } = useSelector((state) => state.borrowing)
+  const [hbarPrice, setHbarPrice] = useState(0.05) // Default fallback
+  const { borrow } = useBorrowingActions()
+
+  // Fetch HBAR price
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        if (contractService.contracts?.priceOracle) {
+          const price = await contractService.getHBARPrice()
+          setHbarPrice(price)
+        }
+      } catch (error) {
+        console.log('Using default HBAR price')
+      }
+    }
+
+    if (isConnected) {
+      fetchPrice()
+      const interval = setInterval(fetchPrice, 60000) // Update every minute
+      return () => clearInterval(interval)
+    }
+  }, [isConnected])
 
   const handleBorrow = async () => {
     if (!isConnected) {
-      alert('Please connect your wallet first')
-      return
-    }
-    
-    if (!borrowAmount || !collateralAmount) {
-      alert('Please enter valid amounts')
+      toast.error('Please connect your wallet first')
       return
     }
 
-    // TODO: Implement actual borrow logic
-    alert(`Depositing ${collateralAmount} HBAR collateral to borrow ${borrowAmount} HBAR`)
+    if (!borrowAmount || !collateralAmount) {
+      toast.error('Please enter valid borrow and collateral amounts')
+      return
+    }
+
+    const borrowAmountNum = parseFloat(borrowAmount)
+    const collateralAmountNum = parseFloat(collateralAmount)
+
+    if (borrowAmountNum <= 0 || collateralAmountNum <= 0) {
+      toast.error('Amounts must be greater than 0')
+      return
+    }
+
+    if (borrowAmountNum < 50) {
+      toast.error('Minimum borrow amount is 50 HBAR')
+      return
+    }
+
+    try {
+      // Convert HBAR borrow amount to USD
+      const borrowAmountUSD = borrowAmountNum * hbarPrice
+
+      // Get user's iScore (default to 500 if not available)
+      const userIScore = userData?.iScore || 500
+
+      const loadingToast = toast.loading(`Creating loan: Depositing ${collateralAmountNum} HBAR collateral to borrow ${borrowAmountNum} HBAR...`)
+
+      // Call borrow hook
+      await borrow(collateralAmountNum, borrowAmountUSD, userIScore, activeWallet)
+
+      toast.dismiss(loadingToast)
+      toast.success(
+        `Successfully borrowed ${borrowAmountNum} HBAR! Your collateral (${collateralAmountNum} HBAR) is now staked and earning rewards.`,
+        {
+          duration: 6000,
+          icon: '🎉',
+        }
+      )
+
+    } catch (error) {
+      console.error('Borrow failed:', error)
+
+      let errorMessage = 'Failed to create loan. Please try again.'
+
+      if (error.message?.includes('user rejected')) {
+        errorMessage = 'Transaction was cancelled'
+      } else if (error.message?.includes('Insufficient liquidity')) {
+        errorMessage = 'Pool has insufficient liquidity for this loan'
+      } else if (error.message?.includes('insufficient funds')) {
+        errorMessage = 'Insufficient HBAR balance for collateral'
+      } else if (error.message?.includes('Invalid iScore')) {
+        errorMessage = 'Invalid credit score. Please try again.'
+      } else if (error.reason) {
+        errorMessage = error.reason
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      toast.error(errorMessage, { duration: 5000 })
+    }
   }
 
   const isValidAmounts = borrowAmount && collateralAmount && parseFloat(borrowAmount) > 0 && parseFloat(collateralAmount) > 0
@@ -124,10 +204,18 @@ export default function BorrowForm({ borrowAmount, collateralAmount }) {
         {/* Action Button */}
         <button
           onClick={handleBorrow}
-          disabled={!isConnected || !isValidAmounts}
-          className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:bg-[var(--color-bg-tertiary)] disabled:text-[var(--color-text-muted)] text-white py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100"
+          disabled={!isConnected || !isValidAmounts || loading.borrow}
+          className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:bg-[var(--color-bg-tertiary)] disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed text-white py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100"
         >
-          {!isConnected ? 'Connect Wallet' : 
+          {loading.borrow ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing...
+            </span>
+          ) : !isConnected ? 'Connect Wallet' :
            !isValidAmounts ? 'Enter Valid Amounts' :
            `Borrow ${borrowAmount} HBAR`}
         </button>
