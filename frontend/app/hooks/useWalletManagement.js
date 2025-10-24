@@ -349,6 +349,70 @@ export const useWalletManagement = () => {
     }
   }, [dispatch, tempWallet]);
 
+  // Reconnect a disconnected wallet
+  const reconnectWallet = useCallback(async (walletToReconnect) => {
+    if (!walletToReconnect) return;
+
+    setIsConnecting(true);
+    console.log('🔄 Reconnecting wallet:', walletToReconnect.address);
+
+    try {
+      const { hashpackService } = await import('../../services/hashpackService');
+      const { toast } = await import('react-hot-toast');
+
+      // Open HashConnect pairing modal
+      toast.loading('Opening HashPack...');
+      const accounts = await hashpackService.connectWallet();
+
+      if (accounts && accounts.length > 0) {
+        const connectedAddress = accounts[0].accountId;
+
+        // Verify it's the same wallet
+        if (connectedAddress !== walletToReconnect.address) {
+          toast.dismiss();
+          toast.error(`Please connect with wallet ${walletToReconnect.address}`);
+          // Disconnect the wrong wallet
+          await hashpackService.disconnectWallet();
+          setIsConnecting(false);
+          return;
+        }
+
+        // Reactivate the wallet in database
+        if (currentUser) {
+          const { supabaseService } = await import('../../services/supabaseService');
+          await supabaseService.reactivateWallet(currentUser.id, walletToReconnect.address);
+        }
+
+        // Update wallet in Redux to mark as active
+        dispatch(updateWallet({
+          id: walletToReconnect.id,
+          updates: {
+            isActive: true,
+            connectedAt: new Date().toISOString()
+          }
+        }));
+
+        toast.dismiss();
+        toast.success('Wallet reconnected successfully!');
+      } else {
+        toast.dismiss();
+        toast.error('Connection was cancelled');
+      }
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+      const { toast } = await import('react-hot-toast');
+      toast.dismiss();
+
+      if (error.message?.includes('Connection timeout')) {
+        toast.error('Connection timeout - please try again');
+      } else {
+        toast.error('Failed to reconnect wallet');
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [dispatch, currentUser, wallets]);
+
   // Refresh wallet details
   const refreshWalletDetails = useCallback(async () => {
     if (!address || !isConnected) return;
@@ -407,6 +471,7 @@ export const useWalletManagement = () => {
     connectToHashPack,
     connectToKabila,
     connectToBlade,
+    reconnectWallet,
     refreshWalletDetails,
     updateWalletCardSkin,
     setNewlyConnectedWallet,
