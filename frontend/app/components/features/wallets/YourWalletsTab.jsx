@@ -59,6 +59,7 @@ const YourWalletsTab = () => {
     setShowModal(false);
     setEditingWallet(null);
     setNewlyConnectedWallet(null);
+    deleteTempWallet();
   };
 
   const handleEditWallet = (wallet) => {
@@ -66,11 +67,11 @@ const YourWalletsTab = () => {
     setShowModal(true);
   };
 
-  const handleSkinChange = (skin) => {
+  const handleUpdateTempWallet = (updates) => {
     if (editingWallet) {
-      setEditingWallet({ ...editingWallet, cardSkin: skin });
+      setEditingWallet({ ...editingWallet, ...updates });
     } else {
-      updateTempWallet({ cardSkin: skin });
+      updateTempWallet(updates);
     }
   };
 
@@ -144,7 +145,7 @@ const YourWalletsTab = () => {
         onConnectHashPack={connectToHashPack}
         onConnectKabila={connectToKabila}
         onConnectBlade={connectToBlade}
-        onUpdateTempWallet={handleSkinChange}
+        onUpdateTempWallet={handleUpdateTempWallet}
         onDeleteTempWallet={deleteTempWallet}
         onSetDefaultWallet={setDefaultWallet}
         onUpdateWalletCardSkin={updateWalletCardSkin}

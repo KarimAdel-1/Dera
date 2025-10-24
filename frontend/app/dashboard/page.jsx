@@ -7,7 +7,7 @@ import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import DashboardTab from '../components/features/dashboard/DashboardTab';
 import YourWalletsTab from '../components/features/wallets/YourWalletsTab';
-
+import StakingTab from '../components/features/staking/StakingTab';
 import TransactionsTab from '../components/features/transactions/TransactionsTab';
 import SettingsTab from '../components/features/settings/SettingsTab';
 import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
@@ -42,7 +42,8 @@ export default function Dashboard() {
         return <YourWalletsTab />;
       case 'lending':
         return <LendingBorrowingTab />;
-
+      case 'staking':
+        return <StakingTab />;
       case 'transactions':
         return <TransactionsTab />;
       case 'hedera-stats':
@@ -62,7 +63,8 @@ export default function Dashboard() {
         return 'Your Wallets';
       case 'lending':
         return 'Lending & Borrowing';
-
+      case 'staking':
+        return 'Staking';
       case 'transactions':
         return 'Transactions';
       case 'hedera-stats':

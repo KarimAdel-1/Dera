@@ -233,42 +233,60 @@ class SupabaseService {
     try {
       console.log('🔄 Processing wallet connection:', walletAddress);
       
-      // Check if wallet exists and get associated user
-      const result = await this.checkWalletAndUser(walletAddress);
-      
-      if (result.isExisting) {
-        console.log('✅ Existing wallet found, updating last login');
+      // Check if wallet exists and get associated user (including inactive wallets)
+      const { data: existingWallet, error: walletError } = await supabase
+        .from('wallets')
+        .select(`
+          *,
+          users!inner(*)
+        `)
+        .eq('wallet_address', walletAddress)
+        .single();
+
+      if (existingWallet) {
+        console.log('✅ Found existing wallet, reactivating and updating last login');
+        
+        // Reactivate wallet if it was deactivated
+        await supabase
+          .from('wallets')
+          .update({ is_active: true })
+          .eq('wallet_address', walletAddress);
+        
         // Update user's last login
         await supabase
           .from('users')
           .update({ last_login: new Date().toISOString() })
-          .eq('id', result.user.id);
+          .eq('id', existingWallet.users.id);
         
         return {
-          user: result.user,
-          wallet: result.wallet,
+          user: existingWallet.users,
+          wallet: { ...existingWallet, is_active: true },
           isNewWallet: false
         };
-      } else {
-        console.log('🆕 New wallet detected');
-        
-        // Create new user for this wallet
-        const uniqueIdentifier = `user_${walletAddress}`;
-        const user = await this.createOrGetUser(uniqueIdentifier);
-        
-        // Save the new wallet
-        const wallet = await this.saveWallet(user.id, {
-          ...walletData,
-          address: walletAddress,
-          walletId: walletAddress
-        });
-        
-        return {
-          user,
-          wallet,
-          isNewWallet: true
-        };
       }
+      
+      if (walletError && walletError.code !== 'PGRST116') {
+        throw walletError;
+      }
+
+      console.log('🆕 New wallet detected - creating new user');
+      
+      // Create new user for this wallet
+      const uniqueIdentifier = `user_${walletAddress}`;
+      const user = await this.createOrGetUser(uniqueIdentifier);
+      
+      // Save the new wallet
+      const wallet = await this.saveWallet(user.id, {
+        ...walletData,
+        address: walletAddress,
+        walletId: walletAddress
+      });
+      
+      return {
+        user,
+        wallet,
+        isNewWallet: true
+      };
     } catch (error) {
       console.error('❌ Error processing wallet connection:', {
         message: error?.message,
@@ -309,6 +327,40 @@ class SupabaseService {
       return wallet;
     } catch (error) {
       console.error('❌ Error adding wallet to existing user:', error);
+      throw error;
+    }
+  }
+
+  async updateWalletCardSkin(walletAddress, newCardSkin) {
+    try {
+      const { data, error } = await supabase
+        .from('wallets')
+        .update({ card_skin: newCardSkin })
+        .eq('wallet_address', walletAddress)
+        .eq('is_active', true)
+        .select();
+
+      if (error) throw error;
+      return data[0];
+    } catch (error) {
+      console.error('Error updating wallet card skin:', error);
+      throw error;
+    }
+  }
+
+  async reactivateWallet(userId, walletAddress) {
+    try {
+      const { data, error } = await supabase
+        .from('wallets')
+        .update({ is_active: true })
+        .eq('user_id', userId)
+        .eq('wallet_address', walletAddress)
+        .select();
+
+      if (error) throw error;
+      return data[0];
+    } catch (error) {
+      console.error('Error reactivating wallet:', error);
       throw error;
     }
   }

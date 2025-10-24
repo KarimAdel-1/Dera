@@ -42,7 +42,6 @@ const ConnectWalletModal = memo(({
 
   const handleSkinChange = (skin) => {
     if (editingWallet) {
-      // Update editing wallet state (handled by parent)
       onUpdateTempWallet({ ...editingWallet, cardSkin: skin });
     } else {
       onUpdateTempWallet({ cardSkin: skin });

@@ -59,6 +59,7 @@ export const useWalletManagement = () => {
                 address: wallet.wallet_address,
                 walletType: wallet.wallet_type,
                 cardSkin: wallet.card_skin,
+                isActive: wallet.is_active,
               })
             );
 
@@ -137,9 +138,9 @@ export const useWalletManagement = () => {
     updateAllWalletDetails();
   }, [wallets.length, network, dispatch]);
 
-  // HashPack connection event listener
+  // HashPack connection/disconnection event listeners
   useEffect(() => {
-    const handleHashPackConnection = (event) => {
+    const handleHashPackConnection = async (event) => {
       const walletData = {
         address: event.detail.address,
         walletType: event.detail.walletType,
@@ -148,12 +149,40 @@ export const useWalletManagement = () => {
 
       dispatch(saveWalletToSupabase(walletData));
       setNewlyConnectedWallet(event.detail);
+      
+      const { toast } = await import('react-hot-toast');
+      toast.success('Wallet connected successfully!');
+    };
+
+    const handleHashPackDisconnection = async (event) => {
+      const disconnectedAddress = event.detail.address;
+      
+      if (currentUser && disconnectedAddress) {
+        try {
+          await supabaseService.deactivateWallet(currentUser.id, disconnectedAddress);
+          
+          // Update wallet state
+          const wallet = wallets.find(w => w.address === disconnectedAddress);
+          if (wallet) {
+            dispatch(updateWallet({ id: wallet.id, updates: { isActive: false } }));
+          }
+          
+          const { toast } = await import('react-hot-toast');
+          toast.error('Wallet disconnected');
+        } catch (error) {
+          console.error('Failed to handle wallet disconnection:', error);
+        }
+      }
     };
 
     window.addEventListener('hashpackConnected', handleHashPackConnection);
-    return () =>
+    window.addEventListener('hashpackDisconnected', handleHashPackDisconnection);
+    
+    return () => {
       window.removeEventListener('hashpackConnected', handleHashPackConnection);
-  }, [dispatch]);
+      window.removeEventListener('hashpackDisconnected', handleHashPackDisconnection);
+    };
+  }, [dispatch, currentUser, wallets]);
 
   // Connect to HashPack
   const connectToHashPack = useCallback(async () => {
@@ -169,6 +198,13 @@ export const useWalletManagement = () => {
         const newAccounts = accounts.filter(
           (acc) => !existingAddresses.includes(acc.accountId)
         );
+
+        if (newAccounts.length === 0) {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Wallet is already connected');
+          dispatch(deleteTempWallet());
+          return;
+        }
 
         if (newAccounts.length > 0) {
           const newAccount = newAccounts[0];
@@ -198,9 +234,19 @@ export const useWalletManagement = () => {
             walletType: 'hashpack',
           });
         }
+      } else {
+        const { toast } = await import('react-hot-toast');
+        toast.error('Wallet connection was cancelled');
+        dispatch(deleteTempWallet());
       }
     } catch (error) {
       console.error('HashPack connection failed:', error);
+      const { toast } = await import('react-hot-toast');
+      if (error.message?.includes('Connection timeout')) {
+        toast.error('Connection timeout - please try again');
+      } else {
+        toast.error('Failed to connect wallet');
+      }
       dispatch(deleteTempWallet());
     } finally {
       setIsConnecting(false);
@@ -220,6 +266,14 @@ export const useWalletManagement = () => {
         const address = accounts[0];
 
         if (address) {
+          const existingAddresses = wallets.map((w) => w.address);
+          if (existingAddresses.includes(address)) {
+            const { toast } = await import('react-hot-toast');
+            toast.error('Wallet is already connected');
+            dispatch(deleteTempWallet());
+            return;
+          }
+
           const walletData = {
             address,
             walletType: 'kabila',
@@ -231,10 +285,16 @@ export const useWalletManagement = () => {
           dispatch(deleteTempWallet());
 
           setNewlyConnectedWallet({ address, walletType: 'kabila' });
+        } else {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Wallet connection was cancelled');
+          dispatch(deleteTempWallet());
         }
       }
     } catch (error) {
       console.error('Kabila connection failed:', error);
+      const { toast } = await import('react-hot-toast');
+      toast.error('Failed to connect wallet');
       dispatch(deleteTempWallet());
     } finally {
       setIsConnecting(false);
@@ -251,6 +311,14 @@ export const useWalletManagement = () => {
         const result = await window.bladeWallet.connect();
 
         if (result.accountId) {
+          const existingAddresses = wallets.map((w) => w.address);
+          if (existingAddresses.includes(result.accountId)) {
+            const { toast } = await import('react-hot-toast');
+            toast.error('Wallet is already connected');
+            dispatch(deleteTempWallet());
+            return;
+          }
+
           const walletData = {
             address: result.accountId,
             walletType: 'blade',
@@ -265,10 +333,16 @@ export const useWalletManagement = () => {
             address: result.accountId,
             walletType: 'blade',
           });
+        } else {
+          const { toast } = await import('react-hot-toast');
+          toast.error('Wallet connection was cancelled');
+          dispatch(deleteTempWallet());
         }
       }
     } catch (error) {
       console.error('Blade connection failed:', error);
+      const { toast } = await import('react-hot-toast');
+      toast.error('Failed to connect wallet');
       dispatch(deleteTempWallet());
     } finally {
       setIsConnecting(false);

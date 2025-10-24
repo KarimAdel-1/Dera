@@ -114,6 +114,16 @@ class HashPackService {
     // Listen for disconnection events
     this.hashconnect.disconnectionEvent.on((data) => {
       console.log('Disconnection event:', data);
+      
+      // Emit custom event for wallet disconnection
+      if (this.pairingData?.accountIds) {
+        this.pairingData.accountIds.forEach(accountId => {
+          window.dispatchEvent(new CustomEvent('hashpackDisconnected', {
+            detail: { address: accountId, walletType: 'hashpack' }
+          }));
+        });
+      }
+      
       this.pairingData = null;
       this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
     });
@@ -141,11 +151,20 @@ class HashPackService {
         throw new Error('HashConnect not initialized');
       }
 
-      // If there's an existing pairing, disconnect it first to force fresh connection
-      if (this.pairingData?.topic) {
-        console.log('Existing pairing found, disconnecting first...');
-        await this.disconnectWallet();
-        // Wait a bit for the disconnect to process
+      // Check if there's already an active pairing with accounts
+      if (this.pairingData?.accountIds?.length > 0) {
+        console.log('Using existing pairing with accounts:', this.pairingData.accountIds);
+        return this.pairingData.accountIds.map((accountId) => ({
+          accountId,
+          address: accountId,
+          network: this.pairingData.network || 'testnet',
+        }));
+      }
+
+      // Only clear pairings if they exist but have no accounts
+      if (this.pairingData?.topic && !this.pairingData?.accountIds?.length) {
+        console.log('Found empty pairing, clearing...');
+        await this.disconnectAll();
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 

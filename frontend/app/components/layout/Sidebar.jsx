@@ -11,6 +11,7 @@ import {
   TrendingUp,
   TrendingDown,
   HandCoins,
+  Coins,
 } from 'lucide-react';
 
 const HederaIcon = () => (
@@ -41,6 +42,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     { icon: House, label: 'Dashboard', id: 'dashboard' },
     { icon: CreditCard, label: 'Your Wallets', id: 'wallets' },
     { icon: HandCoins, label: 'Lending', id: 'lending' },
+    { icon: Coins, label: 'Staking', id: 'staking' },
     { icon: ArrowRightLeft, label: 'Transactions', id: 'transactions' },
     { icon: HederaIcon, label: 'Hedera Stats', id: 'hedera-stats' },
   ];

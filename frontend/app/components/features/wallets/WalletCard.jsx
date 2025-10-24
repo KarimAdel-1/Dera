@@ -1,9 +1,21 @@
-import { Wallet, Edit3 } from 'lucide-react'
+import { Wallet, Edit3, Plug } from 'lucide-react'
 import { useDispatch } from 'react-redux'
-import { switchWallet } from '../../../store/walletSlice'
+import { switchWallet, reconnectWallet } from '../../../store/walletSlice'
 
 export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit }) {
   const dispatch = useDispatch()
+  
+  const handleReconnect = async (e) => {
+    e.stopPropagation()
+    try {
+      await dispatch(reconnectWallet(wallet.address))
+      const { toast } = await import('react-hot-toast')
+      toast.success('Wallet reconnected!')
+    } catch (error) {
+      const { toast } = await import('react-hot-toast')
+      toast.error('Failed to reconnect wallet')
+    }
+  }
 
   const formatAddress = (addr) => {
     if (!addr) return 'Not Connected'
@@ -23,15 +35,26 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
       }`}
       onClick={() => dispatch(switchWallet(wallet.id))}
     >
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onEdit(wallet)
-        }}
-        className="absolute top-4 right-4 w-8 h-8 bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] rounded-full flex items-center justify-center transition-colors border border-[var(--color-border-primary)]"
-      >
-        <Edit3 className="w-4 h-4 text-[var(--color-text-primary)]" />
-      </button>
+      <div className="absolute top-4 right-4 flex gap-2">
+        {wallet.isActive === false && (
+          <button
+            onClick={handleReconnect}
+            className="w-8 h-8 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center transition-colors"
+            title="Reconnect wallet"
+          >
+            <Plug className="w-4 h-4 text-white" />
+          </button>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(wallet)
+          }}
+          className="w-8 h-8 bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] rounded-full flex items-center justify-center transition-colors border border-[var(--color-border-primary)]"
+        >
+          <Edit3 className="w-4 h-4 text-[var(--color-text-primary)]" />
+        </button>
+      </div>
       
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 lg:gap-6">
         <div className="w-full lg:w-auto flex justify-center lg:justify-start">
@@ -71,7 +94,7 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
                     Status
                   </div>
                   <div className="text-white text-[13px] font-medium">
-                    {wallet.id === activeWalletId ? 'Active' : 'Inactive'}
+                    {wallet.isActive === false ? 'Disconnected' : wallet.id === activeWalletId ? 'Active' : 'Inactive'}
                   </div>
                 </div>
               </div>
@@ -88,12 +111,14 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
               <div className="flex gap-2">
                 <div
                   className={`inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors px-2 py-1 text-xs ${
-                    wallet.id === activeWalletId
+                    wallet.isActive === false
+                      ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                      : wallet.id === activeWalletId
                       ? 'bg-green-500/20 text-green-400 border-green-500/30'
                       : 'bg-gray-500/20 text-gray-400 border-gray-500/30'
                   }`}
                 >
-                  {wallet.id === activeWalletId ? 'Active' : 'Inactive'}
+                  {wallet.isActive === false ? 'Disconnected' : wallet.id === activeWalletId ? 'Active' : 'Inactive'}
                 </div>
                 {wallet.isDefault && (
                   <div className="inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
