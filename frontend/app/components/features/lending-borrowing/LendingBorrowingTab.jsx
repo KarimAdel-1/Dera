@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
-import { 
-  Info, 
+import {
+  Info,
   ExternalLink,
   Shield,
   Zap,
@@ -11,25 +11,92 @@ import {
   Percent,
   BarChart3,
   AlertCircle,
-  Activity
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react'
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import LendTab from './LendTab'
 import BorrowTab from './BorrowTab'
 
 export default function LendingBorrowingTab() {
   const { isConnected, activeWallet } = useSelector((state) => state.wallet)
   const [activeMode, setActiveMode] = useState('overview')
+  const [timeRange, setTimeRange] = useState('7D')
 
-  const StatCard = ({ title, value, icon: Icon, subtitle }) => (
-    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
-      <div className="flex items-center gap-2 text-sm mb-2" style={{ color: 'var(--color-text-muted)' }}>
-        {Icon && <Icon className="w-4 h-4" />}
-        <span>{title}</span>
+  // Mock data for charts - Replace with real data from smart contracts
+  const [apyHistoryData, setApyHistoryData] = useState([
+    { date: '12/17', tier1: 4.2, tier2: 5.5, tier3: 7.2 },
+    { date: '12/18', tier1: 4.3, tier2: 5.7, tier3: 7.4 },
+    { date: '12/19', tier1: 4.5, tier2: 5.8, tier3: 7.6 },
+    { date: '12/20', tier1: 4.4, tier2: 5.9, tier3: 7.5 },
+    { date: '12/21', tier1: 4.6, tier2: 6.0, tier3: 7.7 },
+    { date: '12/22', tier1: 4.5, tier2: 5.9, tier3: 7.6 },
+    { date: '12/23', tier1: 4.5, tier2: 5.85, tier3: 7.65 },
+  ])
+
+  const [tvlData, setTvlData] = useState([
+    { date: '12/17', supply: 2.65, borrow: 1.98 },
+    { date: '12/18', supply: 2.70, borrow: 2.05 },
+    { date: '12/19', supply: 2.75, borrow: 2.08 },
+    { date: '12/20', supply: 2.78, borrow: 2.10 },
+    { date: '12/21', supply: 2.80, borrow: 2.12 },
+    { date: '12/22', supply: 2.82, borrow: 2.14 },
+    { date: '12/23', supply: 2.84, borrow: 2.15 },
+  ])
+
+  const [tierDistribution, setTierDistribution] = useState([
+    { name: 'Tier 1 - Instant', value: 850, color: '#3b82f6' },
+    { name: 'Tier 2 - 30-Day', value: 1120, color: '#8b5cf6' },
+    { name: 'Tier 3 - 90-Day', value: 870, color: '#06b6d4' },
+  ])
+
+  const [volumeData, setVolumeData] = useState([
+    { date: '12/17', lending: 145, borrowing: 98 },
+    { date: '12/18', lending: 165, borrowing: 112 },
+    { date: '12/19', lending: 152, borrowing: 105 },
+    { date: '12/20', lending: 178, borrowing: 125 },
+    { date: '12/21', lending: 192, borrowing: 138 },
+    { date: '12/22', lending: 185, borrowing: 142 },
+    { date: '12/23', lending: 198, borrowing: 155 },
+  ])
+
+  const StatCard = ({ title, value, icon: Icon, subtitle, change, trend }) => (
+    <div className="rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          {Icon && <Icon className="w-4 h-4" />}
+          <span>{title}</span>
+        </div>
+        {change && (
+          <div className={`flex items-center gap-1 text-xs font-medium ${trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+            {trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {change}
+          </div>
+        )}
       </div>
       <div className="text-2xl font-bold mb-1" style={{ color: 'var(--color-text-primary)' }}>{value}</div>
       {subtitle && <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{subtitle}</div>}
     </div>
   )
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg p-3 shadow-lg" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+          <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="text-xs" style={{ color: entry.color }}>
+              {entry.name}: {entry.value}%
+            </p>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
     <div className="min-h-screen">
@@ -92,25 +159,151 @@ export default function LendingBorrowingTab() {
                 value="$2.84B"
                 icon={DollarSign}
                 subtitle="1,234,567.89 HBAR"
+                change="+2.5%"
+                trend="up"
               />
               <StatCard
                 title="Supply APY"
                 value="4.50%"
                 icon={Percent}
                 subtitle="Tier 1: Instant Access"
+                change="+0.2%"
+                trend="up"
               />
               <StatCard
                 title="Total Borrowed"
                 value="$2.15B"
                 icon={BarChart3}
                 subtitle="934,567.89 HBAR"
+                change="+3.8%"
+                trend="up"
               />
               <StatCard
                 title="Borrow APY"
                 value="5.00%"
                 icon={Percent}
                 subtitle="Based on iScore 500"
+                change="-0.1%"
+                trend="down"
               />
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* APY History Chart */}
+              <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>APY History by Tier</h2>
+                  <div className="flex gap-2">
+                    {['7D', '1M', '3M', '1Y'].map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setTimeRange(range)}
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          timeRange === range
+                            ? 'font-medium'
+                            : 'opacity-60 hover:opacity-100'
+                        }`}
+                        style={{
+                          backgroundColor: timeRange === range ? 'var(--color-primary)' : 'transparent',
+                          color: timeRange === range ? 'white' : 'var(--color-text-muted)'
+                        }}
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={apyHistoryData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="date" stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <YAxis stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Line type="monotone" dataKey="tier1" stroke="#3b82f6" name="Tier 1" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="tier2" stroke="#8b5cf6" name="Tier 2" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="tier3" stroke="#06b6d4" name="Tier 3" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* TVL Chart */}
+              <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+                <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--color-text-primary)' }}>Total Value Locked (TVL)</h2>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={tvlData}>
+                    <defs>
+                      <linearGradient id="colorSupply" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorBorrow" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="date" stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <YAxis stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Area type="monotone" dataKey="supply" stroke="#10b981" fillOpacity={1} fill="url(#colorSupply)" name="Supply ($B)" />
+                    <Area type="monotone" dataKey="borrow" stroke="#f59e0b" fillOpacity={1} fill="url(#colorBorrow)" name="Borrow ($B)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Tier Distribution Chart */}
+              <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+                <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--color-text-primary)' }}>Liquidity Distribution by Tier</h2>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={tierDistribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name.split(' - ')[0]}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {tierDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="mt-4 space-y-2">
+                  {tierDistribution.map((tier, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tier.color }}></div>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>{tier.name}</span>
+                      </div>
+                      <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>${tier.value}M</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Volume Chart */}
+              <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
+                <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--color-text-primary)' }}>Daily Volume</h2>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={volumeData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="date" stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <YAxis stroke="var(--color-text-muted)" style={{ fontSize: '12px' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Bar dataKey="lending" fill="#10b981" name="Lending ($M)" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="borrowing" fill="#3b82f6" name="Borrowing ($M)" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Market Stats */}
@@ -124,7 +317,7 @@ export default function LendingBorrowingTab() {
                       <span className="text-sm font-medium">75.70%</span>
                     </div>
                     <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
-                      <div className="h-full" style={{ width: '75.7%', backgroundColor: 'var(--color-primary)' }}></div>
+                      <div className="h-full transition-all duration-500" style={{ width: '75.7%', backgroundColor: 'var(--color-primary)' }}></div>
                     </div>
                   </div>
                   <div className="flex justify-between">
@@ -134,6 +327,10 @@ export default function LendingBorrowingTab() {
                   <div className="flex justify-between">
                     <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Oracle Price</span>
                     <span className="text-sm font-medium">$0.05</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>24h Volume</span>
+                    <span className="text-sm font-medium text-green-600">+$353M</span>
                   </div>
                 </div>
               </div>

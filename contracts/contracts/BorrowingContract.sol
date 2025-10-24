@@ -212,13 +212,15 @@ contract BorrowingContract is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Repay loan and retrieve collateral
+     * @dev Repay loan (full or partial) and retrieve collateral
+     * @param isFullRepayment True for full repayment, false for partial
      */
-    function repay() external payable nonReentrant {
+    function repay(bool isFullRepayment) external payable nonReentrant {
         require(hasActiveLoan[msg.sender], "No active loan");
 
         Loan storage loan = loans[msg.sender];
         require(loan.active, "Loan not active");
+        require(msg.value > 0, "Repayment amount must be positive");
 
         // Update accrued interest
         _updateInterest(msg.sender);
@@ -229,23 +231,68 @@ contract BorrowingContract is Ownable, ReentrancyGuard {
         // Convert to HBAR
         uint256 totalDebtHBAR = priceOracle.usdToHbar(totalDebtUSD);
 
-        require(msg.value >= totalDebtHBAR, "Insufficient repayment");
+        if (isFullRepayment) {
+            require(msg.value >= totalDebtHBAR, "Insufficient repayment for full payoff");
 
-        // Mark loan as inactive
-        loan.active = false;
-        hasActiveLoan[msg.sender] = false;
+            // Mark loan as inactive
+            loan.active = false;
+            hasActiveLoan[msg.sender] = false;
 
-        // Repay to lending pool
-        lendingPool.repay{value: totalDebtHBAR}(totalDebtHBAR);
+            // Repay to lending pool
+            lendingPool.repay{value: totalDebtHBAR}(totalDebtHBAR);
 
-        // Emit event for backend to distribute rewards and return collateral
-        emit LoanRepaid(msg.sender, totalDebtHBAR, loan.accruedInterest);
+            // Return collateral to borrower
+            uint256 collateralToReturn = loan.collateralAmount;
+            loan.collateralAmount = 0;
 
-        // Return excess payment if any
-        if (msg.value > totalDebtHBAR) {
-            (bool success, ) = msg.sender.call{value: msg.value - totalDebtHBAR}("");
-            require(success, "Excess refund failed");
+            (bool collateralSuccess, ) = msg.sender.call{value: collateralToReturn}("");
+            require(collateralSuccess, "Collateral return failed");
+
+            emit LoanRepaid(msg.sender, totalDebtHBAR, loan.accruedInterest);
+
+            // Return excess payment if any
+            if (msg.value > totalDebtHBAR) {
+                (bool success, ) = msg.sender.call{value: msg.value - totalDebtHBAR}("");
+                require(success, "Excess refund failed");
+            }
+        } else {
+            // Partial repayment
+            require(msg.value < totalDebtHBAR, "Use full repayment for complete payoff");
+
+            // Convert payment to USD
+            uint256 repaymentUSD = priceOracle.hbarToUsd(msg.value);
+
+            // Apply payment to interest first, then principal
+            if (repaymentUSD >= loan.accruedInterest) {
+                // Pay off all interest and reduce principal
+                uint256 principalPayment = repaymentUSD - loan.accruedInterest;
+                loan.accruedInterest = 0;
+                loan.borrowedAmountUSD -= principalPayment;
+            } else {
+                // Only reduce interest
+                loan.accruedInterest -= repaymentUSD;
+            }
+
+            // Repay to lending pool
+            lendingPool.repay{value: msg.value}(msg.value);
+
+            emit LoanRepaid(msg.sender, msg.value, repaymentUSD);
         }
+    }
+
+    /**
+     * @dev Add collateral to an existing loan
+     */
+    function addCollateral() external payable nonReentrant {
+        require(hasActiveLoan[msg.sender], "No active loan");
+        require(msg.value > 0, "Collateral amount must be positive");
+
+        Loan storage loan = loans[msg.sender];
+        require(loan.active, "Loan not active");
+
+        loan.collateralAmount += msg.value;
+
+        emit CollateralDeposited(msg.sender, msg.value, loan.iScore);
     }
 
     /**
@@ -273,25 +320,41 @@ contract BorrowingContract is Ownable, ReentrancyGuard {
 
         require(msg.value >= debtHBAR, "Insufficient liquidation payment");
 
-        // Calculate liquidation bonus (5% of collateral)
-        uint256 bonusAmount = (loan.collateralAmount * LIQUIDATION_BONUS) / PERCENTAGE_PRECISION;
+        // Calculate liquidation bonus (5% of debt, paid from borrower's collateral)
+        uint256 bonusHBAR = (debtHBAR * LIQUIDATION_BONUS) / PERCENTAGE_PRECISION;
+        uint256 totalCollateralSeized = debtHBAR + bonusHBAR;
+
+        require(loan.collateralAmount >= totalCollateralSeized, "Insufficient collateral for liquidation");
+
+        // Calculate remaining collateral to return to borrower (if any)
+        uint256 remainingCollateral = loan.collateralAmount - totalCollateralSeized;
 
         // Mark loan as inactive
         loan.active = false;
         hasActiveLoan[borrower] = false;
+        loan.collateralAmount = 0;
 
         // Repay debt to lending pool
         lendingPool.repay{value: debtHBAR}(debtHBAR);
 
-        // Emit event for backend to transfer collateral + bonus to liquidator
+        // Transfer collateral seized (debt equivalent) + bonus to liquidator
+        (bool liquidatorSuccess, ) = msg.sender.call{value: totalCollateralSeized}("");
+        require(liquidatorSuccess, "Liquidator payment failed");
+
+        // Return remaining collateral to borrower if any
+        if (remainingCollateral > 0) {
+            (bool borrowerSuccess, ) = borrower.call{value: remainingCollateral}("");
+            require(borrowerSuccess, "Borrower collateral return failed");
+        }
+
         emit LoanLiquidated(
             borrower,
             msg.sender,
             debtHBAR,
-            loan.collateralAmount + bonusAmount
+            totalCollateralSeized
         );
 
-        // Return excess payment if any
+        // Return excess payment to liquidator if any
         if (msg.value > debtHBAR) {
             (bool success, ) = msg.sender.call{value: msg.value - debtHBAR}("");
             require(success, "Excess refund failed");

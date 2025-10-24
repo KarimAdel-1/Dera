@@ -25,6 +25,9 @@ contract LendingPool is Ownable, ReentrancyGuard {
     // Borrowing contract address
     address public borrowingContract;
 
+    // Emergency pause state
+    bool public paused;
+
     // Tier configurations
     struct TierConfig {
         uint256 lendablePercentage; // Percentage that can be lent out (0-100)
@@ -77,6 +80,22 @@ contract LendingPool is Ownable, ReentrancyGuard {
         uint256 fulfillmentDate
     );
     event BorrowingContractSet(address indexed borrowingContract);
+    event Borrowed(
+        address indexed borrower,
+        uint256 amount,
+        uint256 fromTier1,
+        uint256 fromTier2,
+        uint256 fromTier3
+    );
+    event Repaid(
+        address indexed borrower,
+        uint256 amount,
+        uint256 toTier1,
+        uint256 toTier2,
+        uint256 toTier3
+    );
+    event EmergencyPaused(address indexed pauser);
+    event EmergencyUnpaused(address indexed unpauser);
 
     /**
      * @dev Constructor initializes the three LP token contracts
@@ -133,10 +152,29 @@ contract LendingPool is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Pause all deposits, withdrawals, and borrows in emergency
+     */
+    function pause() external onlyOwner {
+        require(!paused, "Already paused");
+        paused = true;
+        emit EmergencyPaused(msg.sender);
+    }
+
+    /**
+     * @dev Unpause the contract
+     */
+    function unpause() external onlyOwner {
+        require(paused, "Not paused");
+        paused = false;
+        emit EmergencyUnpaused(msg.sender);
+    }
+
+    /**
      * @dev Deposit HBAR into a specific tier
      * @param tier Tier to deposit into (1, 2, or 3)
      */
     function deposit(uint8 tier) external payable nonReentrant {
+        require(!paused, "Contract is paused");
         require(tier >= 1 && tier <= 3, "Invalid tier");
         require(msg.value > 0, "Deposit amount must be positive");
 
@@ -165,6 +203,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
      * @param lpTokenAmount Amount of LP tokens to burn
      */
     function withdraw(uint8 tier, uint256 lpTokenAmount) external nonReentrant {
+        require(!paused, "Contract is paused");
         require(tier >= 1 && tier <= 3, "Invalid tier");
         require(lpTokenAmount > 0, "Amount must be positive");
 
@@ -325,16 +364,20 @@ contract LendingPool is Ownable, ReentrancyGuard {
      * @param amount Amount of HBAR to borrow
      */
     function borrow(uint256 amount) external nonReentrant {
+        require(!paused, "Contract is paused");
         require(msg.sender == borrowingContract, "Only borrowing contract can borrow");
         require(amount > 0, "Borrow amount must be positive");
 
         // Borrow from tiers in order: 3 (Cold), 2 (Warm), 1 (Instant)
         uint256 remaining = amount;
+        uint256 fromTier1 = 0;
+        uint256 fromTier2 = 0;
+        uint256 fromTier3 = 0;
 
         // Try Tier 3 first (most profitable for lenders)
         uint256 tier3Available = getAvailableLiquidity(3);
         if (remaining > 0 && tier3Available > 0) {
-            uint256 fromTier3 = remaining > tier3Available ? tier3Available : remaining;
+            fromTier3 = remaining > tier3Available ? tier3Available : remaining;
             tierBorrowed[3] += fromTier3;
             remaining -= fromTier3;
         }
@@ -343,7 +386,7 @@ contract LendingPool is Ownable, ReentrancyGuard {
         if (remaining > 0) {
             uint256 tier2Available = getAvailableLiquidity(2);
             if (tier2Available > 0) {
-                uint256 fromTier2 = remaining > tier2Available ? tier2Available : remaining;
+                fromTier2 = remaining > tier2Available ? tier2Available : remaining;
                 tierBorrowed[2] += fromTier2;
                 remaining -= fromTier2;
             }
@@ -353,11 +396,14 @@ contract LendingPool is Ownable, ReentrancyGuard {
         if (remaining > 0) {
             uint256 tier1Available = getAvailableLiquidity(1);
             require(tier1Available >= remaining, "Insufficient liquidity");
+            fromTier1 = remaining;
             tierBorrowed[1] += remaining;
             remaining = 0;
         }
 
         require(remaining == 0, "Could not fulfill borrow request");
+
+        emit Borrowed(borrowingContract, amount, fromTier1, fromTier2, fromTier3);
 
         // Transfer HBAR to borrowing contract
         (bool success, ) = borrowingContract.call{value: amount}("");
@@ -374,24 +420,29 @@ contract LendingPool is Ownable, ReentrancyGuard {
 
         // Repay to tiers in reverse order: 1, 2, 3
         uint256 remaining = amount;
+        uint256 toTier1 = 0;
+        uint256 toTier2 = 0;
+        uint256 toTier3 = 0;
 
         if (tierBorrowed[1] > 0) {
-            uint256 toTier1 = remaining > tierBorrowed[1] ? tierBorrowed[1] : remaining;
+            toTier1 = remaining > tierBorrowed[1] ? tierBorrowed[1] : remaining;
             tierBorrowed[1] -= toTier1;
             remaining -= toTier1;
         }
 
         if (remaining > 0 && tierBorrowed[2] > 0) {
-            uint256 toTier2 = remaining > tierBorrowed[2] ? tierBorrowed[2] : remaining;
+            toTier2 = remaining > tierBorrowed[2] ? tierBorrowed[2] : remaining;
             tierBorrowed[2] -= toTier2;
             remaining -= toTier2;
         }
 
         if (remaining > 0 && tierBorrowed[3] > 0) {
-            uint256 toTier3 = remaining > tierBorrowed[3] ? tierBorrowed[3] : remaining;
+            toTier3 = remaining > tierBorrowed[3] ? tierBorrowed[3] : remaining;
             tierBorrowed[3] -= toTier3;
             remaining -= toTier3;
         }
+
+        emit Repaid(borrowingContract, amount, toTier1, toTier2, toTier3);
     }
 
     /**
