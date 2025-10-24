@@ -93,10 +93,60 @@ class HashPackService {
 
       console.log('HashConnect v3 initialized successfully');
 
+      // After initialization, check if there are any orphaned pairings we should clean up
+      // This helps when user clears localStorage but HashConnect still has pairing data
+      await this.cleanupOrphanedPairings();
+
       return true;
     } catch (error) {
       console.error('Error initializing HashConnect:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Cleans up orphaned pairings that exist in HashConnect but have no valid session data
+   * This helps prevent duplicate connections in HashPack after localStorage is cleared
+   */
+  async cleanupOrphanedPairings() {
+    try {
+      if (!this.hashconnect) return;
+
+      // Get all pairings from HashConnect's internal data
+      const allPairings = this.hashconnect.hcData?.pairingData || [];
+
+      if (allPairings.length === 0) {
+        console.log('No existing pairings found to check');
+        return;
+      }
+
+      console.log(`Found ${allPairings.length} existing pairings, checking for orphaned ones...`);
+
+      // If we have pairings but no active connection, they're likely orphaned
+      const isConnected = this.state === (HashConnectConnectionState?.Paired || 'Paired');
+
+      if (allPairings.length > 0 && !isConnected) {
+        console.log('Found orphaned pairings (pairings exist but not connected), cleaning up...');
+
+        for (const pairing of allPairings) {
+          if (pairing?.topic) {
+            try {
+              console.log('Disconnecting orphaned pairing:', pairing.topic);
+              await this.hashconnect.disconnect(pairing.topic);
+            } catch (err) {
+              console.warn('Error disconnecting orphaned pairing:', err);
+            }
+          }
+        }
+
+        // Clear all WalletConnect data after disconnecting orphaned pairings
+        this.clearAllWalletConnectData();
+        console.log('Orphaned pairings cleaned up');
+      } else if (isConnected) {
+        console.log('Active connection found, no orphaned pairings to clean up');
+      }
+    } catch (error) {
+      console.error('Error cleaning up orphaned pairings:', error);
     }
   }
 
@@ -158,8 +208,10 @@ class HashPackService {
       const isPaired = this.state === (HashConnectConnectionState?.Paired || 'Paired');
       const hasPairingTopic = this.pairingData?.topic;
 
+      // Always cleanup if we have an active pairing in our app
+      // This prevents pairing accumulation
       if (isPaired || hasPairingTopic) {
-        console.log('Existing pairing detected - performing complete cleanup...');
+        console.log('⚠️ Existing active pairing detected - performing cleanup...');
         console.log('State:', this.state, 'Has topic:', !!hasPairingTopic);
         const oldTopic = this.pairingData?.topic;
 
