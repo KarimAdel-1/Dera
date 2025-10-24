@@ -23,10 +23,17 @@ import BorrowTab from './BorrowTab'
 
 export default function LendingBorrowingTab() {
   const { isConnected, activeWallet } = useSelector((state) => state.wallet)
+  const poolStats = useSelector((state) => state.lending.poolStats)
+  const loans = useSelector((state) => state.borrowing.loans)
   const [activeMode, setActiveMode] = useState('overview')
   const [timeRange, setTimeRange] = useState('7D')
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock data for charts - Replace with real data from smart contracts
+  // Initialize hooks for data fetching
+  const { getPoolStatistics, getUserDeposits } = require('../../hooks/useLendingActions').useLendingActions()
+  const { getUserLoan } = require('../../hooks/useBorrowingActions').useBorrowingActions()
+
+  // Chart data - will be populated from smart contracts or use mock data as fallback
   const [apyHistoryData, setApyHistoryData] = useState([
     { date: '12/17', tier1: 4.2, tier2: 5.5, tier3: 7.2 },
     { date: '12/18', tier1: 4.3, tier2: 5.7, tier3: 7.4 },
@@ -34,7 +41,7 @@ export default function LendingBorrowingTab() {
     { date: '12/20', tier1: 4.4, tier2: 5.9, tier3: 7.5 },
     { date: '12/21', tier1: 4.6, tier2: 6.0, tier3: 7.7 },
     { date: '12/22', tier1: 4.5, tier2: 5.9, tier3: 7.6 },
-    { date: '12/23', tier1: 4.5, tier2: 5.85, tier3: 7.65 },
+    { date: '12/23', tier1: poolStats.tier1_apy, tier2: poolStats.tier2_apy, tier3: poolStats.tier3_apy },
   ])
 
   const [tvlData, setTvlData] = useState([
@@ -62,6 +69,69 @@ export default function LendingBorrowingTab() {
     { date: '12/22', lending: 185, borrowing: 142 },
     { date: '12/23', lending: 198, borrowing: 155 },
   ])
+
+  // Fetch pool statistics on mount and when wallet connects
+  useEffect(() => {
+    const fetchPoolData = async () => {
+      if (!isConnected || !activeWallet) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+
+        // Fetch pool statistics from smart contracts
+        // Note: This will only work after contracts are deployed and contractService is initialized
+        // For now, it will fall back to Redux state default values
+        try {
+          const stats = await getPoolStatistics()
+
+          // Update tier distribution based on real data
+          if (stats) {
+            const tier1Total = parseFloat(stats.tier1Total) || 0
+            const tier2Total = parseFloat(stats.tier2Total) || 0
+            const tier3Total = parseFloat(stats.tier3Total) || 0
+
+            if (tier1Total > 0 || tier2Total > 0 || tier3Total > 0) {
+              setTierDistribution([
+                { name: 'Tier 1 - Instant', value: tier1Total, color: '#3b82f6' },
+                { name: 'Tier 2 - 30-Day', value: tier2Total, color: '#8b5cf6' },
+                { name: 'Tier 3 - 90-Day', value: tier3Total, color: '#06b6d4' },
+              ])
+            }
+          }
+        } catch (error) {
+          console.log('Using mock data - contracts not yet connected:', error.message)
+        }
+
+        // Fetch user's deposits if wallet is connected
+        try {
+          await getUserDeposits(activeWallet)
+        } catch (error) {
+          console.log('Could not fetch user deposits:', error.message)
+        }
+
+        // Fetch user's loan if wallet is connected
+        try {
+          await getUserLoan(activeWallet)
+        } catch (error) {
+          console.log('Could not fetch user loan:', error.message)
+        }
+
+      } catch (error) {
+        console.error('Error fetching pool data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPoolData()
+
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchPoolData, 30000)
+    return () => clearInterval(interval)
+  }, [isConnected, activeWallet])
 
   const StatCard = ({ title, value, icon: Icon, subtitle, change, trend }) => (
     <div className="rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow" style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border-primary)' }}>
