@@ -31,47 +31,74 @@
 - Destroy and re-initialize HashConnect instance between pairings
 - Added more comprehensive filtering for WalletConnect storage keys (wc@2, wc_, walletconnect, WALLETCONNECT, hashpack)
 
-### 3. "Pairing Already Exists" Error
-**Problem**: When connecting a second wallet from the same HashPack, users encountered "Error: Pairing already exists: [topic]. Please try again with a new connection URI."
+### 3. "Pairing Already Exists" Error & Reused Pairing URI
+**Problem**: When connecting a second wallet from the same HashPack, users encountered:
+- "Error: Pairing already exists: [topic]. Please try again with a new connection URI."
+- Same pairing URI being reused instead of generating a fresh one
+- HashConnect state showing "Paired" when it should be "Disconnected" after cleanup
 
 **Root Cause**:
 - WalletConnect's internal pairing registry still contained the old pairing topic after disconnect
-- The cleanup wasn't thorough enough to remove pairing data from WalletConnect's core storage
+- The cleanup check `if (this.pairingData?.topic)` didn't catch all cases where a pairing was active
+- HashConnect state could be "Paired" even if `pairingData` wasn't set correctly
+- Only disconnecting the current pairing, not ALL active pairings stored in HashConnect
 - Timing issues between disconnect and re-initialization caused residual pairing data to persist
 
 **Solution**:
+- Enhanced cleanup detection to check BOTH state AND pairingData:
+  - `if (this.state === 'Paired' || this.pairingData?.topic)`
+  - Catches all cases where cleanup is needed
+- Disconnect ALL active pairings, not just the current one:
+  - Iterate through `hashconnect.hcData.pairingData`
+  - Disconnect each pairing topic individually
+  - Also disconnect current topic if it wasn't in the list
 - Enhanced cleanup sequence with multiple stages:
-  1. Disconnect the pairing with proper error handling
-  2. Close pairing modal
-  3. Clear localStorage BEFORE destroying instance
-  4. Wait 1500ms for disconnect to propagate through WalletConnect network
-  5. Destroy HashConnect instance
-  6. Clear localStorage AGAIN to ensure complete cleanup
-  7. Wait another 1500ms
-  8. Re-initialize with fresh instance
+  1. Get all active pairings from HashConnect
+  2. Disconnect ALL pairings with proper error handling
+  3. Close pairing modal
+  4. Clear localStorage BEFORE destroying instance
+  5. Wait 1500ms for disconnect to propagate through WalletConnect network
+  6. Destroy HashConnect instance
+  7. Clear localStorage AGAIN to ensure complete cleanup
+  8. Wait another 1500ms
+  9. Re-initialize with fresh instance
 - Added comprehensive `clearAllWalletConnectData()` method that removes:
   - All WalletConnect v2 core data (wc@2:, wc_)
   - HashConnect specific data
   - WalletConnect pairing, session, proposal, request, expirer, keychain, history, and jsonrpc data
 - Increased total cleanup time from 2.5s to 3.5s for more reliable cleanup
+- Added detailed logging to track state and pairing data
 
 ## Changes Made
 
 ### File: `/frontend/services/hashpackService.js`
 
 #### 1. Enhanced `connectWallet()` Method
+- **Improved pairing detection** (new):
+  - Checks BOTH connection state AND pairing topic: `if (isPaired || hasPairingTopic)`
+  - Catches all cases where cleanup is needed, even if state/data is inconsistent
+- **Disconnect ALL pairings** (new):
+  - Iterates through `hashconnect.hcData.pairingData` to find all active pairings
+  - Disconnects each pairing individually
+  - Also disconnects current topic if not in the list
+  - Prevents pairing URI reuse
 - Completely redesigned cleanup sequence before creating new pairings:
-  1. Disconnect existing pairing (with error handling)
-  2. Close pairing modal
-  3. Clear local state
-  4. **Clear localStorage BEFORE destroying instance** (new)
-  5. Wait 1500ms for disconnect to propagate (increased from 500ms)
-  6. Destroy HashConnect instance
-  7. **Clear localStorage AGAIN** (new - ensures complete cleanup)
-  8. Wait another 1500ms (new - total 3s wait time)
-  9. Re-initialize HashConnect with fresh instance
-  10. Wait 500ms for readiness
-  11. Open pairing modal with fresh instance
+  1. **Get all active pairings from HashConnect** (new)
+  2. **Disconnect ALL pairings, not just current one** (new - with error handling)
+  3. Close pairing modal
+  4. Clear local state
+  5. **Clear localStorage BEFORE destroying instance** (new)
+  6. Wait 1500ms for disconnect to propagate (increased from 500ms)
+  7. Destroy HashConnect instance
+  8. **Clear localStorage AGAIN** (new - ensures complete cleanup)
+  9. Wait another 1500ms (new - total 3s wait time)
+  10. Re-initialize HashConnect with fresh instance
+  11. Wait 500ms for readiness
+  12. Open pairing modal with fresh instance
+- **Added detailed logging** (new):
+  - Logs state, pairing data, and HashConnect instance status
+  - Logs number of pairings found and disconnected
+  - Helps debug cleanup process
 - Total cleanup time: ~3.5 seconds (increased from 2.5s)
 - Double localStorage cleanup ensures no residual WalletConnect data
 
@@ -157,10 +184,20 @@
 
 6. **Browser console verification**: Open browser DevTools during connection
    - Look for console logs showing cleanup process
-   - Should see: "Clearing ALL WalletConnect and HashConnect data..."
-   - Should see: "Successfully cleared X WalletConnect/HashConnect items"
-   - Should see: "Re-initializing HashConnect with fresh instance..."
-   - Should see: "Cleanup complete, ready for new pairing"
+   - **For second wallet connection, should see**:
+     - "Existing pairing detected - performing complete cleanup..."
+     - "State: Paired Has topic: true" (or similar)
+     - "Found X active pairings to disconnect"
+     - "Disconnecting pairing topic: [topic]"
+     - "Clearing ALL WalletConnect and HashConnect data..."
+     - "Successfully cleared X WalletConnect/HashConnect items"
+     - "Destroying HashConnect instance..."
+     - "Re-initializing HashConnect with fresh instance..."
+     - "Cleanup complete, ready for new pairing"
+     - "Opening pairing modal..."
+     - "Current HashConnect state: Connected" (should be "Connected", NOT "Paired")
+     - "Current pairingData: null" (should be null after cleanup)
+     - NEW pairing string with DIFFERENT URI than before
 
 7. **localStorage verification**: Check localStorage during connection process
    - Before connection: May have old `wc@2:*` keys
