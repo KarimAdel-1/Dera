@@ -2,10 +2,14 @@
 
 import { useSelector } from 'react-redux'
 import { useState, useEffect } from 'react'
+import { useLendingActions } from '../../hooks/useLendingActions'
+import toast from 'react-hot-toast'
 
 export default function WithdrawalRequestTracker({ deposit }) {
-  const { withdrawalRequests } = useSelector((state) => state.lending)
+  const { activeWallet } = useSelector((state) => state.wallet)
+  const { withdrawalRequests, loading } = useSelector((state) => state.lending)
   const [timeRemaining, setTimeRemaining] = useState(null)
+  const { completeWithdrawal, cancelWithdrawalRequest } = useLendingActions()
 
   // Find withdrawal request for this deposit
   const withdrawalRequest = withdrawalRequests.find(
@@ -47,16 +51,71 @@ export default function WithdrawalRequestTracker({ deposit }) {
 
   if (!withdrawalRequest) return null
 
-  const handleCompleteWithdrawal = () => {
-    if (timeRemaining?.ready) {
-      // TODO: Implement actual withdrawal completion
-      alert(`Completing withdrawal of ${withdrawalRequest.amount} HBAR`)
+  const handleCompleteWithdrawal = async () => {
+    if (!timeRemaining?.ready) {
+      toast.error('Withdrawal period has not completed yet')
+      return
+    }
+
+    try {
+      const loadingToast = toast.loading(`Completing withdrawal of ${withdrawalRequest.amount} HBAR...`)
+
+      // Call complete withdrawal hook
+      await completeWithdrawal(withdrawalRequest.id, activeWallet)
+
+      toast.dismiss(loadingToast)
+      toast.success(
+        `Successfully withdrew ${withdrawalRequest.amount} HBAR!`,
+        {
+          duration: 5000,
+          icon: '💰',
+        }
+      )
+    } catch (error) {
+      console.error('Withdrawal completion failed:', error)
+
+      let errorMessage = 'Failed to complete withdrawal. Please try again.'
+
+      if (error.message?.includes('user rejected')) {
+        errorMessage = 'Transaction was cancelled'
+      } else if (error.message?.includes('Not ready')) {
+        errorMessage = 'Withdrawal period not met yet'
+      } else if (error.reason) {
+        errorMessage = error.reason
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      toast.error(errorMessage, { duration: 5000 })
     }
   }
 
-  const handleCancelRequest = () => {
-    // TODO: Implement withdrawal request cancellation
-    alert('Cancelling withdrawal request')
+  const handleCancelRequest = async () => {
+    try {
+      const loadingToast = toast.loading('Cancelling withdrawal request...')
+
+      // Call cancel withdrawal request hook
+      await cancelWithdrawalRequest(withdrawalRequest.id, activeWallet)
+
+      toast.dismiss(loadingToast)
+      toast.success('Withdrawal request cancelled successfully', {
+        duration: 4000,
+      })
+    } catch (error) {
+      console.error('Cancel request failed:', error)
+
+      let errorMessage = 'Failed to cancel withdrawal request. Please try again.'
+
+      if (error.message?.includes('user rejected')) {
+        errorMessage = 'Transaction was cancelled'
+      } else if (error.reason) {
+        errorMessage = error.reason
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      toast.error(errorMessage, { duration: 5000 })
+    }
   }
 
   return (
@@ -78,13 +137,23 @@ export default function WithdrawalRequestTracker({ deposit }) {
           <div className="flex space-x-2">
             <button
               onClick={handleCompleteWithdrawal}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
+              disabled={loading.withdraw}
+              className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
             >
-              Complete Withdrawal
+              {loading.withdraw ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : 'Complete Withdrawal'}
             </button>
             <button
               onClick={handleCancelRequest}
-              className="px-4 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] rounded-md text-sm transition-colors border border-[var(--color-border-secondary)]"
+              disabled={loading.withdraw}
+              className="px-4 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-secondary)] rounded-md text-sm transition-colors border border-[var(--color-border-secondary)]"
             >
               Cancel
             </button>
@@ -119,9 +188,10 @@ export default function WithdrawalRequestTracker({ deposit }) {
 
           <button
             onClick={handleCancelRequest}
-            className="w-full bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] py-2 px-4 rounded-md text-sm transition-colors border border-[var(--color-border-secondary)]"
+            disabled={loading.withdraw}
+            className="w-full bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-secondary)] py-2 px-4 rounded-md text-sm transition-colors border border-[var(--color-border-secondary)]"
           >
-            Cancel Request
+            {loading.withdraw ? 'Processing...' : 'Cancel Request'}
           </button>
         </div>
       )}

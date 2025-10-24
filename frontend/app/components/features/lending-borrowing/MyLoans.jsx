@@ -2,6 +2,7 @@
 
 import { useSelector } from 'react-redux'
 import { useState } from 'react'
+import { DollarSign } from 'lucide-react'
 import HealthFactorMonitor from './HealthFactorMonitor'
 import RepaymentForm from './RepaymentForm'
 import StakingRewardsDisplay from './StakingRewardsDisplay'
@@ -13,19 +14,8 @@ export default function MyLoans() {
   const [selectedLoan, setSelectedLoan] = useState(null)
   const [showDetails, setShowDetails] = useState({})
 
-  const displayLoans = loans?.length > 0 ? loans : [
-    {
-      id: 'loan_001',
-      borrowed: '500',
-      collateral: '1000',
-      totalDebt: '510.5',
-      interestRate: 8,
-      healthFactor: 1.8,
-      stakingRewards: '12.5',
-      createdAt: '2024-01-15T10:00:00Z',
-      status: 'active'
-    }
-  ]
+  // Only show real loans from Redux state - NO DUMMY DATA
+  const displayLoans = loans || []
 
   if (!isConnected) {
     return (
@@ -48,10 +38,18 @@ export default function MyLoans() {
         <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
           My Loans
         </h2>
-        <div className="bg-[var(--color-bg-secondary)] p-6 rounded-lg border border-[var(--color-border-secondary)]">
-          <p className="text-[var(--color-text-muted)] text-center py-8">
-            No active loans. Use the calculator above to start borrowing!
-          </p>
+        <div className="bg-[var(--color-bg-secondary)] p-6 rounded-xl border border-[var(--color-border-secondary)]">
+          <div className="text-center py-12">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mx-auto mb-4">
+              <DollarSign className="w-8 h-8 text-[var(--color-primary)]" />
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+              No Active Loans
+            </h3>
+            <p className="text-[var(--color-text-muted)] mb-6">
+              Use the collateral calculator above to borrow HBAR and start earning staking rewards!
+            </p>
+          </div>
         </div>
       </div>
     )
