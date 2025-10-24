@@ -49,6 +49,9 @@ class HashPackService {
 
   async initialize(forceNew = false) {
     try {
+      // Clean up any stale/expired WalletConnect data first
+      this.cleanupStaleData();
+
       // Load HashConnect dynamically
       const { HashConnect: HC, HashConnectConnectionState: State, LedgerId: Ledger } = await loadHashConnect();
 
@@ -151,18 +154,33 @@ class HashPackService {
         throw new Error('HashConnect not initialized');
       }
 
-      // If there's an existing pairing, disconnect it first to force fresh connection
+      // If there's an existing pairing, properly disconnect and reinitialize
       if (this.pairingData?.topic) {
-        console.log('Existing pairing found, disconnecting first...');
+        console.log('Existing pairing found, cleaning up completely...');
+
+        // Step 1: Disconnect the existing pairing
         await this.disconnectWallet();
-        // Wait a bit for the disconnect to process
+
+        // Step 2: Destroy the current HashConnect instance
+        this.hashconnect = null;
+        this.eventListenersSetup = false;
+
+        // Step 3: Wait for cleanup to complete (WalletConnect needs time to clean up)
+        console.log('Waiting for cleanup to complete...');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Step 4: Re-initialize HashConnect with a fresh instance
+        console.log('Re-initializing HashConnect...');
+        await this.initialize();
+
+        // Step 5: Wait a bit more to ensure everything is ready
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       console.log('Opening pairing modal...');
       console.log('Current HashConnect state:', this.state);
 
-      // Open pairing modal
+      // Open pairing modal with fresh HashConnect instance
       this.hashconnect.openPairingModal();
 
       // Wait for pairing to complete
@@ -230,10 +248,20 @@ class HashPackService {
       if (this.hashconnect && this.pairingData?.topic) {
         console.log('Disconnecting topic:', this.pairingData.topic);
 
-        // Disconnect from HashConnect - this removes the pairing from HashPack
-        await this.hashconnect.disconnect(this.pairingData.topic);
+        try {
+          // Disconnect from HashConnect - this removes the pairing from HashPack
+          await this.hashconnect.disconnect(this.pairingData.topic);
+          console.log('Successfully disconnected from HashPack');
+        } catch (disconnectError) {
+          console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+        }
 
-        console.log('Successfully disconnected from HashPack');
+        // Close any open pairing modals
+        try {
+          this.hashconnect.closePairingModal();
+        } catch (modalError) {
+          console.log('No modal to close or already closed');
+        }
       }
 
       // Clear local pairing data
@@ -242,16 +270,27 @@ class HashPackService {
 
       // Clear any stored session data
       if (typeof window !== 'undefined') {
-        // HashConnect stores data in localStorage with these keys
-        const hashConnectKeys = Object.keys(localStorage).filter(
+        console.log('Clearing WalletConnect and HashConnect storage...');
+
+        // Get all localStorage keys
+        const allKeys = Object.keys(localStorage);
+        const keysToRemove = allKeys.filter(
           (key) =>
             key.startsWith('hashconnect') ||
             key.startsWith('wc@2') ||
-            key.includes('walletconnect')
+            key.startsWith('wc_') ||
+            key.includes('walletconnect') ||
+            key.includes('WALLETCONNECT') ||
+            key.includes('hashpack')
         );
 
-        hashConnectKeys.forEach((key) => {
-          localStorage.removeItem(key);
+        console.log(`Removing ${keysToRemove.length} cached keys:`, keysToRemove);
+        keysToRemove.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`Failed to remove key ${key}:`, e);
+          }
         });
 
         console.log('Cleared HashConnect storage data');
@@ -267,19 +306,28 @@ class HashPackService {
 
       // Clear storage regardless
       if (typeof window !== 'undefined') {
-        const hashConnectKeys = Object.keys(localStorage).filter(
+        const allKeys = Object.keys(localStorage);
+        const keysToRemove = allKeys.filter(
           (key) =>
             key.startsWith('hashconnect') ||
             key.startsWith('wc@2') ||
-            key.includes('walletconnect')
+            key.startsWith('wc_') ||
+            key.includes('walletconnect') ||
+            key.includes('WALLETCONNECT') ||
+            key.includes('hashpack')
         );
 
-        hashConnectKeys.forEach((key) => {
-          localStorage.removeItem(key);
+        keysToRemove.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`Failed to remove key ${key}:`, e);
+          }
         });
       }
 
-      throw error;
+      // Don't throw - we want cleanup to succeed even if disconnect fails
+      return false;
     }
   }
 
@@ -291,6 +339,8 @@ class HashPackService {
         // Get all active pairings
         const pairings = this.hashconnect.hcData?.pairingData || [];
 
+        console.log(`Found ${pairings.length} active pairings to disconnect`);
+
         // Disconnect each pairing
         for (const pairing of pairings) {
           if (pairing?.topic) {
@@ -298,9 +348,16 @@ class HashPackService {
               await this.hashconnect.disconnect(pairing.topic);
               console.log('Disconnected topic:', pairing.topic);
             } catch (err) {
-              console.error('Error disconnecting topic:', pairing.topic, err);
+              console.warn('Error disconnecting topic (continuing):', pairing.topic, err);
             }
           }
+        }
+
+        // Close any open modals
+        try {
+          this.hashconnect.closePairingModal();
+        } catch (modalError) {
+          console.log('No modal to close or already closed');
         }
       }
 
@@ -310,15 +367,26 @@ class HashPackService {
 
       // Clear all HashConnect related data from localStorage
       if (typeof window !== 'undefined') {
-        const hashConnectKeys = Object.keys(localStorage).filter(
+        console.log('Clearing all WalletConnect and HashConnect storage...');
+
+        const allKeys = Object.keys(localStorage);
+        const keysToRemove = allKeys.filter(
           (key) =>
             key.startsWith('hashconnect') ||
             key.startsWith('wc@2') ||
-            key.includes('walletconnect')
+            key.startsWith('wc_') ||
+            key.includes('walletconnect') ||
+            key.includes('WALLETCONNECT') ||
+            key.includes('hashpack')
         );
 
-        hashConnectKeys.forEach((key) => {
-          localStorage.removeItem(key);
+        console.log(`Removing ${keysToRemove.length} cached keys`);
+        keysToRemove.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`Failed to remove key ${key}:`, e);
+          }
         });
 
         console.log('Cleared all HashConnect storage');
@@ -333,10 +401,28 @@ class HashPackService {
       this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
 
       if (typeof window !== 'undefined') {
-        localStorage.clear(); // Nuclear option - clears everything
+        console.warn('Forcing cleanup of WalletConnect storage due to errors');
+        const allKeys = Object.keys(localStorage);
+        const keysToRemove = allKeys.filter(
+          (key) =>
+            key.startsWith('hashconnect') ||
+            key.startsWith('wc@2') ||
+            key.startsWith('wc_') ||
+            key.includes('walletconnect') ||
+            key.includes('WALLETCONNECT') ||
+            key.includes('hashpack')
+        );
+
+        keysToRemove.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`Failed to remove key ${key}:`, e);
+          }
+        });
       }
 
-      throw error;
+      return false;
     }
   }
 
@@ -412,6 +498,78 @@ class HashPackService {
       } catch (error) {
         console.log('Error closing pairing modal:', error);
       }
+    }
+  }
+
+  /**
+   * Completely resets the HashConnect service
+   * Use this when you need to start fresh (e.g., after errors or to clear all stale data)
+   */
+  async reset() {
+    console.log('Resetting HashConnect service completely...');
+
+    try {
+      // Disconnect all pairings
+      await this.disconnectAll();
+
+      // Destroy the instance
+      this.hashconnect = null;
+      this.pairingData = null;
+      this.state = 'Disconnected';
+      this.eventListenersSetup = false;
+
+      // Re-initialize
+      await this.initialize();
+
+      console.log('HashConnect service reset complete');
+      return true;
+    } catch (error) {
+      console.error('Error during reset:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Cleans up stale WalletConnect data from localStorage
+   * This helps prevent "Expired URI" errors
+   */
+  cleanupStaleData() {
+    if (typeof window === 'undefined') return;
+
+    console.log('Cleaning up stale WalletConnect data...');
+
+    try {
+      const allKeys = Object.keys(localStorage);
+      let removedCount = 0;
+
+      allKeys.forEach((key) => {
+        // Remove expired WalletConnect sessions
+        if (key.startsWith('wc@2:') || key.startsWith('wc_')) {
+          try {
+            const data = localStorage.getItem(key);
+            if (data) {
+              const parsed = JSON.parse(data);
+              // Check if the data has an expiry timestamp
+              if (parsed.expiry && parsed.expiry < Date.now() / 1000) {
+                localStorage.removeItem(key);
+                removedCount++;
+                console.log(`Removed expired session: ${key}`);
+              }
+            }
+          } catch (e) {
+            // If we can't parse it, it might be corrupted - remove it
+            localStorage.removeItem(key);
+            removedCount++;
+            console.log(`Removed corrupted session: ${key}`);
+          }
+        }
+      });
+
+      if (removedCount > 0) {
+        console.log(`Cleaned up ${removedCount} stale WalletConnect sessions`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up stale data:', error);
     }
   }
 }
