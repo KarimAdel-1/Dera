@@ -136,6 +136,9 @@ class ContractService {
    */
   async deposit(tier, amount) {
     try {
+      if (!this.contracts.lendingPool) {
+        throw new Error('Contract service not initialized. Please connect your wallet first.')
+      }
       const value = ethers.parseEther(amount.toString())
       const tx = await this.contracts.lendingPool.deposit(tier, { value })
       const receipt = await tx.wait()
