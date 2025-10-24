@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { useBorrowingActions } from '../../hooks/useBorrowingActions'
+import { useBorrowingActions } from '../../../hooks/useBorrowingActions'
 import toast from 'react-hot-toast'
 
 export default function RepaymentForm({ loan }) {

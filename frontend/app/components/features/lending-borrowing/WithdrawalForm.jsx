@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { useLendingActions } from '../../hooks/useLendingActions'
+import { useLendingActions } from '../../../hooks/useLendingActions'
 import toast from 'react-hot-toast'
 
 export default function WithdrawalForm({ deposit, onClose }) {

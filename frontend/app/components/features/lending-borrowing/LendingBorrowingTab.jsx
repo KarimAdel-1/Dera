@@ -18,6 +18,8 @@ import {
   ArrowDownRight
 } from 'lucide-react'
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useLendingActions } from '../../../hooks/useLendingActions'
+import { useBorrowingActions } from '../../../hooks/useBorrowingActions'
 import LendTab from './LendTab'
 import BorrowTab from './BorrowTab'
 
@@ -30,8 +32,8 @@ export default function LendingBorrowingTab() {
   const [isLoading, setIsLoading] = useState(true)
 
   // Initialize hooks for data fetching
-  const { getPoolStatistics, getUserDeposits } = require('../../hooks/useLendingActions').useLendingActions()
-  const { getUserLoan } = require('../../hooks/useBorrowingActions').useBorrowingActions()
+  const { getPoolStatistics, getUserDeposits } = useLendingActions()
+  const { getUserLoan } = useBorrowingActions()
 
   // Chart data - will be populated from smart contracts or use mock data as fallback
   const [apyHistoryData, setApyHistoryData] = useState([

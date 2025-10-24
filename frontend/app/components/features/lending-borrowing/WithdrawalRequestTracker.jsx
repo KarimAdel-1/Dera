@@ -2,7 +2,7 @@
 
 import { useSelector } from 'react-redux'
 import { useState, useEffect } from 'react'
-import { useLendingActions } from '../../hooks/useLendingActions'
+import { useLendingActions } from '../../../hooks/useLendingActions'
 import toast from 'react-hot-toast'
 
 export default function WithdrawalRequestTracker({ deposit }) {

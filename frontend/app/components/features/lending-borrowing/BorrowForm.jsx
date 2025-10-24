@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
-import { useBorrowingActions } from '../../hooks/useBorrowingActions'
-import { contractService } from '../../../services/contractService'
+import { useBorrowingActions } from '../../../hooks/useBorrowingActions'
+import { contractService } from '../../../../services/contractService'
 import toast from 'react-hot-toast'
 
 export default function BorrowForm({ borrowAmount, collateralAmount }) {
