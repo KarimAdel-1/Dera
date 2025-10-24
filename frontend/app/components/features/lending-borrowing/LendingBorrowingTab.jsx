@@ -89,11 +89,13 @@ export default function LendingBorrowingTab() {
         try {
           const stats = await getPoolStatistics()
 
-          // Update tier distribution based on real data
+          // Update tier distribution and TVL based on real data
           if (stats) {
             const tier1Total = parseFloat(stats.tier1Total) || 0
             const tier2Total = parseFloat(stats.tier2Total) || 0
             const tier3Total = parseFloat(stats.tier3Total) || 0
+            const totalSupplied = parseFloat(stats.totalSupplied) || 0
+            const totalBorrowed = parseFloat(stats.totalBorrowed) || 0
 
             if (tier1Total > 0 || tier2Total > 0 || tier3Total > 0) {
               setTierDistribution([
@@ -101,6 +103,25 @@ export default function LendingBorrowingTab() {
                 { name: 'Tier 2 - 30-Day', value: tier2Total, color: '#8b5cf6' },
                 { name: 'Tier 3 - 90-Day', value: tier3Total, color: '#06b6d4' },
               ])
+            }
+
+            // Update TVL data with real values (keep last 7 days of history)
+            if (totalSupplied > 0 || totalBorrowed > 0) {
+              const today = new Date()
+              const dateStr = `${today.getMonth() + 1}/${today.getDate()}`
+
+              setTvlData(prev => {
+                const newData = [...prev]
+                // Update the last entry with real data
+                if (newData.length > 0) {
+                  newData[newData.length - 1] = {
+                    date: dateStr,
+                    supply: (totalSupplied / 1000).toFixed(2),
+                    borrow: (totalBorrowed / 1000).toFixed(2)
+                  }
+                }
+                return newData
+              })
             }
           }
         } catch (error) {
@@ -228,35 +249,35 @@ export default function LendingBorrowingTab() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <StatCard
                 title="Total Supplied"
-                value="$2.84B"
+                value={`${(parseFloat(poolStats.totalSupplied) || 0).toLocaleString()} HBAR`}
                 icon={DollarSign}
-                subtitle="1,234,567.89 HBAR"
-                change="+2.5%"
-                trend="up"
+                subtitle={`Across ${Object.keys(poolStats).filter(k => k.includes('tier') && k.includes('Total')).length} tiers`}
+                change={poolStats.supplyChange || null}
+                trend={poolStats.supplyChange && parseFloat(poolStats.supplyChange) > 0 ? "up" : "down"}
               />
               <StatCard
                 title="Supply APY"
-                value="4.50%"
+                value={`${(parseFloat(poolStats.tier1_apy) || 0).toFixed(2)}%`}
                 icon={Percent}
                 subtitle="Tier 1: Instant Access"
-                change="+0.2%"
-                trend="up"
+                change={poolStats.apyChange || null}
+                trend={poolStats.apyChange && parseFloat(poolStats.apyChange) > 0 ? "up" : "down"}
               />
               <StatCard
                 title="Total Borrowed"
-                value="$2.15B"
+                value={`${(parseFloat(poolStats.totalBorrowed) || 0).toLocaleString()} HBAR`}
                 icon={BarChart3}
-                subtitle="934,567.89 HBAR"
-                change="+3.8%"
-                trend="up"
+                subtitle={`${loans?.length || 0} active loans`}
+                change={poolStats.borrowChange || null}
+                trend={poolStats.borrowChange && parseFloat(poolStats.borrowChange) > 0 ? "up" : "down"}
               />
               <StatCard
                 title="Borrow APY"
-                value="5.00%"
+                value={`${(parseFloat(poolStats.borrowAPY) || 5.0).toFixed(2)}%`}
                 icon={Percent}
                 subtitle="Based on iScore 500"
-                change="-0.1%"
-                trend="down"
+                change={poolStats.borrowAPYChange || null}
+                trend={poolStats.borrowAPYChange && parseFloat(poolStats.borrowAPYChange) < 0 ? "down" : "up"}
               />
             </div>
 
