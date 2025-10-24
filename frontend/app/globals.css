@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --color-primary: rgb(254, 78, 0);
+    --color-primary: #fe4e00;
     --color-primary-opacity: rgba(254, 76, 0, 0.1);
     --color-primary-light: #ff6b1a;
     --color-bg-primary: #e8edee;
@@ -33,8 +33,8 @@
     --bprogress-spinner-size: 18px;
     --bprogress-spinner-animation-duration: 400ms;
     --bprogress-spinner-border-size: 2px;
-    --bprogress-box-shadow: 0 0 10px var(--color-primary),
-      0 0 5px var(--color-primary);
+    --bprogress-box-shadow:
+      0 0 10px var(--color-primary), 0 0 5px var(--color-primary);
     --bprogress-z-index: 99999;
     --bprogress-spinner-top: 15px;
     --bprogress-spinner-bottom: auto;
