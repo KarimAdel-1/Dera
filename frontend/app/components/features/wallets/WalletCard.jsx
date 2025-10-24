@@ -1,19 +1,14 @@
 import { Wallet, Edit3, Plug } from 'lucide-react'
 import { useDispatch } from 'react-redux'
-import { switchWallet, reconnectWallet } from '../../../store/walletSlice'
+import { switchWallet } from '../../../store/walletSlice'
 
-export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit }) {
+export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit, onReconnect }) {
   const dispatch = useDispatch()
-  
+
   const handleReconnect = async (e) => {
     e.stopPropagation()
-    try {
-      await dispatch(reconnectWallet(wallet.address))
-      const { toast } = await import('react-hot-toast')
-      toast.success('Wallet reconnected!')
-    } catch (error) {
-      const { toast } = await import('react-hot-toast')
-      toast.error('Failed to reconnect wallet')
+    if (onReconnect) {
+      await onReconnect(wallet)
     }
   }
 

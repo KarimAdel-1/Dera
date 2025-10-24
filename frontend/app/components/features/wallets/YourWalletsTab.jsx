@@ -35,6 +35,7 @@ const YourWalletsTab = () => {
     connectToHashPack,
     connectToKabila,
     connectToBlade,
+    reconnectWallet,
     refreshWalletDetails,
     updateWalletCardSkin,
     setNewlyConnectedWallet,
@@ -105,6 +106,7 @@ const YourWalletsTab = () => {
                 hbarPrice={hbarPrice}
                 network={network}
                 onEdit={handleEditWallet}
+                onReconnect={reconnectWallet}
               />
             ) : (
               <EmptyWalletState />
@@ -195,6 +197,7 @@ const WalletsList = memo(({
   hbarPrice,
   network,
   onEdit,
+  onReconnect,
 }) => {
   const sortedWallets = [...wallets].sort(
     (a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0)
@@ -211,6 +214,7 @@ const WalletsList = memo(({
           hbarPrice={hbarPrice}
           network={network}
           onEdit={onEdit}
+          onReconnect={onReconnect}
         />
       ))}
     </>

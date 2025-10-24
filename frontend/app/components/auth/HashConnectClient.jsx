@@ -86,14 +86,44 @@ export const HashConnectClient = () => {
 
   useEffect(() => {
     let mounted = true;
-    
+
     const setup = async () => {
       try {
         if (!mounted) return;
-        
+
+        // Check if we should restore session from database (localStorage is empty)
+        if (hashpackService.shouldRestoreSession()) {
+          console.log('🔄 LocalStorage is empty, checking for saved session in database...');
+
+          // Get current user from Redux state (if available)
+          const currentState = store.getState();
+          const currentUser = currentState.wallet.currentUser;
+
+          if (currentUser) {
+            // Try to restore session for the user's wallets
+            const { supabaseService } = await import('../../../services/supabaseService');
+            const userWallets = await supabaseService.getUserWallets(currentUser.id);
+
+            if (userWallets && userWallets.length > 0) {
+              // Try to restore session for the first active wallet
+              const firstWallet = userWallets[0];
+              console.log('🔄 Attempting to restore session for wallet:', firstWallet.wallet_address);
+
+              const restored = await hashpackService.restoreSessionFromDatabase(
+                currentUser.id,
+                firstWallet.wallet_address
+              );
+
+              if (restored) {
+                console.log('✅ Session restored successfully from database!');
+              }
+            }
+          }
+        }
+
         await hashpackService.initialize();
         if (!mounted) return;
-        
+
         hashConnectRef.current = hashpackService.getHashConnect();
 
         syncWithHashConnect(network);
@@ -103,7 +133,7 @@ export const HashConnectClient = () => {
     };
 
     setup();
-    
+
     return () => {
       mounted = false;
     };
