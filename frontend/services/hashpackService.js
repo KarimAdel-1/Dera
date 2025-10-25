@@ -49,9 +49,6 @@ class HashPackService {
 
   async initialize(forceNew = false) {
     try {
-      // Clean up any stale/expired WalletConnect data first
-      this.cleanupStaleData();
-
       // Load HashConnect dynamically
       const { HashConnect: HC, HashConnectConnectionState: State, LedgerId: Ledger } = await loadHashConnect();
 
@@ -88,14 +85,18 @@ class HashPackService {
       // Set up event listeners BEFORE calling init
       this.setupEventListeners();
 
-      // Initialize HashConnect
+      // Initialize HashConnect - this will restore pairing from localStorage automatically
       await this.hashconnect.init();
 
       console.log('HashConnect v3 initialized successfully');
 
-      // After initialization, check if there are any orphaned pairings we should clean up
-      // This helps when user clears localStorage but HashConnect still has pairing data
-      await this.cleanupOrphanedPairings();
+      // Check if pairing was restored
+      const pairings = this.hashconnect.hcData?.pairingData || [];
+      if (pairings.length > 0) {
+        this.pairingData = pairings[0];
+        this.state = HashConnectConnectionState?.Paired || 'Paired';
+        console.log('✅ Restored pairing from localStorage:', this.pairingData.accountIds);
+      }
 
       return true;
     } catch (error) {
@@ -161,7 +162,17 @@ class HashPackService {
     // Listen for pairing events
     this.hashconnect.pairingEvent.on((newPairing) => {
       console.log('Pairing event:', newPairing);
-      this.pairingData = newPairing;
+      // Get the topic from HashConnect's internal data
+      const pairings = this.hashconnect.hcData?.pairingData || [];
+      if (pairings.length > 0) {
+        this.pairingData = {
+          ...newPairing,
+          topic: pairings[0].topic
+        };
+        console.log('✅ Pairing data set with topic:', this.pairingData.topic);
+      } else {
+        this.pairingData = newPairing;
+      }
     });
 
     // Listen for disconnection events
@@ -335,6 +346,12 @@ class HashPackService {
             return;
           }
 
+          // Get the topic from HashConnect's internal data
+          const pairings = this.hashconnect.hcData?.pairingData || [];
+          const topic = pairings.length > 0 ? pairings[0].topic : null;
+          
+          console.log('Topic from hcData:', topic);
+
           // Return all accounts from the paired wallet
           const allAccounts = pairingData.accountIds.map((accountId) => ({
             accountId,
@@ -344,7 +361,10 @@ class HashPackService {
 
           console.log('All accounts to be returned:', allAccounts);
 
-          this.pairingData = pairingData;
+          this.pairingData = {
+            ...pairingData,
+            topic
+          };
 
           // Save session to database for persistence across localStorage clears
           this.saveSessionToDatabase(pairingData).catch(err => {
@@ -469,8 +489,10 @@ class HashPackService {
 
   async sendTransaction(accountId, transaction) {
     try {
+      console.log('sendTransaction called with:', { accountId, hasPairingData: !!this.pairingData, topic: this.pairingData?.topic });
+      
       if (!this.pairingData?.topic) {
-        throw new Error('No wallet connected - please connect first');
+        throw new Error('HashPack session expired. Please reconnect your wallet.');
       }
 
       if (!this.hashconnect) {

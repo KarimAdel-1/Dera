@@ -49,6 +49,12 @@ export const useWalletManagement = () => {
 
       setIsLoading(true);
       try {
+        // Initialize hashpackService if not already initialized
+        const { hashpackService } = await import('../../services/hashpackService');
+        if (!hashpackService.getHashConnect()) {
+          await hashpackService.initialize();
+        }
+
         const userWallets = await supabaseService.getUserWallets(currentUser.id);
 
         // Load wallets in parallel
@@ -190,39 +196,39 @@ export const useWalletManagement = () => {
     setIsConnecting(true);
 
     try {
-      const { hashpackService } = await import('../../services/hashpackService');
-      const accounts = await hashpackService.connectWallet();
+      const { walletManager } = await import('../../services/MultiWalletManager');
+      const accountIds = await walletManager.connectWallet();
 
-      if (accounts && accounts.length > 0) {
+      if (accountIds && accountIds.length > 0) {
         const existingAddresses = wallets.map((w) => w.address);
-        const newAccounts = accounts.filter(
-          (acc) => !existingAddresses.includes(acc.accountId)
+        const newAccountIds = accountIds.filter(
+          (id) => !existingAddresses.includes(id)
         );
 
-        if (newAccounts.length === 0) {
+        if (newAccountIds.length === 0) {
           const { toast } = await import('react-hot-toast');
           toast.error('Wallet is already connected');
           dispatch(deleteTempWallet());
           return;
         }
 
-        if (newAccounts.length > 0) {
-          const newAccount = newAccounts[0];
+        if (newAccountIds.length > 0) {
+          const newAccountId = newAccountIds[0];
 
           dispatch(
             updateTempWallet({
-              id: `temp_hashpack_${newAccount.accountId.replace(/\./g, '_')}`,
-              walletAddress: newAccount.accountId,
-              walletId: newAccount.accountId,
+              id: `temp_hashpack_${newAccountId.replace(/\./g, '_')}`,
+              walletAddress: newAccountId,
+              walletId: newAccountId,
               connectedAt: new Date().toISOString(),
             })
           );
 
           const walletData = {
-            address: newAccount.accountId,
+            address: newAccountId,
             walletType: 'hashpack',
             cardSkin: tempWallet?.cardSkin || 'Card-1.png',
-            walletId: newAccount.accountId,
+            walletId: newAccountId,
             connectedAt: new Date().toISOString(),
           };
 
@@ -230,9 +236,12 @@ export const useWalletManagement = () => {
           await dispatch(saveWalletToSupabase(walletData));
 
           setNewlyConnectedWallet({
-            address: newAccount.accountId,
+            address: newAccountId,
             walletType: 'hashpack',
           });
+
+          // Register with walletManager
+          walletManager.registerWallet(newAccountId);
         }
       } else {
         const { toast } = await import('react-hot-toast');
@@ -357,22 +366,22 @@ export const useWalletManagement = () => {
     console.log('🔄 Reconnecting wallet:', walletToReconnect.address);
 
     try {
-      const { hashpackService } = await import('../../services/hashpackService');
+      const { walletManager } = await import('../../services/MultiWalletManager');
       const { toast } = await import('react-hot-toast');
 
       // Open HashConnect pairing modal
       toast.loading('Opening HashPack...');
-      const accounts = await hashpackService.connectWallet();
+      const accountIds = await walletManager.connectWallet();
 
-      if (accounts && accounts.length > 0) {
-        const connectedAddress = accounts[0].accountId;
+      if (accountIds && accountIds.length > 0) {
+        const connectedAddress = accountIds[0];
 
         // Verify it's the same wallet
         if (connectedAddress !== walletToReconnect.address) {
           toast.dismiss();
           toast.error(`Please connect with wallet ${walletToReconnect.address}`);
           // Disconnect the wrong wallet
-          await hashpackService.disconnectWallet();
+          await walletManager.disconnectWallet(connectedAddress);
           setIsConnecting(false);
           return;
         }
@@ -391,6 +400,9 @@ export const useWalletManagement = () => {
             connectedAt: new Date().toISOString()
           }
         }));
+
+        // Register with walletManager
+        walletManager.registerWallet(connectedAddress);
 
         toast.dismiss();
         toast.success('Wallet reconnected successfully!');

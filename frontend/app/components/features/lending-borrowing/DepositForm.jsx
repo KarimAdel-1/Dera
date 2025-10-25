@@ -2,14 +2,17 @@
 
 import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { useLendingActions } from '../../hooks/useLendingActions'
+import { useLendingActions } from '../../../hooks/useLendingActions'
 import toast from 'react-hot-toast'
 
 export default function DepositForm({ selectedTier }) {
-  const { isConnected, activeWallet } = useSelector((state) => state.wallet)
+  const { isConnected, wallets, defaultWallet } = useSelector((state) => state.wallet)
   const { loading } = useSelector((state) => state.lending)
   const [depositAmount, setDepositAmount] = useState('')
+  const [selectedWallet, setSelectedWallet] = useState('')
   const { deposit } = useLendingActions()
+
+  const activeWallet = selectedWallet || defaultWallet
 
   const tiers = [
     { id: 1, name: 'Instant', apy: 4.5, description: 'Instant withdrawals, 30% lendable' },
@@ -87,6 +90,27 @@ export default function DepositForm({ selectedTier }) {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* Wallet Selector */}
+        {wallets.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+              Select Wallet
+            </label>
+            <select
+              value={selectedWallet}
+              onChange={(e) => setSelectedWallet(e.target.value)}
+              className="w-full px-4 py-3 bg-[var(--color-bg-primary)] border border-[var(--color-border-secondary)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
+            >
+              {wallets.map((wallet) => (
+                <option key={wallet.address} value={wallet.address}>
+                  {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)} ({wallet.walletType})
+                  {wallet.address === defaultWallet ? ' (Default)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Amount Input */}
         <div>
           <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-3">

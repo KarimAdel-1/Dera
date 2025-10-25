@@ -2,15 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
-import { useBorrowingActions } from '../../hooks/useBorrowingActions'
-import { contractService } from '../../../services/contractService'
+import { useBorrowingActions } from '../../../hooks/useBorrowingActions'
+import { contractService } from '../../../../services/contractService'
 import toast from 'react-hot-toast'
 
 export default function BorrowForm({ borrowAmount, collateralAmount }) {
-  const { isConnected, activeWallet } = useSelector((state) => state.wallet)
+  const { isConnected, wallets, defaultWallet } = useSelector((state) => state.wallet)
   const { loading, userData } = useSelector((state) => state.borrowing)
   const [hbarPrice, setHbarPrice] = useState(0.05) // Default fallback
+  const [selectedWallet, setSelectedWallet] = useState('')
   const { borrow } = useBorrowingActions()
+
+  const activeWallet = selectedWallet || defaultWallet
 
   // Fetch HBAR price
   useEffect(() => {
@@ -115,6 +118,27 @@ export default function BorrowForm({ borrowAmount, collateralAmount }) {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* Wallet Selector */}
+        {wallets.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+              Select Wallet
+            </label>
+            <select
+              value={selectedWallet}
+              onChange={(e) => setSelectedWallet(e.target.value)}
+              className="w-full px-4 py-3 bg-[var(--color-bg-primary)] border border-[var(--color-border-secondary)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
+            >
+              {wallets.map((wallet) => (
+                <option key={wallet.address} value={wallet.address}>
+                  {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)} ({wallet.walletType})
+                  {wallet.address === defaultWallet ? ' (Default)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Transaction Steps */}
         <div className="bg-[var(--color-bg-tertiary)] p-4 rounded-lg">
           <h4 className="font-semibold text-[var(--color-text-primary)] mb-4 flex items-center">
