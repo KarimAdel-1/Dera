@@ -45,15 +45,15 @@ export const useWallet = () => {
             dispatch(addWallet(wallet));
           });
 
-          // Initialize contract service for reconnected wallets
-          try {
-            if (typeof window !== 'undefined' && window.ethereum) {
-              console.log('Initializing contract service for existing connection...');
-              await contractService.initialize(window.ethereum);
-              console.log('Contract service initialized successfully');
+          // Initialize contract service for reconnected HashPack wallets
+          if (accountIds.length > 0) {
+            try {
+              console.log('Initializing contract service for reconnected HashPack wallet...');
+              await contractService.initializeHashPack(accountIds[0]);
+              console.log('Contract service initialized successfully for HashPack');
+            } catch (error) {
+              console.error('Failed to initialize contract service for HashPack:', error);
             }
-          } catch (error) {
-            console.error('Failed to initialize contract service:', error);
           }
         }
       } catch (err) {
@@ -80,8 +80,8 @@ export const useWallet = () => {
         });
 
         // Initialize contract service if wallets were restored from localStorage
-        if (parsed.length > 0 && typeof window !== 'undefined' && window.ethereum) {
-          contractService.initialize(window.ethereum).then(() => {
+        if (parsed.length > 0) {
+          contractService.initializeHashPack(parsed[0].accountId).then(() => {
             console.log('Contract service initialized from localStorage wallets');
           }).catch((error) => {
             console.error('Failed to initialize contract service from localStorage:', error);
@@ -148,18 +148,16 @@ export const useWallet = () => {
         await fetchAllWalletsData(newAccounts.map((a) => a.accountId));
       }
 
-      // Initialize contract service after wallet connection
-      try {
-        if (typeof window !== 'undefined' && window.ethereum) {
-          console.log('Initializing contract service with provider...');
-          await contractService.initialize(window.ethereum);
-          console.log('Contract service initialized successfully');
-        } else {
-          console.warn('window.ethereum not available - contract service not initialized');
+      // Initialize contract service after HashPack wallet connection
+      if (newAccounts.length > 0) {
+        try {
+          console.log('Initializing contract service for HashPack...');
+          await contractService.initializeHashPack(newAccounts[0].accountId);
+          console.log('Contract service initialized successfully for HashPack');
+        } catch (error) {
+          console.error('Failed to initialize contract service:', error);
+          // Don't throw - allow wallet connection to succeed even if contract init fails
         }
-      } catch (error) {
-        console.error('Failed to initialize contract service:', error);
-        // Don't throw - allow wallet connection to succeed even if contract init fails
       }
 
       // If reconnecting and no new accounts, still return the existing ones

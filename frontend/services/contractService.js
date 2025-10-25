@@ -1,9 +1,14 @@
 import { ethers } from 'ethers'
+import { hashpackService } from './hashpackService'
 
 /**
  * Contract Service for interacting with Dera smart contracts
  * Handles all blockchain interactions for lending and borrowing
+ * Supports both HashPack (Hedera) and MetaMask (EVM) wallets
  */
+
+// Hedera Testnet JSON-RPC Relay
+const HEDERA_TESTNET_RPC = 'https://testnet.hashio.io/api'
 
 // Contract addresses (update these after deployment)
 const CONTRACTS = {
@@ -68,63 +73,124 @@ class ContractService {
     this.provider = null
     this.signer = null
     this.contracts = {}
+    this.walletType = null // 'hashpack' or 'metamask'
+    this.accountId = null // For HashPack
   }
 
   /**
-   * Initialize the contract service with a provider
-   * @param {Object} provider - Ethers provider or Web3 provider
+   * Initialize the contract service for HashPack wallet
+   * @param {string} accountId - Hedera account ID (e.g., "0.0.123456")
    */
-  async initialize(provider) {
+  async initializeHashPack(accountId) {
     try {
+      console.log('Initializing contract service for HashPack:', accountId)
+
+      if (!hashpackService.isConnected()) {
+        throw new Error('HashPack not connected')
+      }
+
+      this.walletType = 'hashpack'
+      this.accountId = accountId
+
+      // Use Hedera Testnet JSON-RPC Relay as provider
+      this.provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC)
+
+      // Get signer from HashConnect
+      this.signer = hashpackService.getSigner(accountId)
+
+      console.log('HashPack signer obtained:', this.signer)
+
+      // Initialize contract instances
+      await this._initializeContracts()
+
+      console.log('Contract service initialized successfully for HashPack')
+      return true
+    } catch (error) {
+      console.error('Failed to initialize contract service for HashPack:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Initialize the contract service for MetaMask/EVM wallet
+   * @param {Object} provider - window.ethereum or other EVM provider
+   */
+  async initializeMetaMask(provider) {
+    try {
+      console.log('Initializing contract service for MetaMask')
+
       if (!provider) {
         throw new Error('Provider is required')
       }
 
+      this.walletType = 'metamask'
       this.provider = new ethers.BrowserProvider(provider)
       this.signer = await this.provider.getSigner()
 
       // Initialize contract instances
-      this.contracts.lendingPool = new ethers.Contract(
-        CONTRACTS.LendingPool,
-        LENDING_POOL_ABI,
-        this.signer
-      )
+      await this._initializeContracts()
 
-      this.contracts.borrowingContract = new ethers.Contract(
-        CONTRACTS.BorrowingContract,
-        BORROWING_CONTRACT_ABI,
-        this.signer
-      )
-
-      this.contracts.priceOracle = new ethers.Contract(
-        CONTRACTS.PriceOracle,
-        PRICE_ORACLE_ABI,
-        this.signer
-      )
-
-      this.contracts.lpInstant = new ethers.Contract(
-        CONTRACTS.LPInstant,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
-      this.contracts.lpWarm = new ethers.Contract(
-        CONTRACTS.LPWarm,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
-      this.contracts.lpCold = new ethers.Contract(
-        CONTRACTS.LPCold,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
+      console.log('Contract service initialized successfully for MetaMask')
       return true
     } catch (error) {
-      console.error('Failed to initialize contract service:', error)
+      console.error('Failed to initialize contract service for MetaMask:', error)
       throw error
     }
+  }
+
+  /**
+   * Legacy initialize method - auto-detects wallet type
+   * @param {Object} providerOrAccountId - window.ethereum for MetaMask or accountId for HashPack
+   */
+  async initialize(providerOrAccountId) {
+    // If it's a string (account ID), use HashPack
+    if (typeof providerOrAccountId === 'string') {
+      return await this.initializeHashPack(providerOrAccountId)
+    }
+    // Otherwise assume it's a provider for MetaMask
+    return await this.initializeMetaMask(providerOrAccountId)
+  }
+
+  /**
+   * Initialize contract instances (used by both HashPack and MetaMask)
+   * @private
+   */
+  async _initializeContracts() {
+    this.contracts.lendingPool = new ethers.Contract(
+      CONTRACTS.LendingPool,
+      LENDING_POOL_ABI,
+      this.signer
+    )
+
+    this.contracts.borrowingContract = new ethers.Contract(
+      CONTRACTS.BorrowingContract,
+      BORROWING_CONTRACT_ABI,
+      this.signer
+    )
+
+    this.contracts.priceOracle = new ethers.Contract(
+      CONTRACTS.PriceOracle,
+      PRICE_ORACLE_ABI,
+      this.signer
+    )
+
+    this.contracts.lpInstant = new ethers.Contract(
+      CONTRACTS.LPInstant,
+      LP_TOKEN_ABI,
+      this.signer
+    )
+
+    this.contracts.lpWarm = new ethers.Contract(
+      CONTRACTS.LPWarm,
+      LP_TOKEN_ABI,
+      this.signer
+    )
+
+    this.contracts.lpCold = new ethers.Contract(
+      CONTRACTS.LPCold,
+      LP_TOKEN_ABI,
+      this.signer
+    )
   }
 
   // ============= LENDING POOL FUNCTIONS =============
