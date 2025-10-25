@@ -1,4 +1,7 @@
 import { ethers } from 'ethers'
+import { walletManager } from './MultiWalletManager'
+import { hashpackService } from './hashpackService'
+import { TransferTransaction, Hbar, AccountId } from '@hashgraph/sdk'
 
 /**
  * Contract Service for interacting with Dera smart contracts
@@ -71,56 +74,13 @@ class ContractService {
   }
 
   /**
-   * Initialize the contract service with a provider
-   * @param {Object} provider - Ethers provider or Web3 provider
+   * Initialize the contract service
    */
-  async initialize(provider) {
+  async initialize() {
     try {
-      if (!provider) {
-        throw new Error('Provider is required')
-      }
-
-      this.provider = new ethers.BrowserProvider(provider)
-      this.signer = await this.provider.getSigner()
-
-      // Initialize contract instances
-      this.contracts.lendingPool = new ethers.Contract(
-        CONTRACTS.LendingPool,
-        LENDING_POOL_ABI,
-        this.signer
-      )
-
-      this.contracts.borrowingContract = new ethers.Contract(
-        CONTRACTS.BorrowingContract,
-        BORROWING_CONTRACT_ABI,
-        this.signer
-      )
-
-      this.contracts.priceOracle = new ethers.Contract(
-        CONTRACTS.PriceOracle,
-        PRICE_ORACLE_ABI,
-        this.signer
-      )
-
-      this.contracts.lpInstant = new ethers.Contract(
-        CONTRACTS.LPInstant,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
-      this.contracts.lpWarm = new ethers.Contract(
-        CONTRACTS.LPWarm,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
-      this.contracts.lpCold = new ethers.Contract(
-        CONTRACTS.LPCold,
-        LP_TOKEN_ABI,
-        this.signer
-      )
-
-      return true
+      const accountId = walletManager.getDefaultWallet();
+      this.signer = accountId;
+      return true;
     } catch (error) {
       console.error('Failed to initialize contract service:', error)
       throw error
@@ -136,13 +96,24 @@ class ContractService {
    */
   async deposit(tier, amount) {
     try {
-      if (!this.contracts.lendingPool) {
-        throw new Error('Contract service not initialized. Please connect your wallet first.')
+      if (!this.signer) {
+        await this.initialize();
       }
-      const value = ethers.parseEther(amount.toString())
-      const tx = await this.contracts.lendingPool.deposit(tier, { value })
-      const receipt = await tx.wait()
-      return receipt
+
+      // Create Hedera transfer transaction
+      const transaction = new TransferTransaction()
+        .addHbarTransfer(this.signer, new Hbar(-amount))
+        .addHbarTransfer(CONTRACTS.LendingPool, new Hbar(amount));
+
+      // Send via HashConnect
+      const response = await hashpackService.sendTransaction(this.signer, transaction);
+      
+      return {
+        hash: response.transactionId,
+        blockNumber: null,
+        from: this.signer,
+        to: CONTRACTS.LendingPool
+      };
     } catch (error) {
       console.error('Deposit failed:', error)
       throw error
@@ -156,6 +127,9 @@ class ContractService {
    */
   async withdraw(tier, lpTokenAmount) {
     try {
+      if (!this.contracts.lendingPool) {
+        await this.initialize();
+      }
       const amount = ethers.parseEther(lpTokenAmount.toString())
       const tx = await this.contracts.lendingPool.withdraw(tier, amount)
       const receipt = await tx.wait()
@@ -172,6 +146,9 @@ class ContractService {
    */
   async requestWithdrawal(amount) {
     try {
+      if (!this.contracts.lendingPool) {
+        await this.initialize();
+      }
       const lpAmount = ethers.parseEther(amount.toString())
       const tx = await this.contracts.lendingPool.requestWithdrawal(lpAmount)
       const receipt = await tx.wait()
