@@ -2,25 +2,19 @@ import React, { memo } from 'react';
 
 /**
  * Wallet connection buttons component
- * Displays buttons for connecting different wallet types
+ * Displays button for connecting HashPack wallet
  */
 const WalletConnectionButtons = memo(({
-  wallets,
   isConnecting,
   onConnectHashPack,
-  onConnectKabila,
-  onConnectBlade,
   onUpdateTempWallet,
 }) => {
-  const hasKabila = wallets.some((w) => w.walletType === 'kabila');
-  const hasBlade = wallets.some((w) => w.walletType === 'blade');
-
   return (
     <div className="mb-6">
       <h3 className="text-[var(--color-text-primary)] text-lg font-medium mb-4">
-        Select Wallet Type
+        Connect Wallet
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <WalletButton
           walletType="hashpack"
           label="HashPack"
@@ -32,34 +26,6 @@ const WalletConnectionButtons = memo(({
             onConnectHashPack();
           }}
         />
-
-        {!hasKabila && (
-          <WalletButton
-            walletType="kabila"
-            label="Kabila"
-            icon="K"
-            bgColor="purple-500"
-            disabled={isConnecting}
-            onClick={() => {
-              onUpdateTempWallet({ walletType: 'kabila' });
-              onConnectKabila();
-            }}
-          />
-        )}
-
-        {!hasBlade && (
-          <WalletButton
-            walletType="blade"
-            label="Blade Wallet"
-            icon="B"
-            bgColor="cyan-500"
-            disabled={isConnecting}
-            onClick={() => {
-              onUpdateTempWallet({ walletType: 'blade' });
-              onConnectBlade();
-            }}
-          />
-        )}
       </div>
     </div>
   );

@@ -7,9 +7,7 @@ const WalletSelector = ({ onClose }) => {
   const dispatch = useDispatch();
 
   const wallets = [
-    { name: 'HashPack', icon: 'H', color: 'bg-blue-500' },
-    { name: 'Blade Wallet', icon: 'B', color: 'bg-cyan-500' },
-    { name: 'Kabila Wallet', icon: 'K', color: 'bg-purple-500' }
+    { name: 'HashPack', icon: 'H', color: 'bg-blue-500' }
   ];
 
   const handleWalletSelect = (walletName) => {

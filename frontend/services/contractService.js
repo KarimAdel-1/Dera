@@ -1,12 +1,14 @@
 import { ethers } from 'ethers'
-import { walletManager } from './MultiWalletManager'
 import { hashpackService } from './hashpackService'
-import { TransferTransaction, Hbar, AccountId } from '@hashgraph/sdk'
 
 /**
  * Contract Service for interacting with Dera smart contracts
  * Handles all blockchain interactions for lending and borrowing
+ * Supports HashPack (Hedera) wallet only
  */
+
+// Hedera Testnet JSON-RPC Relay
+const HEDERA_TESTNET_RPC = 'https://testnet.hashio.io/api'
 
 // Contract addresses (update these after deployment)
 const CONTRACTS = {
@@ -71,20 +73,94 @@ class ContractService {
     this.provider = null
     this.signer = null
     this.contracts = {}
+    this.walletType = 'hashpack'
+    this.accountId = null
   }
 
   /**
-   * Initialize the contract service
+   * Initialize the contract service for HashPack wallet
+   * @param {string} accountId - Hedera account ID (e.g., "0.0.123456")
    */
-  async initialize() {
+  async initializeHashPack(accountId) {
     try {
-      const accountId = walletManager.getDefaultWallet();
-      this.signer = accountId;
-      return true;
+      console.log('Initializing contract service for HashPack:', accountId)
+
+      if (!hashpackService.isConnected()) {
+        throw new Error('HashPack not connected')
+      }
+
+      this.walletType = 'hashpack'
+      this.accountId = accountId
+
+      // Use Hedera Testnet JSON-RPC Relay as provider
+      this.provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC)
+
+      // Get signer from HashConnect
+      this.signer = hashpackService.getSigner(accountId)
+
+      console.log('HashPack signer obtained:', this.signer)
+
+      // Initialize contract instances
+      await this._initializeContracts()
+
+      console.log('Contract service initialized successfully for HashPack')
+      return true
     } catch (error) {
-      console.error('Failed to initialize contract service:', error)
+      console.error('Failed to initialize contract service for HashPack:', error)
       throw error
     }
+  }
+
+
+
+  /**
+   * Initialize method - uses HashPack
+   * @param {string} accountId - Hedera account ID
+   */
+  async initialize(accountId) {
+    return await this.initializeHashPack(accountId)
+  }
+
+  /**
+   * Initialize contract instances
+   * @private
+   */
+  async _initializeContracts() {
+    this.contracts.lendingPool = new ethers.Contract(
+      CONTRACTS.LendingPool,
+      LENDING_POOL_ABI,
+      this.signer
+    )
+
+    this.contracts.borrowingContract = new ethers.Contract(
+      CONTRACTS.BorrowingContract,
+      BORROWING_CONTRACT_ABI,
+      this.signer
+    )
+
+    this.contracts.priceOracle = new ethers.Contract(
+      CONTRACTS.PriceOracle,
+      PRICE_ORACLE_ABI,
+      this.signer
+    )
+
+    this.contracts.lpInstant = new ethers.Contract(
+      CONTRACTS.LPInstant,
+      LP_TOKEN_ABI,
+      this.signer
+    )
+
+    this.contracts.lpWarm = new ethers.Contract(
+      CONTRACTS.LPWarm,
+      LP_TOKEN_ABI,
+      this.signer
+    )
+
+    this.contracts.lpCold = new ethers.Contract(
+      CONTRACTS.LPCold,
+      LP_TOKEN_ABI,
+      this.signer
+    )
   }
 
   // ============= LENDING POOL FUNCTIONS =============

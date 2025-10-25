@@ -262,101 +262,7 @@ export const useWalletManagement = () => {
     }
   }, [dispatch, wallets, tempWallet]);
 
-  // Connect to Kabila
-  const connectToKabila = useCallback(async () => {
-    if (!tempWallet) return;
 
-    setIsConnecting(true);
-    try {
-      if (window.kabila && window.kabila.isKabila) {
-        const accounts = await window.kabila.request({
-          method: 'hedera_requestAccounts',
-        });
-        const address = accounts[0];
-
-        if (address) {
-          const existingAddresses = wallets.map((w) => w.address);
-          if (existingAddresses.includes(address)) {
-            const { toast } = await import('react-hot-toast');
-            toast.error('Wallet is already connected');
-            dispatch(deleteTempWallet());
-            return;
-          }
-
-          const walletData = {
-            address,
-            walletType: 'kabila',
-            cardSkin: tempWallet.cardSkin,
-          };
-
-          dispatch(connectWallet(walletData));
-          dispatch(saveWalletToSupabase(walletData));
-          dispatch(deleteTempWallet());
-
-          setNewlyConnectedWallet({ address, walletType: 'kabila' });
-        } else {
-          const { toast } = await import('react-hot-toast');
-          toast.error('Wallet connection was cancelled');
-          dispatch(deleteTempWallet());
-        }
-      }
-    } catch (error) {
-      console.error('Kabila connection failed:', error);
-      const { toast } = await import('react-hot-toast');
-      toast.error('Failed to connect wallet');
-      dispatch(deleteTempWallet());
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [dispatch, tempWallet]);
-
-  // Connect to Blade
-  const connectToBlade = useCallback(async () => {
-    if (!tempWallet) return;
-
-    setIsConnecting(true);
-    try {
-      if (window.bladeWallet) {
-        const result = await window.bladeWallet.connect();
-
-        if (result.accountId) {
-          const existingAddresses = wallets.map((w) => w.address);
-          if (existingAddresses.includes(result.accountId)) {
-            const { toast } = await import('react-hot-toast');
-            toast.error('Wallet is already connected');
-            dispatch(deleteTempWallet());
-            return;
-          }
-
-          const walletData = {
-            address: result.accountId,
-            walletType: 'blade',
-            cardSkin: tempWallet.cardSkin,
-          };
-
-          dispatch(connectWallet(walletData));
-          dispatch(saveWalletToSupabase(walletData));
-          dispatch(deleteTempWallet());
-
-          setNewlyConnectedWallet({
-            address: result.accountId,
-            walletType: 'blade',
-          });
-        } else {
-          const { toast } = await import('react-hot-toast');
-          toast.error('Wallet connection was cancelled');
-          dispatch(deleteTempWallet());
-        }
-      }
-    } catch (error) {
-      console.error('Blade connection failed:', error);
-      const { toast } = await import('react-hot-toast');
-      toast.error('Failed to connect wallet');
-      dispatch(deleteTempWallet());
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [dispatch, tempWallet]);
 
   // Reconnect a disconnected wallet
   const reconnectWallet = useCallback(async (walletToReconnect) => {
@@ -481,8 +387,6 @@ export const useWalletManagement = () => {
 
     // Actions
     connectToHashPack,
-    connectToKabila,
-    connectToBlade,
     reconnectWallet,
     refreshWalletDetails,
     updateWalletCardSkin,

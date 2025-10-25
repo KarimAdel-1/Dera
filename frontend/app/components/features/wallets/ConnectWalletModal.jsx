@@ -31,8 +31,6 @@ const ConnectWalletModal = memo(({
   wallets,
   isConnecting,
   onConnectHashPack,
-  onConnectKabila,
-  onConnectBlade,
   onUpdateTempWallet,
   onDeleteTempWallet,
   onSetDefaultWallet,
@@ -107,11 +105,8 @@ const ConnectWalletModal = memo(({
         {/* Connection Buttons or Confirmation */}
         {!newlyConnectedWallet && !editingWallet ? (
           <WalletConnectionButtons
-            wallets={wallets}
             isConnecting={isConnecting}
             onConnectHashPack={onConnectHashPack}
-            onConnectKabila={onConnectKabila}
-            onConnectBlade={onConnectBlade}
             onUpdateTempWallet={onUpdateTempWallet}
           />
         ) : newlyConnectedWallet && !editingWallet ? (

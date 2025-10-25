@@ -16,7 +16,7 @@ import EmptyWalletState from './EmptyWalletState';
  * Features:
  * - Multi-wallet support
  * - Real-time balance updates
- * - Wallet connection (HashPack, Kabila, Blade)
+ * - Wallet connection (HashPack)
  * - Card skin customization
  * - Token and NFT viewing
  */
@@ -33,8 +33,6 @@ const YourWalletsTab = () => {
     isConnecting,
     newlyConnectedWallet,
     connectToHashPack,
-    connectToKabila,
-    connectToBlade,
     reconnectWallet,
     refreshWalletDetails,
     updateWalletCardSkin,
@@ -145,8 +143,6 @@ const YourWalletsTab = () => {
         wallets={wallets}
         isConnecting={isConnecting}
         onConnectHashPack={connectToHashPack}
-        onConnectKabila={connectToKabila}
-        onConnectBlade={connectToBlade}
         onUpdateTempWallet={handleUpdateTempWallet}
         onDeleteTempWallet={deleteTempWallet}
         onSetDefaultWallet={setDefaultWallet}

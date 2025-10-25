@@ -8,11 +8,7 @@ export function useWalletConnection() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
   const [availableWallets, setAvailableWallets] = useState({
-    hashpack: false,
-    kabila: false,
-    metamask:
-      typeof window !== 'undefined' && typeof window.ethereum !== 'undefined',
-    walletconnect: true,
+    hashpack: true,
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -51,60 +47,7 @@ export function useWalletConnection() {
       switch (walletType) {
         // 🟣 HASHCONNECT / HASHPACK
         case 'hashpack': {
-          throw new Error('HashPack coming soon');
-        }
-
-        // 🟢 KABILA SDK
-        case 'kabila': {
-          throw new Error('Kabila coming soon');
-        }
-
-        // 🟠 METAMASK (EVM)
-        case 'metamask': {
-          if (typeof window === 'undefined' || !window.ethereum) {
-            throw new Error('MetaMask not detected');
-          }
-
-          const allAccounts = await window.ethereum.request({
-            method: 'eth_requestAccounts',
-          });
-
-          if (!allAccounts || !allAccounts.length) {
-            throw new Error('MetaMask connection cancelled');
-          }
-
-          let selectedAccount = allAccounts[0];
-          if (allAccounts.length > 1) {
-            selectedAccount = await showAccountSelector(allAccounts);
-          }
-
-          const message = `Welcome to Dera App!\n\nPlease sign this message to authenticate.\n\nAccount: ${selectedAccount}\nTimestamp: ${Date.now()}`;
-          try {
-            await window.ethereum.request({
-              method: 'personal_sign',
-              params: [message, selectedAccount],
-            });
-          } catch (signError) {
-            return null; // user cancelled signature
-          }
-
-          return selectedAccount;
-        }
-
-        // 🔵 WALLETCONNECT
-        case 'walletconnect': {
-          const provider = await EthereumProvider.init({
-            projectId: '4a94158be2292a351367614142d4e2fe',
-            chains: [1],
-            showQrModal: false, // ✅ disables the default popup modal
-          });
-
-          await provider.connect();
-
-          const accounts = provider.accounts;
-          if (!accounts || !accounts.length) return null;
-
-          return accounts[0];
+          throw new Error('HashPack connection should be handled by HashConnectClient');
         }
 
         default:

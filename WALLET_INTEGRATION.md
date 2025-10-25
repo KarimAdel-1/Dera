@@ -2,11 +2,9 @@
 
 ## Completed Features ✅
 
-### 1. Multi-Wallet Support
-Successfully integrated support for three Hedera wallets:
+### 1. Wallet Support
+Successfully integrated support for Hedera wallet:
 - **HashPack** - Most popular Hedera wallet
-- **Kabila** - Secure and user-friendly
-- **Blade** - Fast and feature-rich
 
 ### 2. Wallet Context (`frontend/contexts/WalletContext.tsx`)
 
@@ -36,7 +34,7 @@ const {
 **Usage:**
 ```typescript
 // Connect wallet
-await connectWallet('hashpack'); // or 'kabila' or 'blade'
+await connectWallet('hashpack');
 
 // Switch wallet
 switchActiveWallet('hashpack-0.0.12345');
@@ -105,8 +103,7 @@ import WalletConnect from '../components/WalletConnect';
 ### 5. Package Dependencies
 
 **Added:**
-- `@hashgraph/hashconnect` - HashPack & Kabila integration
-- `@bladelabs/blade-web3.js` - Blade wallet integration
+- `@hashgraph/hashconnect` - HashPack integration
 - `lucide-react` - Icon library
 - Existing: `react-hot-toast`, `recharts`, `zustand`, `date-fns`
 
@@ -579,7 +576,7 @@ NEXT_PUBLIC_LP_COLD_ADDRESS=0x624Db5F73F10832bE5603cE239a585cBC9e1a192
 ## Summary
 
 ### ✅ Completed
-- Multi-wallet integration (HashPack, Kabila, Blade)
+- HashPack wallet integration
 - Wallet context with full functionality
 - Notification system with alerts
 - Updated WalletConnect component
