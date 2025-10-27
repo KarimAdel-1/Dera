@@ -8,10 +8,8 @@ import {DataTypes} from '../../libraries/types/DataTypes.sol';
 import {ReserveLogic} from './ReserveLogic.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
 import {UserConfiguration} from '../../libraries/configuration/UserConfiguration.sol';
 import {ReserveConfiguration} from '../../libraries/configuration/ReserveConfiguration.sol';
-import {EModeConfiguration} from '../../libraries/configuration/EModeConfiguration.sol';
 import {IDToken} from '../../../interfaces/IDToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
@@ -74,7 +72,7 @@ library LiquidationLogic {
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    
     DataTypes.ExecuteLiquidationCallParams memory params
   ) external {
     LiquidationCallLocalVars memory vars;
@@ -97,12 +95,10 @@ library LiquidationLogic {
     ) = GenericLogic.calculateUserAccountData(
       reservesData,
       reservesList,
-      eModeCategories,
       DataTypes.CalculateUserAccountDataParams({
         userConfig: borrowerConfig,
         user: params.borrower,
-        oracle: params.priceOracle,
-        userEModeCategory: params.borrowerEModeCategory
+        oracle: params.priceOracle
       })
     );
 
@@ -128,17 +124,8 @@ library LiquidationLogic {
       })
     );
 
-    if (
-      params.borrowerEModeCategory != 0 &&
-      EModeConfiguration.isReserveEnabledOnBitmap(
-        eModeCategories[params.borrowerEModeCategory].collateralBitmap,
-        collateralReserve.id
-      )
-    ) {
-      vars.liquidationBonus = eModeCategories[params.borrowerEModeCategory].liquidationBonus;
-    } else {
-      vars.liquidationBonus = vars.collateralReserveCache.reserveConfiguration.getLiquidationBonus();
-    }
+    // Use standard liquidation bonus from reserve configuration (E-Mode removed for MVP)
+    vars.liquidationBonus = vars.collateralReserveCache.reserveConfiguration.getLiquidationBonus();
 
     vars.collateralAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.collateralAsset);
     vars.debtAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.debtAsset);
@@ -222,15 +209,6 @@ library LiquidationLogic {
       hasNoCollateralLeft,
       params.interestRateStrategyAddress
     );
-
-    if (vars.collateralReserveCache.reserveConfiguration.getDebtCeiling() != 0) {
-      IsolationModeLogic.updateIsolatedDebt(
-        reservesData,
-        vars.debtReserveCache,
-        vars.actualDebtToLiquidate,
-        params.collateralAsset
-      );
-    }
 
     if (params.receiveDToken) {
       _liquidateDTokens(reservesData, reservesList, usersConfig, collateralReserve, params, vars);

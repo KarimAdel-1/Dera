@@ -3,7 +3,6 @@ pragma solidity ^0.8.19;
 
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {ReserveConfiguration} from '../libraries/configuration/ReserveConfiguration.sol';
-import {EModeConfiguration} from '../libraries/configuration/EModeConfiguration.sol';
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {PercentageMath} from '../libraries/math/PercentageMath.sol';
@@ -240,10 +239,6 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     currentConfig.setDebtCeiling(newDebtCeiling);
     _pool.setConfiguration(asset, currentConfig);
 
-    if (newDebtCeiling == 0) {
-      _pool.resetIsolationModeTotalDebt(asset);
-    }
-
     emit DebtCeilingChanged(asset, oldDebtCeiling, newDebtCeiling);
   }
 
@@ -256,41 +251,6 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     currentConfig.setSiloedBorrowing(newSiloed);
     _pool.setConfiguration(asset, currentConfig);
     emit SiloedBorrowingChanged(asset, oldSiloed, newSiloed);
-  }
-
-  function setEModeCategory(uint8 categoryId, uint16 ltv, uint16 liquidationThreshold, uint16 liquidationBonus, string calldata label) external override onlyRiskOrPoolAdmins {
-    require(ltv != 0, Errors.InvalidEmodeCategoryParams());
-    require(liquidationThreshold != 0, Errors.InvalidEmodeCategoryParams());
-    require(ltv <= liquidationThreshold, Errors.InvalidEmodeCategoryParams());
-    require(liquidationBonus > PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidEmodeCategoryParams());
-    require(uint256(liquidationThreshold).percentMul(liquidationBonus) <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidEmodeCategoryParams());
-
-    DataTypes.EModeCategoryBaseConfiguration memory categoryData;
-    categoryData.ltv = ltv;
-    categoryData.liquidationThreshold = liquidationThreshold;
-    categoryData.liquidationBonus = liquidationBonus;
-    categoryData.label = label;
-
-    _pool.configureEModeCategory(categoryId, categoryData);
-    emit EModeCategoryAdded(categoryId, ltv, liquidationThreshold, liquidationBonus, address(0), label);
-  }
-
-  function setAssetCollateralInEMode(address asset, uint8 categoryId, bool allowed) external override onlyRiskOrPoolAdmins {
-    uint128 collateralBitmap = _pool.getEModeCategoryCollateralBitmap(categoryId);
-    DataTypes.ReserveDataLegacy memory reserveData = _pool.getReserveData(asset);
-    require(reserveData.id != 0 || _pool.getReservesList()[0] == asset, Errors.AssetNotListed());
-    collateralBitmap = EModeConfiguration.setReserveBitmapBit(collateralBitmap, reserveData.id, allowed);
-    _pool.configureEModeCategoryCollateralBitmap(categoryId, collateralBitmap);
-    emit AssetCollateralInEModeChanged(asset, categoryId, allowed);
-  }
-
-  function setAssetBorrowableInEMode(address asset, uint8 categoryId, bool borrowable) external override onlyRiskOrPoolAdmins {
-    uint128 borrowableBitmap = _pool.getEModeCategoryBorrowableBitmap(categoryId);
-    DataTypes.ReserveDataLegacy memory reserveData = _pool.getReserveData(asset);
-    require(reserveData.id != 0 || _pool.getReservesList()[0] == asset, Errors.AssetNotListed());
-    borrowableBitmap = EModeConfiguration.setReserveBitmapBit(borrowableBitmap, reserveData.id, borrowable);
-    _pool.configureEModeCategoryBorrowableBitmap(categoryId, borrowableBitmap);
-    emit AssetBorrowableInEModeChanged(asset, categoryId, borrowable);
   }
 
   function setPoolPause(bool paused, uint40 gracePeriod) public override onlyEmergencyOrPoolAdmin {

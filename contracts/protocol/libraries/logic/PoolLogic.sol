@@ -13,7 +13,6 @@ import {DataTypes} from '../types/DataTypes.sol';
 import {ReserveLogic} from './ReserveLogic.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
 
 /**
  * @title PoolLogic library
@@ -128,14 +127,6 @@ library PoolLogic {
     }
   }
 
-  function executeResetIsolationModeTotalDebt(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    address asset
-  ) external {
-    require(reservesData[asset].configuration.getDebtCeiling() == 0, Errors.DebtCeilingNotZero());
-    IsolationModeLogic.setIsolationModeTotalDebt(reservesData[asset], asset, 0);
-  }
-
   /**
    * @notice Set liquidation grace period for an asset
    * @param reservesData Reserves data mapping
@@ -170,7 +161,6 @@ library PoolLogic {
   function executeGetUserAccountData(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.CalculateUserAccountDataParams memory params
   )
     external
@@ -190,7 +180,7 @@ library PoolLogic {
       ltv,
       currentLiquidationThreshold,
       healthFactor,
-    ) = GenericLogic.calculateUserAccountData(reservesData, reservesList, eModeCategories, params);
+    ) = GenericLogic.calculateUserAccountData(reservesData, reservesList, params);
 
     availableBorrowsBase = GenericLogic.calculateAvailableBorrows(totalCollateralBase, totalDebtBase, ltv);
   }

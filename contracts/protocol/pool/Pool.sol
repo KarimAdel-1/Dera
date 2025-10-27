@@ -187,7 +187,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     uint256 withdrawn = SupplyLogic.executeWithdraw(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig[_msgSender()],
       DataTypes.ExecuteWithdrawParams({
         user: _msgSender(),
@@ -195,8 +194,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
         amount: amount,
         to: to,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[_msgSender()]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
     emit Withdraw(_msgSender(), asset, withdrawn, to, HCSTopics.WITHDRAW_TOPIC());
@@ -215,11 +213,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
-    
+
     BorrowLogic.executeBorrow(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig[onBehalfOf],
       DataTypes.ExecuteBorrowParams({
         asset: asset,
@@ -231,7 +228,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         referralCode: referralCode,
         releaseUnderlying: true,
         oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[onBehalfOf],
         priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel()
       })
     );
@@ -242,7 +238,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     uint256 repaid = BorrowLogic.executeRepay(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig[onBehalfOf],
       DataTypes.ExecuteRepayParams({
         asset: asset,
@@ -252,8 +247,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: onBehalfOf,
         useDTokens: false,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[onBehalfOf]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
     emit Repay(_msgSender(), asset, repaid, interestRateMode, onBehalfOf, HCSTopics.REPAY_TOPIC());
@@ -266,7 +260,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return BorrowLogic.executeRepay(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig[_msgSender()],
       DataTypes.ExecuteRepayParams({
         asset: asset,
@@ -276,8 +269,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: _msgSender(),
         useDTokens: true,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[_msgSender()]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }
@@ -286,24 +278,21 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     SupplyLogic.executeUseReserveAsCollateral(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig[_msgSender()],
       _msgSender(),
       asset,
       useAsCollateral,
-      ADDRESSES_PROVIDER.getPriceOracle(),
-      _usersEModeCategory[_msgSender()]
+      ADDRESSES_PROVIDER.getPriceOracle()
     );
   }
 
   function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveDToken) public virtual override nonReentrant {
     if (debtToCover == 0) revert InvalidAmount();
-    
+
     LiquidationLogic.executeLiquidationCall(
       _reserves,
       _reservesList,
       _usersConfig,
-      _eModeCategories,
       DataTypes.ExecuteLiquidationCallParams({
         liquidator: _msgSender(),
         debtToCover: debtToCover,
@@ -312,7 +301,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         borrower: borrower,
         receiveDToken: receiveDToken,
         priceOracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        borrowerEModeCategory: _usersEModeCategory[borrower],
         priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel(),
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
       })
@@ -330,12 +318,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return PoolLogic.executeGetUserAccountData(
       _reserves,
       _reservesList,
-      _eModeCategories,
       DataTypes.CalculateUserAccountDataParams({
         userConfig: _usersConfig[user],
         user: user,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[user]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }
@@ -353,7 +339,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     res.variableDebtTokenAddress = reserve.variableDebtTokenAddress;
     res.interestRateStrategyAddress = RESERVE_INTEREST_RATE_STRATEGY;
     res.accruedToTreasury = reserve.accruedToTreasury;
-    res.isolationModeTotalDebt = reserve.isolationModeTotalDebt;
   }
 
   function getConfiguration(address asset) external view virtual override returns (DataTypes.ReserveConfigurationMap memory) {
@@ -443,7 +428,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     SupplyLogic.executeFinalizeTransfer(
       _reserves,
       _reservesList,
-      _eModeCategories,
       _usersConfig,
       DataTypes.FinalizeTransferParams({
         asset: asset,
@@ -452,8 +436,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         scaledAmount: scaledAmount,
         scaledBalanceFromBefore: scaledBalanceFromBefore,
         scaledBalanceToBefore: scaledBalanceToBefore,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        fromEModeCategory: _usersEModeCategory[from]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }

@@ -90,7 +90,7 @@ library SupplyLogic {
   function executeWithdraw(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteWithdrawParams memory params
   ) external returns (uint256) {
@@ -139,12 +139,12 @@ library SupplyLogic {
         ValidationLogic.validateHFAndLtvzero(
           reservesData,
           reservesList,
-          eModeCategories,
+          
           userConfig,
           params.asset,
           params.user,
           params.oracle,
-          params.userEModeCategory
+          
         );
       }
     }
@@ -157,7 +157,7 @@ library SupplyLogic {
   function executeFinalizeTransfer(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
     DataTypes.FinalizeTransferParams memory params
   ) external {
@@ -178,12 +178,12 @@ library SupplyLogic {
           ValidationLogic.validateHFAndLtvzero(
             reservesData,
             reservesList,
-            eModeCategories,
+            
             usersConfig[params.from],
             params.asset,
             params.from,
             params.oracle,
-            params.fromEModeCategory
+            
           );
         }
       }
@@ -209,13 +209,13 @@ library SupplyLogic {
   function executeUseReserveAsCollateral(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    
     DataTypes.UserConfigurationMap storage userConfig,
     address user,
     address asset,
     bool useAsCollateral,
     address priceOracle,
-    uint8 userEModeCategory
+    uint8 
   ) external {
     DataTypes.ReserveData storage reserve = reservesData[asset];
     DataTypes.ReserveConfigurationMap memory reserveConfigCached = reserve.configuration;
@@ -236,12 +236,12 @@ library SupplyLogic {
       ValidationLogic.validateHFAndLtvzero(
         reservesData,
         reservesList,
-        eModeCategories,
+        
         userConfig,
         asset,
         user,
         priceOracle,
-        userEModeCategory
+        
       );
     }
   }
