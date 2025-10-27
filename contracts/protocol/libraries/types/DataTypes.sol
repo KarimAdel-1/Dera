@@ -32,24 +32,6 @@ pragma solidity ^0.8.19;
  * - Mirror Nodes can query all struct data via contract state
  */
 library DataTypes {
-  struct ReserveDataLegacy {
-    ReserveConfigurationMap configuration;
-    uint128 liquidityIndex;
-    uint128 currentLiquidityRate;
-    uint128 variableBorrowIndex;
-    uint128 currentVariableBorrowRate;
-    uint128 currentStableBorrowRate;
-    uint40 lastUpdateTimestamp;
-    uint16 id;
-    address dTokenAddress;
-    address stableDebtTokenAddress;
-    address variableDebtTokenAddress;
-    address interestRateStrategyAddress;
-    uint128 accruedToTreasury;
-    uint128 unbacked;
-    uint128 isolationModeTotalDebt;
-  }
-
   struct ReserveData {
     ReserveConfigurationMap configuration;
     uint128 liquidityIndex;
@@ -64,7 +46,6 @@ library DataTypes {
     address variableDebtTokenAddress;
     uint128 accruedToTreasury;
     uint128 virtualUnderlyingBalance;
-    uint128 isolationModeTotalDebt;
   }
 
   struct ReserveConfigurationMap {
@@ -75,34 +56,10 @@ library DataTypes {
     uint256 data;
   }
 
-  struct EModeCategoryLegacy {
-    uint16 ltv;
-    uint16 liquidationThreshold;
-    uint16 liquidationBonus;
-    address priceSource;
-    string label;
-  }
-
   struct CollateralConfig {
     uint16 ltv;
     uint16 liquidationThreshold;
     uint16 liquidationBonus;
-  }
-
-  struct EModeCategoryBaseConfiguration {
-    uint16 ltv;
-    uint16 liquidationThreshold;
-    uint16 liquidationBonus;
-    string label;
-  }
-
-  struct EModeCategory {
-    uint16 ltv;
-    uint16 liquidationThreshold;
-    uint16 liquidationBonus;
-    uint128 collateralBitmap;
-    string label;
-    uint128 borrowableBitmap;
   }
 
   enum InterestRateMode {
