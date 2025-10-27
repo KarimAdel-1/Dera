@@ -15,16 +15,17 @@ pragma solidity ^0.8.19;
  * - ReserveData: Per-asset state (liquidity index, borrow index, rates, addresses)
  * - UserConfigurationMap: Bitmap of user's collateral/borrowing (1 bit per asset)
  * - ReserveConfigurationMap: Bitmap of reserve parameters (packed in 1 uint256)
- * - EModeCategory: Efficiency mode for correlated assets (e.g., stablecoins)
- * 
+ *
  * STORAGE OPTIMIZATION:
  * - Bitmaps: 256 assets in 1 uint256 (1 bit per asset)
  * - Packed structs: Multiple fields in single storage slot
  * - uint128/uint40/uint16: Smaller types where possible
- * 
- * REMOVED FEATURES:
+ *
+ * REMOVED FEATURES (MVP Simplification):
+ * - E-Mode (Efficiency Mode): Removed for simplicity
+ * - Isolation Mode: Removed for simplicity
  * - Stable rate: Only variable rate supported
- * - Flash loans: Moved to upgrade folder
+ * - Flash loans: Not needed for MVP
  * 
  * HEDERA BENEFITS:
  * - Low gas costs make complex structs affordable
@@ -91,7 +92,6 @@ library DataTypes {
     address borrower;
     bool receiveDToken;
     address priceOracle;
-    uint8 borrowerEModeCategory;
     address priceOracleSentinel;
     address interestRateStrategyAddress;
   }
@@ -115,7 +115,6 @@ library DataTypes {
     uint16 referralCode;
     bool releaseUnderlying;
     address oracle;
-    uint8 userEModeCategory;
     address priceOracleSentinel;
   }
 
@@ -128,7 +127,6 @@ library DataTypes {
     address onBehalfOf;
     bool useDTokens;
     address oracle;
-    uint8 userEModeCategory;
   }
 
   struct ExecuteWithdrawParams {
@@ -138,7 +136,6 @@ library DataTypes {
     uint256 amount;
     address to;
     address oracle;
-    uint8 userEModeCategory;
   }
 
   struct ExecuteEliminateDeficitParams {
@@ -156,53 +153,12 @@ library DataTypes {
     uint256 scaledBalanceFromBefore;
     uint256 scaledBalanceToBefore;
     address oracle;
-    uint8 fromEModeCategory;
-  }
-
-  struct FlashloanParams {
-    address user;
-    address receiverAddress;
-    address[] assets;
-    uint256[] amounts;
-    uint256[] interestRateModes;
-    address interestRateStrategyAddress;
-    address onBehalfOf;
-    bytes params;
-    uint16 referralCode;
-    uint256 flashLoanPremium;
-    address addressesProvider;
-    address pool;
-    uint8 userEModeCategory;
-    bool isAuthorizedFlashBorrower;
-  }
-
-  struct FlashloanSimpleParams {
-    address user;
-    address receiverAddress;
-    address asset;
-    address interestRateStrategyAddress;
-    uint256 amount;
-    bytes params;
-    uint16 referralCode;
-    uint256 flashLoanPremium;
-    address addressesProvider;
-  }
-
-  struct FlashLoanRepaymentParams {
-    address user;
-    uint256 amount;
-    uint256 totalPremium;
-    address asset;
-    address interestRateStrategyAddress;
-    address receiverAddress;
-    uint16 referralCode;
   }
 
   struct CalculateUserAccountDataParams {
     UserConfigurationMap userConfig;
     address user;
     address oracle;
-    uint8 userEModeCategory;
   }
 
   struct ValidateBorrowParams {
@@ -213,7 +169,6 @@ library DataTypes {
     uint256 amountScaled;
     InterestRateMode interestRateMode;
     address oracle;
-    uint8 userEModeCategory;
     address priceOracleSentinel;
   }
 
