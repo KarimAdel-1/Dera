@@ -1,4 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import apolloClient from '../../lib/apolloClient';
+import {
+  ALL_METRICS_QUERY,
+  NETWORK_FEES_QUERY,
+  TRANSACTION_TYPES_QUERY,
+  NEW_TRANSACTION_TYPES_QUERY,
+} from '../../lib/graphqlQueries';
 
 const MIRROR_API = 'https://mainnet-public.mirrornode.hedera.com/api/v1';
 const COINGECKO =
@@ -10,198 +17,7 @@ const GRAPHQL_API = 'https://mainnet.hedera.api.hgraph.io/v1/graphql';
 // Cache TTL (5 minutes)
 const CACHE_TTL = 5 * 60 * 1000;
 
-const ALL_METRICS_QUERY = `
-query AllMetrics {
-  newAccountsHour: ecosystem_metric(
-    order_by: {end_date: desc_nulls_last}
-    limit: 1
-    where: {name: {_eq: "new_accounts"}, period: {_eq: "hour"}}
-  ) {
-    total
-    end_date
-  }
-
-  activeAccountsHour: ecosystem_metric(
-    order_by: {end_date: desc_nulls_last}
-    limit: 1
-    where: {name: {_eq: "active_accounts"}, period: {_eq: "hour"}}
-  ) {
-    total
-    end_date
-  }
-
-  networkTPS: ecosystem_metric(
-    where: {name: {_eq: "network_tps"}}
-    order_by: {end_date: desc_nulls_last}
-    limit: 1
-  ) {
-    total
-    end_date
-  }
-
-  avgTTC: ecosystem_metric(
-    where: {name: {_eq: "avg_time_to_consensus"}, period: {_eq: "hour"}}
-    order_by: {end_date: desc_nulls_last}
-    limit: 1
-  ) {
-    total
-    end_date
-  }
-}
-`;
-
-const NETWORK_FEES_QUERY = (timestamp24hAgo, currentTimestamp) => `
-query NetworkFees24h {
-  transaction_aggregate(
-    where: {
-      consensus_timestamp: {
-        _gte: "${timestamp24hAgo}",
-        _lt: "${currentTimestamp}"
-      }
-    }
-  ) {
-    aggregate {
-      sum { charged_tx_fee }
-      min { charged_tx_fee }
-      max { charged_tx_fee }
-    }
-  }
-}
-`;
-
-const TRANSACTION_TYPES_QUERY = (period) => `
-query CompareTotalTransactionTypes {
-  all: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  crypto: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_crypto_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  hcs: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_hcs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  hfs: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_hfs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  hscs: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_hscs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  hts: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_hts_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  other: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "total_other_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-}
-`;
-
-const NEW_TRANSACTION_TYPES_QUERY = (period) => `
-query CompareNewTransactionTypes {
-  new_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_crypto_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_crypto_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_hcs_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_hcs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_hfs_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_hfs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_hscs_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_hscs_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_hts_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_hts_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-
-  new_other_transactions: ecosystem_metric(
-    order_by: { end_date: desc_nulls_last }
-    limit: 1
-    where: { name: { _eq: "new_other_transactions" }, period: { _eq: "${period}" } }
-  ) {
-    total
-    end_date
-  }
-}
-`;
+// GraphQL queries now imported from lib/graphqlQueries.js
 
 // --- FETCH NETWORK DATA (Mirror Node + Market APIs) ---
 export const fetchNetworkData = createAsyncThunk(
@@ -369,29 +185,19 @@ export const fetchEcosystemMetrics = createAsyncThunk(
   async (_, { getState, rejectWithValue }) => {
     try {
       const now = Date.now();
-      const timestamp24hAgo = ((now - 86400000) * 1000000).toString();
-      const currentTimestamp = (now * 1000000).toString();
+      const timestamp24hAgo = (now - 86400000) * 1000000;
+      const currentTimestamp = now * 1000000;
 
-      const feesQuery = NETWORK_FEES_QUERY(timestamp24hAgo, currentTimestamp);
-      console.log('Fees Query:', feesQuery);
-      
-      const [metricsRes, feesRes] = await Promise.all([
-        fetch(GRAPHQL_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: ALL_METRICS_QUERY }),
-        }),
-        fetch(GRAPHQL_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: feesQuery }),
+      const [metricsResult, feesResult] = await Promise.all([
+        apolloClient.query({ query: ALL_METRICS_QUERY }),
+        apolloClient.query({
+          query: NETWORK_FEES_QUERY,
+          variables: { timestamp24hAgo, currentTimestamp }
         })
       ]);
 
-      const [metricsJson, feesJson] = await Promise.all([
-        metricsRes.json(),
-        feesRes.json()
-      ]);
+      const metricsJson = { data: metricsResult.data, errors: metricsResult.errors };
+      const feesJson = { data: feesResult.data, errors: feesResult.errors };
 
       if (metricsJson.errors) {
         throw new Error(metricsJson.errors.map((e) => e.message).join('; '));
@@ -440,15 +246,12 @@ export const fetchTransactionTypes = createAsyncThunk(
   'network/fetchTransactionTypes',
   async (timeframe = 'day', { rejectWithValue }) => {
     try {
-      const res = await fetch(GRAPHQL_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: TRANSACTION_TYPES_QUERY(timeframe) }),
+      const result = await apolloClient.query({
+        query: TRANSACTION_TYPES_QUERY,
+        variables: { period: timeframe }
       });
 
-      const json = await res.json();
+      const json = { data: result.data, errors: result.errors };
       if (json.errors) {
         throw new Error(json.errors.map((e) => e.message).join('; '));
       }
@@ -483,15 +286,12 @@ export const fetchNewTransactionTypes = createAsyncThunk(
   'network/fetchNewTransactionTypes',
   async (timeframe = 'hour', { rejectWithValue }) => {
     try {
-      const res = await fetch(GRAPHQL_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: NEW_TRANSACTION_TYPES_QUERY(timeframe) }),
+      const result = await apolloClient.query({
+        query: NEW_TRANSACTION_TYPES_QUERY,
+        variables: { period: timeframe }
       });
 
-      const json = await res.json();
+      const json = { data: result.data, errors: result.errors };
       if (json.errors) {
         throw new Error(json.errors.map((e) => e.message).join('; '));
       }

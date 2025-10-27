@@ -7,11 +7,10 @@ import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import DashboardTab from '../components/features/dashboard/DashboardTab';
 import YourWalletsTab from '../components/features/wallets/YourWalletsTab';
-import StakingTab from '../components/features/staking/StakingTab';
 import TransactionsTab from '../components/features/transactions/TransactionsTab';
 import SettingsTab from '../components/features/settings/SettingsTab';
 import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
-import LendingBorrowingTab from '../components/features/lending-borrowing/LendingBorrowingTab';
+import TestingDashboard from '../components/features/testing/TestingDashboard';
 
 export default function Dashboard() {
   const { isConnected } = useSelector((state) => state.wallet);
@@ -40,10 +39,8 @@ export default function Dashboard() {
         return <DashboardTab />;
       case 'wallets':
         return <YourWalletsTab />;
-      case 'lending':
-        return <LendingBorrowingTab />;
-      case 'staking':
-        return <StakingTab />;
+      case 'testing':
+        return <TestingDashboard />;
       case 'transactions':
         return <TransactionsTab />;
       case 'hedera-stats':
@@ -61,10 +58,8 @@ export default function Dashboard() {
         return 'Dashboard';
       case 'wallets':
         return 'Your Wallets';
-      case 'lending':
-        return 'Lending & Borrowing';
-      case 'staking':
-        return 'Staking';
+      case 'testing':
+        return 'Testing';
       case 'transactions':
         return 'Transactions';
       case 'hedera-stats':

@@ -242,6 +242,29 @@ export const useWalletManagement = () => {
 
           // Register with walletManager
           walletManager.registerWallet(newAccountId);
+
+          // Fetch wallet data for the newly connected wallet
+          try {
+            const { hederaService } = await import('../../services/hederaService');
+            const [balanceData, transactions, tokenBalances] = await Promise.all([
+              hederaService.getAccountBalance(newAccountId),
+              hederaService.getAccountTransactions(newAccountId, 10),
+              hederaService.getTokenBalances(newAccountId),
+            ]);
+
+            dispatch(
+              setWalletData({
+                accountId: newAccountId,
+                data: {
+                  hbarBalance: balanceData.hbarBalance,
+                  transactions,
+                  tokenBalances: tokenBalances || [],
+                },
+              })
+            );
+          } catch (error) {
+            console.error(`Error fetching data for new wallet ${newAccountId}:`, error);
+          }
         }
       } else {
         const { toast } = await import('react-hot-toast');
