@@ -137,6 +137,16 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     _;
   }
 
+  modifier onlyEmergencyAdmin() {
+    require(IACLManager(ADDRESSES_PROVIDER.getACLManager()).isEmergencyAdmin(_msgSender()), Errors.CallerNotPoolOrEmergencyAdmin());
+    _;
+  }
+
+  modifier whenNotPaused() {
+    require(!_paused, Errors.ProtocolPaused());
+    _;
+  }
+
   constructor(IPoolAddressesProvider provider, IReserveInterestRateStrategy interestRateStrategy) {
     ADDRESSES_PROVIDER = provider;
     require(address(interestRateStrategy) != address(0), Errors.ZeroAddressNotValid());
@@ -153,7 +163,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param onBehalfOf Address receiving the dTokens
    * @param referralCode Referral code for tracking
    */
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant {
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
     
@@ -175,7 +185,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
 
-  function withdraw(address asset, uint256 amount, address to) public virtual override nonReentrant returns (uint256) {
+  function withdraw(address asset, uint256 amount, address to) public virtual override nonReentrant whenNotPaused returns (uint256) {
     uint256 withdrawn = SupplyLogic.executeWithdraw(
       _reserves,
       _reservesList,
@@ -204,7 +214,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param referralCode Referral code for tracking
    * @param onBehalfOf Address receiving the borrowed tokens
    */
-  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant {
+  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
     
@@ -542,7 +552,62 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return _reserves[asset].deficit;
   }
 
+  /**
+   * @notice Cover bad debt (deficit) for a reserve using protocol treasury funds
+   * @dev Only Pool Admin can call this function to socialize bad debt
+   * @param asset The address of the reserve with deficit
+   * @param amount Amount of deficit to cover
+   */
+  function coverReserveDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
+    DataTypes.ReserveData storage reserve = _reserves[asset];
+    require(reserve.deficit > 0, Errors.NoDebtToCover());
+    require(amount <= reserve.deficit, Errors.AmountExceedsDeficit());
 
+    uint256 amountToCover = amount;
+    if (amount > reserve.deficit) {
+      amountToCover = reserve.deficit;
+    }
+
+    // Transfer tokens from treasury to dToken contract via HTS
+    address treasuryAddress = ADDRESSES_PROVIDER.getTreasury();
+    _safeHTSTransfer(asset, treasuryAddress, reserve.dTokenAddress, amountToCover);
+
+    // Reduce deficit
+    reserve.deficit -= uint128(amountToCover);
+
+    emit DeficitCovered(asset, amountToCover, reserve.deficit);
+  }
+
+  event DeficitCovered(address indexed asset, uint256 amountCovered, uint256 remainingDeficit);
+
+  /**
+   * @notice Pause the protocol in emergency situations
+   * @dev Only Emergency Admin can pause. Pauses: supply, withdraw, borrow
+   * @dev Does NOT pause: repay, liquidation (needed for protocol recovery)
+   */
+  function pause() external onlyEmergencyAdmin {
+    _paused = true;
+    emit ProtocolPaused(true);
+  }
+
+  /**
+   * @notice Unpause the protocol after emergency is resolved
+   * @dev Only Emergency Admin can unpause
+   */
+  function unpause() external onlyEmergencyAdmin {
+    _paused = false;
+    emit ProtocolPaused(false);
+  }
+
+  /**
+   * @notice Check if protocol is currently paused
+   * @return True if paused, false otherwise
+   */
+  function paused() external view returns (bool) {
+    return _paused;
+  }
+
+  event ProtocolPaused(bool isPaused);
 
   function MAX_NUMBER_RESERVES() public view virtual override returns (uint16) {
     return ReserveConfiguration.MAX_RESERVES_COUNT;

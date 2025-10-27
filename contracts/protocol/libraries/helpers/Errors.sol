@@ -117,4 +117,7 @@ library Errors {
   error UserCannotHaveDebt();
   error SelfLiquidation();
   error CallerNotPositionManager();
+  error NoDebtToCover();
+  error AmountExceedsDeficit();
+  error ProtocolPaused();
 }

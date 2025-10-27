@@ -51,6 +51,9 @@ contract PoolStorage {
   // Allowlisted permissionManagers can enable collaterals & switch eModes on behalf of a user
   mapping(address user => mapping(address permittedPositionManager => bool)) internal _positionManager;
 
+  // Emergency pause flag - can be toggled by EMERGENCY_ADMIN to halt all protocol operations
+  bool internal _paused;
+
   function getRevision() external pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }

@@ -12,10 +12,15 @@ import {ReserveLogic} from './ReserveLogic.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
 
+// HTS precompile interface for native Hedera token operations
+interface IHTS {
+  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
+}
+
 /**
  * @title SupplyLogic library
  * @author Dera Protocol
- * @notice Implements the base logic for supply/withdraw
+ * @notice Implements the base logic for supply/withdraw using HTS (Hedera Token Service)
  */
 library SupplyLogic {
   using ReserveLogic for DataTypes.ReserveCache;
@@ -24,6 +29,12 @@ library SupplyLogic {
   using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
   using TokenMath for uint256;
   using PercentageMath for uint256;
+
+  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
+
+  // Custom errors for HTS operations
+  error HTSTransferFailed(int64 responseCode);
+  error AmountExceedsInt64();
 
   function executeSupply(
     mapping(address => DataTypes.ReserveData) storage reservesData,
@@ -38,6 +49,10 @@ library SupplyLogic {
     uint256 scaledAmount = params.amount.getDTokenMintScaledAmount(reserveCache.nextLiquidityIndex);
 
     ValidationLogic.validateSupply(reserveCache, reserve, scaledAmount, params.onBehalfOf);
+
+    // Transfer underlying asset from user to dToken contract via HTS
+    // CRITICAL: User must be associated with the HTS token before this call
+    _safeHTSTransferFrom(params.asset, params.user, reserveCache.dTokenAddress, params.amount);
 
     reserve.updateInterestRatesAndVirtualBalance(
       reserveCache,
@@ -229,5 +244,23 @@ library SupplyLogic {
         userEModeCategory
       );
     }
+  }
+
+  // ============ Internal HTS Helper Functions ============
+
+  /**
+   * @notice Safe HTS token transfer from sender to recipient
+   * @dev Uses Hedera Token Service precompile at 0x167
+   * @param token HTS token address
+   * @param from Sender address (must have approved the Pool contract via HTS)
+   * @param to Recipient address (must be associated with the token)
+   * @param amount Amount to transfer
+   */
+  function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
+    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+
+    int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
+
+    if (responseCode != 0) revert HTSTransferFailed(responseCode);
   }
 }

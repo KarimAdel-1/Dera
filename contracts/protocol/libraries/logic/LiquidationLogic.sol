@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
 import {PercentageMath} from '../../libraries/math/PercentageMath.sol';
 import {MathUtils} from '../../libraries/math/MathUtils.sol';
 import {TokenMath} from '../../libraries/helpers/TokenMath.sol';
@@ -21,10 +19,15 @@ import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
 import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.sol';
 import {Errors} from '../helpers/Errors.sol';
 
+// HTS precompile interface for native Hedera token operations
+interface IHTS {
+  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
+}
+
 /**
  * @title LiquidationLogic library
  * @author Dera
- * @notice Implements liquidation actions for undercollateralized positions
+ * @notice Implements liquidation actions for undercollateralized positions using HTS
  */
 library LiquidationLogic {
   using TokenMath for uint256;
@@ -33,8 +36,13 @@ library LiquidationLogic {
   using ReserveLogic for DataTypes.ReserveData;
   using UserConfiguration for DataTypes.UserConfigurationMap;
   using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
-  using GPv2SafeERC20 for IERC20;
   using SafeCast for uint256;
+
+  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
+
+  // Custom errors for HTS operations
+  error HTSTransferFailed(int64 responseCode);
+  error AmountExceedsInt64();
 
   uint256 internal constant DEFAULT_LIQUIDATION_CLOSE_FACTOR = 0.5e4;
   uint256 public constant CLOSE_FACTOR_HF_THRESHOLD = 0.95e18;
@@ -259,7 +267,10 @@ library LiquidationLogic {
       _burnBadDebt(reservesData, reservesList, borrowerConfig, params);
     }
 
-    IERC20(params.debtAsset).safeTransferFrom(
+    // Transfer debt asset from liquidator to dToken contract via HTS
+    // CRITICAL: Liquidator must be associated with the HTS token before this call
+    _safeHTSTransferFrom(
+      params.debtAsset,
       params.liquidator,
       vars.debtReserveCache.dTokenAddress,
       vars.actualDebtToLiquidate
@@ -476,5 +487,23 @@ library LiquidationLogic {
         ++i;
       }
     }
+  }
+
+  // ============ Internal HTS Helper Functions ============
+
+  /**
+   * @notice Safe HTS token transfer from sender to recipient
+   * @dev Uses Hedera Token Service precompile at 0x167
+   * @param token HTS token address
+   * @param from Sender address (must have approved the Pool contract via HTS)
+   * @param to Recipient address (must be associated with the token)
+   * @param amount Amount to transfer
+   */
+  function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
+    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+
+    int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
+
+    if (responseCode != 0) revert HTSTransferFailed(responseCode);
   }
 }
