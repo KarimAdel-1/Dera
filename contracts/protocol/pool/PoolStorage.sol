@@ -38,18 +38,8 @@ contract PoolStorage {
   // It is structured as a mapping for gas savings reasons, using the reserve id as index
   mapping(uint256 => address) internal _reservesList;
 
-  // List of eMode categories as a map (eModeCategoryId => eModeCategory).
-  // It is structured as a mapping for gas savings reasons, using the eModeCategoryId as index
-  mapping(uint8 => DataTypes.EModeCategory) internal _eModeCategories;
-
-  // Map of users address and their eMode category (userAddress => eModeCategoryId)
-  mapping(address => uint8) internal _usersEModeCategory;
-
   // Maximum number of active reserves there have been in the protocol. It is the upper bound of the reserves list
   uint16 internal _reservesCount;
-
-  // Allowlisted permissionManagers can enable collaterals & switch eModes on behalf of a user
-  mapping(address user => mapping(address permittedPositionManager => bool)) internal _positionManager;
 
   // Emergency pause flag - can be toggled by EMERGENCY_ADMIN to halt all protocol operations
   bool internal _paused;

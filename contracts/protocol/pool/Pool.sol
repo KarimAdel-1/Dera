@@ -7,9 +7,7 @@ import {Errors} from '../libraries/helpers/Errors.sol';
 import {ReserveConfiguration} from '../libraries/configuration/ReserveConfiguration.sol';
 import {PoolLogic} from '../libraries/logic/PoolLogic.sol';
 import {ReserveLogic} from '../libraries/logic/ReserveLogic.sol';
-import {EModeLogic} from '../libraries/logic/EModeLogic.sol';
 import {SupplyLogic} from '../libraries/logic/SupplyLogic.sol';
-
 import {BorrowLogic} from '../libraries/logic/BorrowLogic.sol';
 import {LiquidationLogic} from '../libraries/logic/LiquidationLogic.sol';
 import {DataTypes} from '../libraries/types/DataTypes.sol';
@@ -436,76 +434,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return _reserves[asset].liquidationGracePeriodUntil;
   }
 
-  function resetIsolationModeTotalDebt(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeResetIsolationModeTotalDebt(_reserves, asset);
-  }
-
   function rescueTokens(address token, address to, uint256 amount) external virtual override onlyPoolAdmin {
     PoolLogic.executeRescueTokens(token, to, amount);
-  }
-
-  function configureEModeCategory(uint8 id, DataTypes.EModeCategoryBaseConfiguration calldata category) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].ltv = category.ltv;
-    _eModeCategories[id].liquidationThreshold = category.liquidationThreshold;
-    _eModeCategories[id].liquidationBonus = category.liquidationBonus;
-    _eModeCategories[id].label = category.label;
-  }
-
-  function configureEModeCategoryCollateralBitmap(uint8 id, uint128 collateralBitmap) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].collateralBitmap = collateralBitmap;
-  }
-
-  function configureEModeCategoryBorrowableBitmap(uint8 id, uint128 borrowableBitmap) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].borrowableBitmap = borrowableBitmap;
-  }
-
-  function getEModeCategoryData(uint8 id) external view virtual override returns (DataTypes.EModeCategoryLegacy memory) {
-    DataTypes.EModeCategory storage category = _eModeCategories[id];
-    return DataTypes.EModeCategoryLegacy({
-      ltv: category.ltv,
-      liquidationThreshold: category.liquidationThreshold,
-      liquidationBonus: category.liquidationBonus,
-      priceSource: address(0),
-      label: category.label
-    });
-  }
-
-  function getEModeCategoryCollateralConfig(uint8 id) external view returns (DataTypes.CollateralConfig memory res) {
-    res.ltv = _eModeCategories[id].ltv;
-    res.liquidationThreshold = _eModeCategories[id].liquidationThreshold;
-    res.liquidationBonus = _eModeCategories[id].liquidationBonus;
-  }
-
-  function getEModeCategoryLabel(uint8 id) external view returns (string memory) {
-    return _eModeCategories[id].label;
-  }
-
-  function getEModeCategoryCollateralBitmap(uint8 id) external view returns (uint128) {
-    return _eModeCategories[id].collateralBitmap;
-  }
-
-  function getEModeCategoryBorrowableBitmap(uint8 id) external view returns (uint128) {
-    return _eModeCategories[id].borrowableBitmap;
-  }
-
-  function setUserEMode(uint8 categoryId) external virtual override nonReentrant {
-    EModeLogic.executeSetUserEMode(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
-      _usersEModeCategory,
-      _usersConfig[_msgSender()],
-      _msgSender(),
-      ADDRESSES_PROVIDER.getPriceOracle(),
-      categoryId
-    );
-  }
-
-  function getUserEMode(address user) external view virtual override returns (uint256) {
-    return _usersEModeCategory[user];
   }
 
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
