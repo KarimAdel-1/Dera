@@ -12,7 +12,6 @@ import {
 } from '../store/walletSlice';
 import { hashpackService } from '../../services/hashpackService';
 import { hederaService } from '../../services/hederaService';
-import { contractService } from '../../services/contractService';
 
 export const useWallet = () => {
   const dispatch = useDispatch();
@@ -45,16 +44,7 @@ export const useWallet = () => {
             dispatch(addWallet(wallet));
           });
 
-          // Initialize contract service for reconnected HashPack wallets
-          if (accountIds.length > 0) {
-            try {
-              console.log('Initializing contract service for reconnected HashPack wallet...');
-              await contractService.initializeHashPack(accountIds[0]);
-              console.log('Contract service initialized successfully for HashPack');
-            } catch (error) {
-              console.error('Failed to initialize contract service for HashPack:', error);
-            }
-          }
+
         }
       } catch (err) {
         console.error('Failed to initialize HashConnect:', err);
@@ -79,14 +69,7 @@ export const useWallet = () => {
           }
         });
 
-        // Initialize contract service if wallets were restored from localStorage
-        if (parsed.length > 0) {
-          contractService.initializeHashPack(parsed[0].accountId).then(() => {
-            console.log('Contract service initialized from localStorage wallets');
-          }).catch((error) => {
-            console.error('Failed to initialize contract service from localStorage:', error);
-          });
-        }
+
       } catch (err) {
         console.error('Error loading saved wallets:', err);
         localStorage.removeItem('connectedWallets');
@@ -148,17 +131,7 @@ export const useWallet = () => {
         await fetchAllWalletsData(newAccounts.map((a) => a.accountId));
       }
 
-      // Initialize contract service after HashPack wallet connection
-      if (newAccounts.length > 0) {
-        try {
-          console.log('Initializing contract service for HashPack...');
-          await contractService.initializeHashPack(newAccounts[0].accountId);
-          console.log('Contract service initialized successfully for HashPack');
-        } catch (error) {
-          console.error('Failed to initialize contract service:', error);
-          // Don't throw - allow wallet connection to succeed even if contract init fails
-        }
-      }
+
 
       // If reconnecting and no new accounts, still return the existing ones
       if (newAccounts.length === 0 && allAccounts.length > 0) {

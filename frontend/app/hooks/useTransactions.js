@@ -78,7 +78,7 @@ export const useTransactions = () => {
         await Promise.all(
           wallets.map(async (wallet) => {
             const balanceData = await hederaService.getAccountBalance(wallet.address);
-            const transactions = await hederaService.getAccountTransactions(wallet.address, 10);
+            const transactions = await hederaService.getAccountTransactions(wallet.address, 100);
 
             dispatch(setWalletData({
               accountId: wallet.address,

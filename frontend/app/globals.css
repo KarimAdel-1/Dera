@@ -19,6 +19,7 @@
     --color-border-input: #d1d5db;
     --color-text-primary: #111827;
     --color-text-secondary: #374151;
+    --color-bg-icon: rgb(255, 255, 255, 0.15);
     --color-text-muted: #000000b3;
     --color-text-placeholder: #9ca3af;
     --color-error: #ef4444;
@@ -64,6 +65,11 @@
   body {
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
+  }
+  
+  input:focus {
+    outline: none !important;
+    box-shadow: none !important;
   }
 }
 

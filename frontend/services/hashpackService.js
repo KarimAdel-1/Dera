@@ -367,9 +367,14 @@ class HashPackService {
           };
 
           // Save session to database for persistence across localStorage clears
-          this.saveSessionToDatabase(pairingData).catch(err => {
-            console.warn('Failed to save session to database:', err);
-          });
+          // Only save if we have a topic
+          if (topic) {
+            this.saveSessionToDatabase(this.pairingData).catch(err => {
+              console.warn('Failed to save session to database:', err);
+            });
+          } else {
+            console.warn('⚠️ No topic available, skipping database backup');
+          }
 
           resolve(allAccounts);
         };
@@ -489,30 +494,24 @@ class HashPackService {
 
   async sendTransaction(accountId, transaction) {
     try {
-      console.log('sendTransaction called with:', { accountId, hasPairingData: !!this.pairingData, topic: this.pairingData?.topic });
-      
-      if (!this.pairingData?.topic) {
-        throw new Error('HashPack session expired. Please reconnect your wallet.');
-      }
-
       if (!this.hashconnect) {
         throw new Error('HashConnect not initialized');
       }
 
-      // Send transaction using HashConnect v3
-      const response = await this.hashconnect.sendTransaction(
-        this.pairingData.topic,
-        {
-          topic: this.pairingData.topic,
-          byteArray: transaction.toBytes(),
-          metadata: {
-            accountToSign: accountId,
-            returnTransaction: false,
-          },
-        }
-      );
+      // Get signer
+      const signer = this.hashconnect.getSigner(accountId);
+      
+      console.log('sendTransaction called with:', { accountId, hasPairingData: !!this.pairingData, signerExists: !!signer });
+      
+      if (!signer) {
+        throw new Error('HashPack session expired. Please reconnect your wallet.');
+      }
 
-      return response;
+      // Freeze with signer's client and execute
+      const frozenTx = await transaction.freezeWithSigner(signer);
+      const result = await frozenTx.executeWithSigner(signer);
+
+      return result;
     } catch (error) {
       console.error('Error sending transaction:', error);
       throw error;

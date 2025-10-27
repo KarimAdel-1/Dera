@@ -38,8 +38,6 @@ class MultiWalletManager {
     return accounts.map(a => a.accountId);
   }
 
-
-
   listConnectedWallets() {
     return Array.from(this.sessions.keys());
   }
@@ -47,10 +45,6 @@ class MultiWalletManager {
   setDefaultWallet(accountId) {
     if (!this.sessions.has(accountId)) throw new Error('Wallet not connected');
     this.defaultWallet = accountId;
-  }
-
-  getDefaultWallet() {
-    return this.defaultWallet;
   }
 
   getDefaultWallet() {
@@ -64,8 +58,6 @@ class MultiWalletManager {
     }
     return this.defaultWallet;
   }
-
-
 
   async disconnectWallet(accountId) {
     if (!this.sessions.has(accountId)) return;

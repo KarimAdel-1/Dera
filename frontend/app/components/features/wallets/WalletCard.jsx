@@ -1,16 +1,9 @@
-import { Wallet, Edit3, Plug } from 'lucide-react'
+import { Wallet, Edit3 } from 'lucide-react'
 import { useDispatch } from 'react-redux'
 import { switchWallet } from '../../../store/walletSlice'
 
-export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit, onReconnect }) {
+export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPrice, network, onEdit }) {
   const dispatch = useDispatch()
-
-  const handleReconnect = async (e) => {
-    e.stopPropagation()
-    if (onReconnect) {
-      await onReconnect(wallet)
-    }
-  }
 
   const formatAddress = (addr) => {
     if (!addr) return 'Not Connected'
@@ -31,15 +24,6 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
       onClick={() => dispatch(switchWallet(wallet.id))}
     >
       <div className="absolute top-4 right-4 flex gap-2">
-        {wallet.isActive === false && (
-          <button
-            onClick={handleReconnect}
-            className="w-8 h-8 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center transition-colors"
-            title="Reconnect wallet"
-          >
-            <Plug className="w-4 h-4 text-white" />
-          </button>
-        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -86,10 +70,10 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
                 </div>
                 <div>
                   <div className="text-white/70 text-[10px] uppercase mb-1 tracking-wide">
-                    Status
+                    Network
                   </div>
                   <div className="text-white text-[13px] font-medium">
-                    {wallet.isActive === false ? 'Disconnected' : wallet.id === activeWalletId ? 'Active' : 'Inactive'}
+                    {network}
                   </div>
                 </div>
               </div>
@@ -103,24 +87,11 @@ export default function WalletCard({ wallet, activeWalletId, walletsData, hbarPr
               <h3 className="text-[var(--color-text-primary)] text-[16px] sm:text-[18px] font-normal">
                 {wallet.walletType} Wallet
               </h3>
-              <div className="flex gap-2">
-                <div
-                  className={`inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors px-2 py-1 text-xs ${
-                    wallet.isActive === false
-                      ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                      : wallet.id === activeWalletId
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                      : 'bg-gray-500/20 text-gray-400 border-gray-500/30'
-                  }`}
-                >
-                  {wallet.isActive === false ? 'Disconnected' : wallet.id === activeWalletId ? 'Active' : 'Inactive'}
+              {wallet.isDefault && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  Default
                 </div>
-                {wallet.isDefault && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                    Default
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
           
