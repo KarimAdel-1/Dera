@@ -6,7 +6,6 @@ import {IPriceOracleSentinel} from '../../../interfaces/IPriceOracleSentinel.sol
 import {IPoolAddressesProvider} from '../../../interfaces/IPoolAddressesProvider.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
-import {EModeConfiguration} from '../configuration/EModeConfiguration.sol';
 import {Errors} from '../helpers/Errors.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
 import {PercentageMath} from '../math/PercentageMath.sol';
@@ -58,7 +57,6 @@ library ValidationLogic {
   function validateBorrow(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.ValidateBorrowParams memory params
   ) internal view {
     require(params.amountScaled != 0, Errors.InvalidAmount());
@@ -74,9 +72,6 @@ library ValidationLogic {
     if (borrowCap != 0) {
       uint256 totalDebt = (params.reserveCache.currScaledVariableDebt + params.amountScaled).getVariableDebtTokenBalance(params.reserveCache.nextVariableBorrowIndex);
       require(totalDebt <= borrowCap * (10 ** params.reserveCache.reserveConfiguration.getDecimals()), Errors.BorrowCapExceeded());
-    }
-    if (params.userEModeCategory != 0) {
-      require(EModeConfiguration.isReserveEnabledOnBitmap(eModeCategories[params.userEModeCategory].borrowableBitmap, reservesData[params.asset].id), Errors.NotBorrowableInEMode());
     }
     if (params.userConfig.isBorrowingAny()) {
       (bool siloedBorrowingEnabled, address siloedBorrowingAddress) = params.userConfig.getSiloedBorrowingState(reservesData, reservesList);
@@ -124,17 +119,14 @@ library ValidationLogic {
   function validateHealthFactor(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.UserConfigurationMap memory userConfig,
     address user,
-    uint8 userEModeCategory,
     address oracle
   ) internal view returns (uint256, bool) {
     (, , , , uint256 healthFactor, bool hasZeroLtvCollateral) = GenericLogic.calculateUserAccountData(
       reservesData,
       reservesList,
-      eModeCategories,
-      DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle, userEModeCategory: userEModeCategory})
+      DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle})
     );
     require(healthFactor >= HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorLowerThanLiquidationThreshold());
     return (healthFactor, hasZeroLtvCollateral);
@@ -143,17 +135,14 @@ library ValidationLogic {
   function validateHFAndLtv(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.UserConfigurationMap memory userConfig,
     address user,
-    uint8 userEModeCategory,
     address oracle
   ) internal view {
     (uint256 userCollateralInBaseCurrency, uint256 userDebtInBaseCurrency, uint256 currentLtv, , uint256 healthFactor, ) = GenericLogic.calculateUserAccountData(
       reservesData,
       reservesList,
-      eModeCategories,
-      DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle, userEModeCategory: userEModeCategory})
+      DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle})
     );
     require(currentLtv != 0, Errors.LtvValidationFailed());
     require(healthFactor >= HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorLowerThanLiquidationThreshold());
@@ -163,14 +152,12 @@ library ValidationLogic {
   function validateHFAndLtvzero(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.UserConfigurationMap memory userConfig,
     address asset,
     address from,
-    address oracle,
-    uint8 userEModeCategory
+    address oracle
   ) internal view {
-    (, bool hasZeroLtvCollateral) = validateHealthFactor(reservesData, reservesList, eModeCategories, userConfig, from, userEModeCategory, oracle);
+    (, bool hasZeroLtvCollateral) = validateHealthFactor(reservesData, reservesList, userConfig, from, oracle);
     require(!hasZeroLtvCollateral || reservesData[asset].configuration.getLtv() == 0, Errors.LtvValidationFailed());
   }
 
@@ -181,29 +168,6 @@ library ValidationLogic {
   function validateDropReserve(mapping(uint256 => address) storage reservesList, DataTypes.ReserveData storage reserve, address asset) internal view {
     require(asset != address(0), Errors.ZeroAddressNotValid());
     require(reserve.id != 0 || reservesList[0] == asset, Errors.AssetNotListed());
-  }
-
-  function validateSetUserEMode(mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories, DataTypes.UserConfigurationMap memory userConfig, uint8 categoryId) internal view {
-    DataTypes.EModeCategory storage eModeCategory = eModeCategories[categoryId];
-    require(categoryId == 0 || eModeCategory.liquidationThreshold != 0, Errors.InconsistentEModeCategory());
-    if (userConfig.isEmpty()) {
-      return;
-    }
-    if (categoryId != 0) {
-      uint256 i = 0;
-      bool isBorrowed = false;
-      uint128 cachedBorrowableBitmap = eModeCategory.borrowableBitmap;
-      uint256 cachedUserConfig = userConfig.data;
-      unchecked {
-        while (cachedUserConfig != 0) {
-          (cachedUserConfig, isBorrowed, ) = UserConfiguration.getNextFlags(cachedUserConfig);
-          if (isBorrowed) {
-            require(EModeConfiguration.isReserveEnabledOnBitmap(cachedBorrowableBitmap, i), Errors.NotBorrowableInEMode());
-          }
-          ++i;
-        }
-      }
-    }
   }
 
   function validateUseAsCollateral(

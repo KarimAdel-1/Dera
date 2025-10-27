@@ -10,7 +10,6 @@ import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
 import {DataTypes} from '../types/DataTypes.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {ReserveLogic} from './ReserveLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
 
 // HTS precompile interface for native Hedera token operations
 interface IHTS {
@@ -38,7 +37,6 @@ library BorrowLogic {
   function executeBorrow(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteBorrowParams memory params
   ) external {
@@ -52,7 +50,6 @@ library BorrowLogic {
     ValidationLogic.validateBorrow(
       reservesData,
       reservesList,
-      eModeCategories,
       DataTypes.ValidateBorrowParams({
         reserveCache: reserveCache,
         userConfig: userConfig,
@@ -61,7 +58,6 @@ library BorrowLogic {
         amountScaled: amountScaled,
         interestRateMode: params.interestRateMode,
         oracle: params.oracle,
-        userEModeCategory: params.userEModeCategory,
         priceOracleSentinel: params.priceOracleSentinel
       })
     );
@@ -79,14 +75,6 @@ library BorrowLogic {
       userConfig.setBorrowing(cachedReserveId, true);
     }
 
-    IsolationModeLogic.increaseIsolatedDebtIfIsolated(
-      reservesData,
-      reservesList,
-      userConfig,
-      reserveCache,
-      params.amount
-    );
-
     reserve.updateInterestRatesAndVirtualBalance(
       reserveCache,
       params.asset,
@@ -102,10 +90,8 @@ library BorrowLogic {
     ValidationLogic.validateHFAndLtv(
       reservesData,
       reservesList,
-      eModeCategories,
       userConfig,
       params.onBehalfOf,
-      params.userEModeCategory,
       params.oracle
     );
 
@@ -123,7 +109,6 @@ library BorrowLogic {
   function executeRepay(
     mapping(address => DataTypes.ReserveData) storage reservesData,
     mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
     DataTypes.UserConfigurationMap storage onBehalfOfConfig,
     DataTypes.ExecuteRepayParams memory params
   ) external returns (uint256) {
@@ -170,14 +155,6 @@ library BorrowLogic {
       onBehalfOfConfig.setBorrowing(reserve.id, false);
     }
 
-    IsolationModeLogic.reduceIsolatedDebtIfIsolated(
-      reservesData,
-      reservesList,
-      onBehalfOfConfig,
-      reserveCache,
-      paybackAmount
-    );
-
     if (params.useDTokens) {
       bool zeroBalanceAfterBurn = IDToken(reserveCache.dTokenAddress).burn({
         from: params.user,
@@ -194,10 +171,8 @@ library BorrowLogic {
           ValidationLogic.validateHealthFactor(
             reservesData,
             reservesList,
-            eModeCategories,
             onBehalfOfConfig,
             params.user,
-            params.userEModeCategory,
             params.oracle
           );
         }
