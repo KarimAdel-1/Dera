@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
-import {IPool} from '../../interfaces/IPool.sol';
-import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
-import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
+import {IPoolAddressesProvider} from '../interfaces/IPoolAddressesProvider.sol';
+import {IPool} from '../interfaces/IPool.sol';
+import {AssetConfiguration} from '../protocol/libraries/configuration/AssetConfiguration.sol';
+import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
 
 interface IHTS {
   function balanceOf(address token, address account) external view returns (uint256);

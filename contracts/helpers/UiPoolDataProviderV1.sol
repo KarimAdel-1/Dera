@@ -7,17 +7,17 @@ interface IHTS {
   function decimals(address token) external view returns (uint8);
   function balanceOf(address token, address account) external view returns (uint256);
 }
-import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
-import {IPool} from '../../interfaces/IPool.sol';
-import {IPriceOracleGetter} from '../../interfaces/IPriceOracleGetter.sol';
-import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
-import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
-import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
+import {IPoolAddressesProvider} from '../interfaces/IPoolAddressesProvider.sol';
+import {IPool} from '../interfaces/IPool.sol';
+import {IPriceOracleGetter} from '../interfaces/IPriceOracleGetter.sol';
+import {IDeraSupplyToken} from '../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../interfaces/IDeraBorrowToken.sol';
+import {IReserveInterestRateStrategy} from '../interfaces/IReserveInterestRateStrategy.sol';
 
-import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
-import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
-import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
-import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
+import {WadRayMath} from '../protocol/libraries/math/WadRayMath.sol';
+import {AssetConfiguration} from '../protocol/libraries/configuration/AssetConfiguration.sol';
+import {UserConfiguration} from '../protocol/libraries/configuration/UserConfiguration.sol';
+import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
 
 /**
  * @title UiPoolDataProviderV1

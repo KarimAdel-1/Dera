@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Context} from '../../../../dependencies/openzeppelin/contracts/Context.sol';
-import {IERC20} from '../../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {IERC20Detailed} from '../../../../dependencies/openzeppelin/contracts/IERC20Detailed.sol';
-import {SafeCast} from '../../../../dependencies/openzeppelin/contracts/SafeCast.sol';
+import {Context} from "@openzeppelin/contracts/Context.sol";
+import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
+import {IERC20Detailed} from "@openzeppelin/contracts/IERC20Detailed.sol";
+import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
 import {WadRayMath} from '../../libraries/math/WadRayMath.sol';
 import {Errors} from '../../libraries/helpers/Errors.sol';
 import {IPoolAddressesProvider} from '../../../interfaces/IPoolAddressesProvider.sol';

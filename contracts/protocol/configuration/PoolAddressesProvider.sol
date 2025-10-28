@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT`r`npragma solidity ^0.8.19;
 
-import {Ownable} from '../../../dependencies/openzeppelin/contracts/Ownable.sol';
+import {Ownable} from "@openzeppelin/contracts/Ownable.sol";
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 
 /**

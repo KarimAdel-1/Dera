@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {IPriceOracleGetter} from '../interfaces/IPriceOracleGetter.sol';
-import {Ownable} from '../../dependencies/openzeppelin/contracts/Ownable.sol';
+import {Ownable} from "@openzeppelin/contracts/Ownable.sol";
 
 /**
  * @title IPyth

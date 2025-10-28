@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
+import {IReserveInterestRateStrategy} from '../interfaces/IReserveInterestRateStrategy.sol';
 import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
 import {WadRayMath} from '../protocol/libraries/math/WadRayMath.sol';
 import {PercentageMath} from '../protocol/libraries/math/PercentageMath.sol';

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {AccessControl} from '../../../dependencies/openzeppelin/contracts/AccessControl.sol';
+import {AccessControl} from "@openzeppelin/contracts/AccessControl.sol";
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';

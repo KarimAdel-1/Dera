@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
-import {IPool} from '../../interfaces/IPool.sol';
-import {IPriceOracleGetter} from '../../interfaces/IPriceOracleGetter.sol';
-import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
-import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
-import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
-import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
-import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
-import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
-import {PercentageMath} from '../../protocol/libraries/math/PercentageMath.sol';
+import {IPoolAddressesProvider} from '../interfaces/IPoolAddressesProvider.sol';
+import {IPool} from '../interfaces/IPool.sol';
+import {IPriceOracleGetter} from '../interfaces/IPriceOracleGetter.sol';
+import {IDeraSupplyToken} from '../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../interfaces/IDeraBorrowToken.sol';
+import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
+import {AssetConfiguration} from '../protocol/libraries/configuration/AssetConfiguration.sol';
+import {UserConfiguration} from '../protocol/libraries/configuration/UserConfiguration.sol';
+import {WadRayMath} from '../protocol/libraries/math/WadRayMath.sol';
+import {PercentageMath} from '../protocol/libraries/math/PercentageMath.sol';
 
 /**
  * @title LiquidationDataProvider

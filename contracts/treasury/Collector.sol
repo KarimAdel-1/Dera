@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IERC20} from '../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {SafeERC20} from '../../dependencies/openzeppelin/contracts/SafeERC20.sol';
-import {Address} from '../../dependencies/openzeppelin/contracts/Address.sol';
+import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/Address.sol";
 
 interface IHTS {
   function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
 }
-import {Ownable} from '../../dependencies/openzeppelin/contracts/Ownable.sol';
-import {ReentrancyGuard} from '../../dependencies/openzeppelin/ReentrancyGuard.sol';
+import {Ownable} from "@openzeppelin/contracts/Ownable.sol";
+import {ReentrancyGuard} from '../dependencies/openzeppelin/ReentrancyGuard.sol';
 
 /**
  * @title Collector

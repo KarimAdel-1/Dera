@@ -1,7 +1,5 @@
-require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-ethers");
 require("@openzeppelin/hardhat-upgrades");
-require("hardhat-gas-reporter");
-require("solidity-coverage");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -41,7 +39,7 @@ module.exports = {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
   paths: {
-    sources: "./",
+    sources: ".",
     tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",

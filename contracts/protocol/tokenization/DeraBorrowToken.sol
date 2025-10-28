@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.sol';
+import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {IPool} from '../../interfaces/IPool.sol';

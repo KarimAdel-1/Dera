@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.sol';
-import {ECDSA} from '../../../dependencies/openzeppelin/contracts/ECDSA.sol';
-import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
+import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
+import {ECDSA} from "@openzeppelin/contracts/ECDSA.sol";
+import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
 import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
 
 interface IHTS {

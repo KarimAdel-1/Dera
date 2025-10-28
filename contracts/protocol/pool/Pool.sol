@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Multicall} from '../../../dependencies/openzeppelin/contracts/Multicall.sol';
+import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.sol';
@@ -33,6 +33,7 @@ import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.so
 import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
+import {IDeraHCSEventStreamer} from '../../interfaces/IDeraHCSEventStreamer.sol';
 import {PoolStorage} from './PoolStorage.sol';
 
 /**
@@ -115,6 +116,29 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     }
   }
 
+  /**
+   * @dev Registers a user in the user registry for liquidation monitoring
+   * @param user Address of the user to register
+   */
+  function _registerUser(address user) internal {
+    if (!_isRegisteredUser[user] && user != address(0)) {
+      _users.push(user);
+      _isRegisteredUser[user] = true;
+      emit UserRegistered(user, _users.length);
+    }
+  }
+
+  /**
+   * @dev Gets the HCS Event Streamer instance
+   * @return IDeraHCSEventStreamer instance or zero address if not configured
+   */
+  function _getHCSStreamer() internal view returns (IDeraHCSEventStreamer) {
+    if (hcsEventStreamer != address(0)) {
+      return IDeraHCSEventStreamer(hcsEventStreamer);
+    }
+    return IDeraHCSEventStreamer(address(0));
+  }
+
   // Events for HCS relay and Mirror Node indexing
   event Supply(address indexed user, address indexed asset, uint256 amount, address indexed onBehalfOf, uint16 referralCode, bytes32 hcsTopic);
   event Withdraw(address indexed user, address indexed asset, uint256 amount, address indexed to, bytes32 hcsTopic);
@@ -124,6 +148,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   event HTSErrorHandled(address indexed token, address indexed account, string operation, int64 responseCode);
   event PoolUpgraded(uint256 version);
   event HBARReceived(address indexed sender, uint256 amount);
+  event UserRegistered(address indexed user, uint256 totalUsers);
 
   modifier onlyPoolConfigurator() {
     require(ADDRESSES_PROVIDER.getPoolConfigurator() == _msgSender(), Errors.CallerNotPoolConfigurator());
@@ -164,7 +189,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
-    
+
+    // Register user for liquidation monitoring
+    _registerUser(onBehalfOf);
+
     SupplyLogic.executeSupply(
       _poolAssets,
       _assetsList,
@@ -179,6 +207,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Supply(_msgSender(), asset, amount, onBehalfOf, referralCode, HCSTopics.SUPPLY_TOPIC());
+
+    // Queue event to HCS for Hedera-native indexing
+    IDeraHCSEventStreamer streamer = _getHCSStreamer();
+    if (address(streamer) != address(0)) {
+      streamer.queueSupplyEvent(_msgSender(), asset, amount, onBehalfOf, referralCode);
+    }
   }
 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
@@ -198,6 +232,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Withdraw(_msgSender(), asset, withdrawn, to, HCSTopics.WITHDRAW_TOPIC());
+
+    // Queue event to HCS for Hedera-native indexing
+    IDeraHCSEventStreamer streamer = _getHCSStreamer();
+    if (address(streamer) != address(0)) {
+      streamer.queueWithdrawEvent(_msgSender(), asset, withdrawn, to);
+    }
+
     return withdrawn;
   }
 
@@ -213,6 +254,9 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+
+    // Register user for liquidation monitoring
+    _registerUser(onBehalfOf);
 
     BorrowLogic.executeBorrow(
       _poolAssets,
@@ -232,6 +276,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Borrow(_msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode, HCSTopics.BORROW_TOPIC());
+
+    // Queue event to HCS for Hedera-native indexing
+    IDeraHCSEventStreamer streamer = _getHCSStreamer();
+    if (address(streamer) != address(0)) {
+      streamer.queueBorrowEvent(_msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode);
+    }
   }
 
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public virtual override nonReentrant returns (uint256) {
@@ -251,6 +301,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Repay(_msgSender(), asset, repaid, interestRateMode, onBehalfOf, HCSTopics.REPAY_TOPIC());
+
+    // Queue event to HCS for Hedera-native indexing
+    IDeraHCSEventStreamer streamer = _getHCSStreamer();
+    if (address(streamer) != address(0)) {
+      streamer.queueRepayEvent(_msgSender(), asset, repaid, interestRateMode, onBehalfOf);
+    }
+
     return repaid;
   }
 
@@ -306,6 +363,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
+
+    // Queue event to HCS for Hedera-native indexing
+    IDeraHCSEventStreamer streamer = _getHCSStreamer();
+    if (address(streamer) != address(0)) {
+      streamer.queueLiquidationEvent(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken);
+    }
   }
 
 
@@ -532,6 +595,75 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   function getRevision() external pure virtual returns (uint256) {
     return POOL_REVISION();
+  }
+
+  // ============ User Registry Functions ============
+
+  /**
+   * @notice Get all registered users
+   * @dev Returns array of all users who have supplied or borrowed
+   * @return Array of user addresses
+   */
+  function getAllUsers() external view returns (address[] memory) {
+    return _users;
+  }
+
+  /**
+   * @notice Get total number of registered users
+   * @return Total count of registered users
+   */
+  function getUserCount() external view returns (uint256) {
+    return _users.length;
+  }
+
+  /**
+   * @notice Get user at specific index
+   * @param index Index in the users array
+   * @return User address at the given index
+   */
+  function getUserAtIndex(uint256 index) external view returns (address) {
+    require(index < _users.length, "Index out of bounds");
+    return _users[index];
+  }
+
+  /**
+   * @notice Check if an address is a registered user
+   * @param user Address to check
+   * @return True if user is registered, false otherwise
+   */
+  function isRegisteredUser(address user) external view returns (bool) {
+    return _isRegisteredUser[user];
+  }
+
+  /**
+   * @notice Get paginated list of users
+   * @dev Useful for liquidation bots to iterate through users efficiently
+   * @param startIndex Starting index for pagination
+   * @param count Number of users to return
+   * @return users Array of user addresses
+   * @return nextIndex Next index for pagination (0 if end reached)
+   */
+  function getUsersPaginated(uint256 startIndex, uint256 count)
+    external
+    view
+    returns (address[] memory users, uint256 nextIndex)
+  {
+    require(startIndex < _users.length, "Start index out of bounds");
+
+    uint256 endIndex = startIndex + count;
+    if (endIndex > _users.length) {
+      endIndex = _users.length;
+    }
+
+    uint256 resultLength = endIndex - startIndex;
+    users = new address[](resultLength);
+
+    for (uint256 i = 0; i < resultLength; i++) {
+      users[i] = _users[startIndex + i];
+    }
+
+    nextIndex = endIndex < _users.length ? endIndex : 0;
+    return (users, nextIndex);
   }
 
   // HBAR handling - native Solidity transfers (not HTS)
