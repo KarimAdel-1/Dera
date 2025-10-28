@@ -11,6 +11,7 @@ import TransactionsTab from '../components/features/transactions/TransactionsTab
 import SettingsTab from '../components/features/settings/SettingsTab';
 import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
 import TestingDashboard from '../components/features/testing/TestingDashboard';
+import DeraProtocolTab from '../components/features/dera-protocol/DeraProtocolTab';
 
 export default function Dashboard() {
   const { isConnected } = useSelector((state) => state.wallet);
@@ -37,6 +38,8 @@ export default function Dashboard() {
     switch (activeTab) {
       case 'dashboard':
         return <DashboardTab />;
+      case 'dera-protocol':
+        return <DeraProtocolTab />;
       case 'wallets':
         return <YourWalletsTab />;
       case 'testing':
@@ -56,6 +59,8 @@ export default function Dashboard() {
     switch (activeTab) {
       case 'dashboard':
         return 'Dashboard';
+      case 'dera-protocol':
+        return 'Dera Protocol';
       case 'wallets':
         return 'Your Wallets';
       case 'testing':
