@@ -28,7 +28,7 @@ import {TokenMath} from '../libraries/helpers/TokenMath.sol';
  *
  * DERA PROTOCOL:
  * - Unique to Dera: Represents borrow positions in lending pools
- * - Fully HTS-native implementation (not Aave-inspired)
+ * - Fully HTS-native implementation designed specifically for Hedera
  */
 abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenBase, IDeraBorrowToken {
   using TokenMath for uint256;
