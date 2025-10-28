@@ -70,7 +70,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
       onBehalfOf: onBehalfOf,
       amountScaled: scaledAmount,
       index: index,
-      getTokenBalance: TokenMath.getDTokenBalance
+      getTokenBalance: TokenMath.getSupplyTokenBalance
     });
   }
 
@@ -80,7 +80,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
       target: receiverOfUnderlying,
       amountScaled: scaledAmount,
       index: index,
-      getTokenBalance: TokenMath.getDTokenBalance
+      getTokenBalance: TokenMath.getSupplyTokenBalance
     });
 
     if (receiverOfUnderlying != address(this)) {
@@ -97,7 +97,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
       onBehalfOf: TREASURY,
       amountScaled: scaledAmount,
       index: index,
-      getTokenBalance: TokenMath.getDTokenBalance
+      getTokenBalance: TokenMath.getSupplyTokenBalance
     });
   }
 
@@ -112,11 +112,11 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function balanceOf(address user) public view virtual override(IncentivizedERC20, IERC20) returns (uint256) {
-    return super.balanceOf(user).getDTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
+    return super.balanceOf(user).getSupplyTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
   }
 
   function totalSupply() public view virtual override(IncentivizedERC20, IERC20) returns (uint256) {
-    return super.totalSupply().getDTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
+    return super.totalSupply().getSupplyTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
   }
 
   function RESERVE_TREASURY_ADDRESS() external view override returns (address) {
@@ -145,7 +145,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   function transferFrom(address sender, address recipient, uint256 amount) external virtual override(IERC20, IncentivizedERC20) returns (bool) {
     uint256 index = POOL.getAssetNormalizedIncome(_underlyingAsset);
     uint256 scaledBalanceOfSender = super.balanceOf(sender);
-    _spendAllowance(sender, _msgSender(), amount, scaledBalanceOfSender.getDTokenBalance(index) - (scaledBalanceOfSender - amount.getDTokenTransferScaledAmount(index)).getDTokenBalance(index));
+    _spendAllowance(sender, _msgSender(), amount, scaledBalanceOfSender.getSupplyTokenBalance(index) - (scaledBalanceOfSender - amount.getSupplyTokenTransferScaledAmount(index)).getSupplyTokenBalance(index));
     _transfer(sender, recipient, amount.toUint120());
     return true;
   }
@@ -154,7 +154,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
     uint256 index = POOL.getAssetNormalizedIncome(_underlyingAsset);
     uint256 scaledBalanceFromBefore = super.balanceOf(from);
     uint256 scaledBalanceToBefore = super.balanceOf(to);
-    uint256 scaledAmount = uint256(amount).getDTokenTransferScaledAmount(index);
+    uint256 scaledAmount = uint256(amount).getSupplyTokenTransferScaledAmount(index);
 
     _transfer({
       sender: from,
@@ -176,10 +176,10 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
 
   function _transfer(address sender, address recipient, uint256 amount, uint120 scaledAmount, uint256 index) internal virtual {
     uint256 senderScaledBalance = super.balanceOf(sender);
-    uint256 senderBalanceIncrease = senderScaledBalance.getDTokenBalance(index) - senderScaledBalance.getDTokenBalance(_userState[sender].additionalData);
+    uint256 senderBalanceIncrease = senderScaledBalance.getSupplyTokenBalance(index) - senderScaledBalance.getSupplyTokenBalance(_userState[sender].additionalData);
 
     uint256 recipientScaledBalance = super.balanceOf(recipient);
-    uint256 recipientBalanceIncrease = recipientScaledBalance.getDTokenBalance(index) - recipientScaledBalance.getDTokenBalance(_userState[recipient].additionalData);
+    uint256 recipientBalanceIncrease = recipientScaledBalance.getSupplyTokenBalance(index) - recipientScaledBalance.getSupplyTokenBalance(_userState[recipient].additionalData);
 
     _userState[sender].additionalData = index.toUint128();
     _userState[recipient].additionalData = index.toUint128();

@@ -150,9 +150,9 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.PoolAssetData memory reserve = pool.getAssetData(asset);
+      DataTypes.PoolAssetData memory asset = pool.getAssetData(asset);
       
-      uint256 balance = IDeraSupplyToken(reserve.supplyTokenAddress).balanceOf(user);
+      uint256 balance = IDeraSupplyToken(asset.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
         uint256 price = oracle.getAssetPrice(asset);
         uint256 value = balance.wadMul(price);
@@ -180,9 +180,9 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.PoolAssetData memory reserve = pool.getAssetData(asset);
+      DataTypes.PoolAssetData memory asset = pool.getAssetData(asset);
       
-      uint256 debt = IDeraBorrowToken(reserve.borrowTokenAddress).balanceOf(user);
+      uint256 debt = IDeraBorrowToken(asset.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {
         uint256 price = oracle.getAssetPrice(asset);
         uint256 value = debt.wadMul(price);

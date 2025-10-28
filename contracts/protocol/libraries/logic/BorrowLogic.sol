@@ -41,11 +41,11 @@ library BorrowLogic {
     DataTypes.ExecuteBorrowParams memory params
   ) external {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
-    DataTypes.AssetState memory assetState = reserve.cache();
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    reserve.updateState(assetState);
+    asset.updateState(assetState);
 
-    uint256 amountScaled = params.amount.getVariableDebtTokenMintScaledAmount(assetState.nextVariableBorrowIndex);
+    uint256 amountScaled = params.amount.getBorrowTokenMintScaledAmount(assetState.nextVariableBorrowIndex);
 
     ValidationLogic.validateBorrow(
       poolAssets,
@@ -70,12 +70,12 @@ library BorrowLogic {
       assetState.nextVariableBorrowIndex
     );
 
-    uint16 cachedReserveId = reserve.id;
+    uint16 cachedReserveId = asset.id;
     if (!userConfig.isBorrowing(cachedReserveId)) {
       userConfig.setBorrowing(cachedReserveId, true);
     }
 
-    reserve.updateInterestRatesAndVirtualBalance(
+    asset.updateInterestRatesAndVirtualBalance(
       assetState,
       params.asset,
       0,
@@ -101,7 +101,7 @@ library BorrowLogic {
       params.onBehalfOf,
       params.amount,
       DataTypes.InterestRateMode.VARIABLE,
-      reserve.currentVariableBorrowRate,
+      asset.currentVariableBorrowRate,
       params.referralCode
     );
   }
@@ -113,17 +113,17 @@ library BorrowLogic {
     DataTypes.ExecuteRepayParams memory params
   ) external returns (uint256) {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
-    DataTypes.AssetState memory assetState = reserve.cache();
-    reserve.updateState(assetState);
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateState(assetState);
 
     uint256 userDebtScaled = IDeraBorrowToken(assetState.borrowTokenAddress).scaledBalanceOf(params.onBehalfOf);
-    uint256 userDebt = userDebtScaled.getVariableDebtTokenBalance(assetState.nextVariableBorrowIndex);
+    uint256 userDebt = userDebtScaled.getBorrowTokenBalance(assetState.nextVariableBorrowIndex);
 
     ValidationLogic.validateRepay(params.user, assetState, params.amount, params.interestRateMode, params.onBehalfOf, userDebtScaled);
 
     uint256 paybackAmount = params.amount;
     if (params.useSupplyTokens && params.amount == type(uint256).max) {
-      paybackAmount = IDeraSupplyToken(assetState.supplyTokenAddress).scaledBalanceOf(params.user).getDTokenBalance(assetState.nextLiquidityIndex);
+      paybackAmount = IDeraSupplyToken(assetState.supplyTokenAddress).scaledBalanceOf(params.user).getSupplyTokenBalance(assetState.nextLiquidityIndex);
     }
 
     if (paybackAmount > userDebt) {
@@ -139,11 +139,11 @@ library BorrowLogic {
     bool noMoreDebt;
     (noMoreDebt, assetState.nextScaledVariableDebt) = IDeraBorrowToken(assetState.borrowTokenAddress).burn({
       from: params.onBehalfOf,
-      scaledAmount: paybackAmount.getVariableDebtTokenBurnScaledAmount(assetState.nextVariableBorrowIndex),
+      scaledAmount: paybackAmount.getBorrowTokenBurnScaledAmount(assetState.nextVariableBorrowIndex),
       index: assetState.nextVariableBorrowIndex
     });
 
-    reserve.updateInterestRatesAndVirtualBalance(
+    asset.updateInterestRatesAndVirtualBalance(
       assetState,
       params.asset,
       params.useSupplyTokens ? 0 : paybackAmount,
@@ -152,7 +152,7 @@ library BorrowLogic {
     );
 
     if (noMoreDebt) {
-      onBehalfOfConfig.setBorrowing(reserve.id, false);
+      onBehalfOfConfig.setBorrowing(asset.id, false);
     }
 
     if (params.useSupplyTokens) {
@@ -160,12 +160,12 @@ library BorrowLogic {
         from: params.user,
         receiverOfUnderlying: assetState.supplyTokenAddress,
         amount: paybackAmount,
-        scaledAmount: paybackAmount.getDTokenBurnScaledAmount(assetState.nextLiquidityIndex),
+        scaledAmount: paybackAmount.getSupplyTokenBurnScaledAmount(assetState.nextLiquidityIndex),
         index: assetState.nextLiquidityIndex
       });
-      if (onBehalfOfConfig.isUsingAsCollateral(reserve.id)) {
+      if (onBehalfOfConfig.isUsingAsCollateral(asset.id)) {
         if (zeroBalanceAfterBurn) {
-          onBehalfOfConfig.setUsingAsCollateral(reserve.id, params.asset, params.user, false);
+          onBehalfOfConfig.setUsingAsCollateral(asset.id, params.asset, params.user, false);
         }
         if (onBehalfOfConfig.isBorrowingAny()) {
           ValidationLogic.validateHealthFactor(

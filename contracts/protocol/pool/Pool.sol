@@ -256,7 +256,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   // Removed: repayWithPermit - HTS tokens don't use ERC20 permit pattern
 
-  function repayWithDTokens(address asset, uint256 amount, uint256 interestRateMode) public virtual override nonReentrant returns (uint256) {
+  function repayWithSupplyTokens(address asset, uint256 amount, uint256 interestRateMode) public virtual override nonReentrant returns (uint256) {
     return BorrowLogic.executeRepay(
       _poolAssets,
       _assetsList,
@@ -328,17 +328,17 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   function getAssetData(address asset) external view virtual override returns (DataTypes.AssetDataLegacy memory res) {
     DataTypes.PoolAssetData storage asset = _poolAssets[asset];
-    res.configuration = reserve.configuration;
-    res.liquidityIndex = reserve.liquidityIndex;
-    res.currentLiquidityRate = reserve.currentLiquidityRate;
-    res.variableBorrowIndex = reserve.variableBorrowIndex;
-    res.currentVariableBorrowRate = reserve.currentVariableBorrowRate;
-    res.lastUpdateTimestamp = reserve.lastUpdateTimestamp;
-    res.id = reserve.id;
-    res.supplyTokenAddress = reserve.supplyTokenAddress;
-    res.borrowTokenAddress = reserve.borrowTokenAddress;
+    res.configuration = asset.configuration;
+    res.liquidityIndex = asset.liquidityIndex;
+    res.currentLiquidityRate = asset.currentLiquidityRate;
+    res.variableBorrowIndex = asset.variableBorrowIndex;
+    res.currentVariableBorrowRate = asset.currentVariableBorrowRate;
+    res.lastUpdateTimestamp = asset.lastUpdateTimestamp;
+    res.id = asset.id;
+    res.supplyTokenAddress = asset.supplyTokenAddress;
+    res.borrowTokenAddress = asset.borrowTokenAddress;
     res.interestRateStrategyAddress = RESERVE_INTEREST_RATE_STRATEGY;
-    res.accruedToTreasury = reserve.accruedToTreasury;
+    res.accruedToTreasury = asset.accruedToTreasury;
   }
 
   function getConfiguration(address asset) external view virtual override returns (DataTypes.AssetConfigurationMap memory) {
@@ -424,7 +424,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
-    require(_msgSender() == _poolAssets[asset].supplyTokenAddress, Errors.CallerNotDToken());
+    require(_msgSender() == _poolAssets[asset].supplyTokenAddress, Errors.CallerNotSupplyToken());
     SupplyLogic.executeFinalizeTransfer(
       _poolAssets,
       _assetsList,
@@ -473,22 +473,22 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    */
   function coverAssetDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
     DataTypes.PoolAssetData storage asset = _poolAssets[asset];
-    require(reserve.deficit > 0, Errors.NoDebtToCover());
-    require(amount <= reserve.deficit, Errors.AmountExceedsDeficit());
+    require(asset.deficit > 0, Errors.NoDebtToCover());
+    require(amount <= asset.deficit, Errors.AmountExceedsDeficit());
 
     uint256 amountToCover = amount;
-    if (amount > reserve.deficit) {
-      amountToCover = reserve.deficit;
+    if (amount > asset.deficit) {
+      amountToCover = asset.deficit;
     }
 
     // Transfer tokens from treasury to dToken contract via HTS
     address treasuryAddress = ADDRESSES_PROVIDER.getTreasury();
-    _safeHTSTransfer(asset, treasuryAddress, reserve.supplyTokenAddress, amountToCover);
+    _safeHTSTransfer(asset, treasuryAddress, asset.supplyTokenAddress, amountToCover);
 
     // Reduce deficit
-    reserve.deficit -= uint128(amountToCover);
+    asset.deficit -= uint128(amountToCover);
 
-    emit DeficitCovered(asset, amountToCover, reserve.deficit);
+    emit DeficitCovered(asset, amountToCover, asset.deficit);
   }
 
   event DeficitCovered(address indexed asset, uint256 amountCovered, uint256 remainingDeficit);

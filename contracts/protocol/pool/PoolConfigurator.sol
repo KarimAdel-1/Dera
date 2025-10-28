@@ -70,29 +70,29 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     uint256 len = input.length;
     for (uint256 i; i < len; ) {
       ConfiguratorLogic.executeInitAsset(cachedPool, input[i]);
-      emit ReserveInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, input[i].interestRateData);
+      emit AssetInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, input[i].interestRateData);
       unchecked { ++i; }
     }
   }
 
-  function updateDToken(ConfiguratorInputTypes.UpdateDTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateDToken(_pool, input);
+  function updateSupplyToken(ConfiguratorInputTypes.UpdateSupplyTokenInput calldata input) external override onlyPoolAdmin {
+    ConfiguratorLogic.executeUpdateSupplyToken(_pool, input);
   }
 
-  function updateVariableDebtToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateVariableDebtToken(_pool, input);
+  function updateBorrowToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external override onlyPoolAdmin {
+    ConfiguratorLogic.executeUpdateBorrowToken(_pool, input);
   }
 
   function dropAsset(address asset) external override onlyPoolAdmin {
     _pool.dropAsset(asset);
-    emit ReserveDropped(asset);
+    emit AssetDropped(asset);
   }
 
   function setAssetBorrowing(address asset, bool enabled) external override onlyRiskOrPoolAdmins {
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setBorrowingEnabled(enabled);
     _pool.setConfiguration(asset, currentConfig);
-    emit ReserveBorrowing(asset, enabled);
+    emit AssetBorrowing(asset, enabled);
   }
 
   function configureAssetAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external override onlyRiskOrPoolAdmins {
@@ -132,7 +132,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setActive(active);
     _pool.setConfiguration(asset, currentConfig);
-    emit ReserveActive(asset, active);
+    emit AssetActive(asset, active);
   }
 
   function setAssetFreeze(address asset, bool freeze) external override onlyRiskOrPoolOrEmergencyAdmins {
@@ -157,7 +157,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     emit CollateralConfigurationChanged(asset, ltvSet, currentConfig.getLiquidationThreshold(), currentConfig.getLiquidationBonus());
 
     _pool.setConfiguration(asset, currentConfig);
-    emit ReserveFrozen(asset, freeze);
+    emit AssetFrozen(asset, freeze);
   }
 
   function setBorrowableInIsolation(address asset, bool borrowable) external override onlyRiskOrPoolAdmins {
@@ -178,7 +178,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setPaused(paused);
     _pool.setConfiguration(asset, currentConfig);
-    emit ReservePaused(asset, paused);
+    emit AssetPaused(asset, paused);
   }
 
   function setAssetPause(address asset, bool paused) external override onlyEmergencyOrPoolAdmin {
@@ -196,11 +196,11 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     _pool.syncIndexesState(asset);
     
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    uint256 oldReserveFactor = currentConfig.getAssetFactor();
+    uint256 oldAssetFactor = currentConfig.getAssetFactor();
     currentConfig.setAssetFactor(newAssetFactor);
     _pool.setConfiguration(asset, currentConfig);
     
-    emit ReserveFactorChanged(asset, oldReserveFactor, newAssetFactor);
+    emit AssetFactorChanged(asset, oldAssetFactor, newAssetFactor);
     
     _pool.syncRatesState(asset);
   }
@@ -289,13 +289,13 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   function _checkNoSuppliers(address asset) internal view {
     DataTypes.AssetDataLegacy memory reserveData = _pool.getAssetData(asset);
     uint256 totalSupplied = IERC20(reserveData.supplyTokenAddress).totalSupply();
-    require(totalSupplied == 0 && reserveData.accruedToTreasury == 0, Errors.ReserveLiquidityNotZero());
+    require(totalSupplied == 0 && assetData.accruedToTreasury == 0, Errors.AssetLiquidityNotZero());
   }
 
   function _checkNoBorrowers(address asset) internal view {
     DataTypes.AssetDataLegacy memory reserveData = _pool.getAssetData(asset);
     uint256 totalDebt = IERC20(reserveData.borrowTokenAddress).totalSupply();
-    require(totalDebt == 0, Errors.ReserveDebtNotZero());
+    require(totalDebt == 0, Errors.AssetDebtNotZero());
   }
 
   function _onlyPoolAdmin() internal view {

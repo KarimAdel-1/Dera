@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IPoolConfigurator} from '../../../interfaces/IPoolConfigurator.sol';
-import {IInitializableDToken} from '../../../interfaces/IInitializableDToken.sol';
+import {IInitializableDeraSupplyToken} from '../../../interfaces/IInitializableDeraSupplyToken.sol';
 import {IInitializableDebtToken} from '../../../interfaces/IInitializableDebtToken.sol';
 import {IReserveInterestRateStrategy} from '../../../interfaces/IReserveInterestRateStrategy.sol';
 import {DataTypes} from '../types/DataTypes.sol';
@@ -25,19 +25,19 @@ import {IERC20} from '../../../interfaces/IERC20.sol';
  */
 library ConfiguratorLogic {
   struct InitAssetInput {
-    address dTokenImpl;
+    address supplyTokenImpl;
     address variableDebtTokenImpl;
     address underlyingAsset;
     address interestRateStrategyAddress;
     uint8 underlyingAssetDecimals;
-    string dTokenName;
-    string dTokenSymbol;
+    string supplyTokenName;
+    string supplyTokenSymbol;
     string variableDebtTokenName;
     string variableDebtTokenSymbol;
     bytes params;
   }
 
-  struct UpdateDTokenInput {
+  struct UpdateSupplyTokenInput {
     address asset;
     address implementation;
     string name;
@@ -53,14 +53,14 @@ library ConfiguratorLogic {
     bytes params;
   }
 
-  event ReserveInitialized(address indexed asset, address indexed dToken, address variableDebtToken, address interestRateStrategyAddress);
-  event DTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
-  event VariableDebtTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
+  event AssetInitialized(address indexed asset, address indexed dToken, address variableDebtToken, address interestRateStrategyAddress);
+  event SupplyTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
+  event BorrowTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
 
   function executeInitAsset(IPool pool, InitAssetInput calldata input) external {
     require(input.underlyingAssetDecimals > 5, 'INVALID_DECIMALS');
 
-    address dTokenProxyAddress = _initTokenWithProxy(input.dTokenImpl, abi.encodeWithSelector(IInitializableDToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.dTokenName, input.dTokenSymbol, input.params));
+    address dTokenProxyAddress = _initTokenWithProxy(input.supplyTokenImpl, abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.supplyTokenName, input.supplyTokenSymbol, input.params));
     address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, abi.encodeWithSelector(IInitializableDebtToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.variableDebtTokenName, input.variableDebtTokenSymbol, input.params));
 
     pool.initAsset(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
@@ -74,27 +74,27 @@ library ConfiguratorLogic {
 
     pool.setConfiguration(input.underlyingAsset, currentConfig);
 
-    emit ReserveInitialized(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
+    emit AssetInitialized(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
   }
 
-  function executeUpdateDToken(IPool pool, UpdateDTokenInput calldata input) external {
+  function executeUpdateSupplyToken(IPool pool, UpdateSupplyTokenInput calldata input) external {
     address supplyTokenAddress = pool.getAssetData(input.asset).supplyTokenAddress;
     uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
 
-    bytes memory encodedCall = abi.encodeWithSelector(IInitializableDToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
+    bytes memory encodedCall = abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
     _upgradeTokenImplementation(supplyTokenAddress, input.implementation, encodedCall);
 
-    emit DTokenUpgraded(input.asset, supplyTokenAddress, input.implementation);
+    emit SupplyTokenUpgraded(input.asset, supplyTokenAddress, input.implementation);
   }
 
-  function executeUpdateVariableDebtToken(IPool pool, UpdateDebtTokenInput calldata input) external {
+  function executeUpdateBorrowToken(IPool pool, UpdateDebtTokenInput calldata input) external {
     address borrowTokenAddress = pool.getAssetData(input.asset).borrowTokenAddress;
     uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
 
     bytes memory encodedCall = abi.encodeWithSelector(IInitializableDebtToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
     _upgradeTokenImplementation(borrowTokenAddress, input.implementation, encodedCall);
 
-    emit VariableDebtTokenUpgraded(input.asset, borrowTokenAddress, input.implementation);
+    emit BorrowTokenUpgraded(input.asset, borrowTokenAddress, input.implementation);
   }
 
   function _initTokenWithProxy(address implementation, bytes memory initParams) internal returns (address) {

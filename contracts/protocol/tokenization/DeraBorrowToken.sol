@@ -41,7 +41,7 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
   function initialize(IPool initializingPool, address underlyingAsset, uint8 borrowTokenDecimals, string memory borrowTokenName, string memory borrowTokenSymbol, bytes calldata params) external virtual;
 
   function balanceOf(address user) public view virtual override returns (uint256) {
-    return super.balanceOf(user).getVariableDebtTokenBalance(POOL.getAssetNormalizedVariableDebt(_underlyingAsset));
+    return super.balanceOf(user).getBorrowTokenBalance(POOL.getAssetNormalizedVariableDebt(_underlyingAsset));
   }
 
   function mint(address user, address onBehalfOf, uint256 amount, uint256 scaledAmount, uint256 index) external virtual override onlyPool returns (uint256) {
@@ -52,7 +52,7 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
       onBehalfOf: onBehalfOf,
       amountScaled: scaledAmount,
       index: index,
-      getTokenBalance: TokenMath.getVariableDebtTokenBalance
+      getTokenBalance: TokenMath.getBorrowTokenBalance
     });
     
     return scaledTotalSupply();
@@ -65,14 +65,14 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
         target: address(0),
         amountScaled: scaledAmount,
         index: index,
-        getTokenBalance: TokenMath.getVariableDebtTokenBalance
+        getTokenBalance: TokenMath.getBorrowTokenBalance
       }),
       scaledTotalSupply()
     );
   }
 
   function totalSupply() public view virtual override returns (uint256) {
-    return super.totalSupply().getVariableDebtTokenBalance(POOL.getAssetNormalizedVariableDebt(_underlyingAsset));
+    return super.totalSupply().getBorrowTokenBalance(POOL.getAssetNormalizedVariableDebt(_underlyingAsset));
   }
 
   function UNDERLYING_ASSET_ADDRESS() external view override returns (address) {

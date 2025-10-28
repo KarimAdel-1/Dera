@@ -14,14 +14,14 @@ pragma solidity ^0.8.19;
  * 
  * STRUCTURES:
  * - InitAssetInput: Initialize new lending market for an asset
- *   - dTokenImpl: DToken implementation address (interest-bearing deposit token)
+ *   - supplyTokenImpl: DToken implementation address (interest-bearing deposit token)
  *   - variableDebtTokenImpl: Debt token implementation address
  *   - underlyingAsset: HTS token address to be listed
  *   - Token names/symbols: Display names for dToken and debt token
  *   - params: Initialization parameters (decimals, etc.)
  *   - interestRateData: Interest rate strategy parameters
  * 
- * - UpdateDTokenInput: Update dToken implementation (upgrades)
+ * - UpdateSupplyTokenInput: Update dToken implementation (upgrades)
  * - UpdateDebtTokenInput: Update debt token implementation (upgrades)
  * 
  * ACCESS CONTROL:
@@ -35,18 +35,18 @@ pragma solidity ^0.8.19;
  */
 library ConfiguratorInputTypes {
   struct InitAssetInput {
-    address dTokenImpl;
+    address supplyTokenImpl;
     address variableDebtTokenImpl;
     address underlyingAsset;
-    string dTokenName;
-    string dTokenSymbol;
+    string supplyTokenName;
+    string supplyTokenSymbol;
     string variableDebtTokenName;
     string variableDebtTokenSymbol;
     bytes params;
     bytes interestRateData;
   }
 
-  struct UpdateDTokenInput {
+  struct UpdateSupplyTokenInput {
     address asset;
     string name;
     string symbol;

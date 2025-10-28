@@ -9,16 +9,16 @@ import {ConfiguratorInputTypes} from '../protocol/libraries/types/ConfiguratorIn
  * @notice Defines the basic interface for a Pool configurator
  */
 interface IPoolConfigurator {
-  event ReserveInitialized(address indexed asset, address indexed dToken, address stableDebtToken, address variableDebtToken, address interestRateStrategyAddress);
-  event ReserveBorrowing(address indexed asset, bool enabled);
+  event AssetInitialized(address indexed asset, address indexed dToken, address stableDebtToken, address variableDebtToken, address interestRateStrategyAddress);
+  event AssetBorrowing(address indexed asset, bool enabled);
 
   event PendingLtvChanged(address indexed asset, uint256 ltv);
   event CollateralConfigurationChanged(address indexed asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus);
-  event ReserveActive(address indexed asset, bool active);
-  event ReserveFrozen(address indexed asset, bool frozen);
-  event ReservePaused(address indexed asset, bool paused);
-  event ReserveDropped(address indexed asset);
-  event ReserveFactorChanged(address indexed asset, uint256 oldReserveFactor, uint256 newAssetFactor);
+  event AssetActive(address indexed asset, bool active);
+  event AssetFrozen(address indexed asset, bool frozen);
+  event AssetPaused(address indexed asset, bool paused);
+  event AssetDropped(address indexed asset);
+  event AssetFactorChanged(address indexed asset, uint256 oldAssetFactor, uint256 newAssetFactor);
   event BorrowCapChanged(address indexed asset, uint256 oldBorrowCap, uint256 newBorrowCap);
   event SupplyCapChanged(address indexed asset, uint256 oldSupplyCap, uint256 newSupplyCap);
   event LiquidationProtocolFeeChanged(address indexed asset, uint256 oldFee, uint256 newFee);
@@ -28,9 +28,9 @@ interface IPoolConfigurator {
   event AssetBorrowableInEModeChanged(address indexed asset, uint8 categoryId, bool borrowable);
   event EModeCategoryAdded(uint8 indexed categoryId, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus, address oracle, string label);
   event ReserveInterestRateStrategyChanged(address indexed asset, address oldStrategy, address newStrategy);
-  event ReserveInterestRateDataChanged(address indexed asset, address indexed strategy, bytes data);
-  event DTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
-  event VariableDebtTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
+  event AssetInterestRateDataChanged(address indexed asset, address indexed strategy, bytes data);
+  event SupplyTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
+  event BorrowTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
   event DebtCeilingChanged(address indexed asset, uint256 oldDebtCeiling, uint256 newDebtCeiling);
   event SiloedBorrowingChanged(address indexed asset, bool oldState, bool newState);
   event BridgeProtocolFeeUpdated(uint256 oldBridgeProtocolFee, uint256 newBridgeProtocolFee);
@@ -38,8 +38,8 @@ interface IPoolConfigurator {
   event BorrowableInIsolationChanged(address asset, bool borrowable);
 
   function initAssets(ConfiguratorInputTypes.InitAssetInput[] calldata input) external;
-  function updateDToken(ConfiguratorInputTypes.UpdateDTokenInput calldata input) external;
-  function updateVariableDebtToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external;
+  function updateSupplyToken(ConfiguratorInputTypes.UpdateSupplyTokenInput calldata input) external;
+  function updateBorrowToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external;
   function setAssetBorrowing(address asset, bool enabled) external;
   function configureAssetAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external;
 

@@ -10,19 +10,19 @@ import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
  * @notice Defines the basic interface for a Dera Pool
  */
 interface IPool {
-  event Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode);
-  event Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount);
-  event Borrow(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, DataTypes.InterestRateMode interestRateMode, uint256 borrowRate, uint16 indexed referralCode);
-  event Repay(address indexed reserve, address indexed user, address indexed repayer, uint256 amount, bool useSupplyTokens);
+  event Supply(address indexed asset, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode);
+  event Withdraw(address indexed asset, address indexed user, address indexed to, uint256 amount);
+  event Borrow(address indexed asset, address user, address indexed onBehalfOf, uint256 amount, DataTypes.InterestRateMode interestRateMode, uint256 borrowRate, uint16 indexed referralCode);
+  event Repay(address indexed asset, address indexed user, address indexed repayer, uint256 amount, bool useSupplyTokens);
   event IsolationModeTotalDebtUpdated(address indexed asset, uint256 totalDebt);
   event UserEModeSet(address indexed user, uint8 categoryId);
-  event ReserveUsedAsCollateralEnabled(address indexed reserve, address indexed user);
-  event ReserveUsedAsCollateralDisabled(address indexed reserve, address indexed user);
+  event AssetUsedAsCollateralEnabled(address indexed reserve, address indexed user);
+  event AssetUsedAsCollateralDisabled(address indexed reserve, address indexed user);
 
   event LiquidationCall(address indexed collateralAsset, address indexed debtAsset, address indexed user, uint256 debtToCover, uint256 liquidatedCollateralAmount, address liquidator, bool receiveSupplyToken);
-  event ReserveDataUpdated(address indexed reserve, uint256 liquidityRate, uint256 stableBorrowRate, uint256 variableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex);
-  event DeficitCovered(address indexed reserve, address caller, uint256 amountCovered);
-  event MintedToTreasury(address indexed reserve, uint256 amountMinted);
+  event AssetDataUpdated(address indexed asset, uint256 liquidityRate, uint256 stableBorrowRate, uint256 variableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex);
+  event DeficitCovered(address indexed asset, address caller, uint256 amountCovered);
+  event MintedToTreasury(address indexed asset, uint256 amountMinted);
   event LiquidationGracePeriodUpdated(address indexed asset, uint40 until);
   event DeficitCreated(address indexed user, address indexed debtAsset, uint256 amountCreated);
   event PositionManagerApproved(address indexed user, address indexed positionManager);
@@ -34,7 +34,7 @@ interface IPool {
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256);
   function repayWithPermit(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS) external returns (uint256);
-  function repayWithDTokens(address asset, uint256 amount, uint256 interestRateMode) external returns (uint256);
+  function repayWithSupplyTokens(address asset, uint256 amount, uint256 interestRateMode) external returns (uint256);
   function setUserUseAssetAsCollateral(address asset, bool useAsCollateral) external;
   function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) external;
 

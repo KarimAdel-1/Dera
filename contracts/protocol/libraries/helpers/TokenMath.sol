@@ -45,7 +45,7 @@ library TokenMath {
    * @notice Calculate scaled amount for DToken mint (supply)
    * @dev Floor rounding: User gets slightly less, protocol protected
    */
-  function getDTokenMintScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
+  function getSupplyTokenMintScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
     return amount.rayDivFloor(liquidityIndex);
   }
 
@@ -53,7 +53,7 @@ library TokenMath {
    * @notice Calculate scaled amount for DToken burn (withdraw)
    * @dev Ceil rounding: User pays slightly more, protocol protected
    */
-  function getDTokenBurnScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
+  function getSupplyTokenBurnScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
     return amount.rayDivCeil(liquidityIndex);
   }
 
@@ -61,7 +61,7 @@ library TokenMath {
    * @notice Calculate scaled amount for DToken transfer
    * @dev Ceil rounding: Sender pays slightly more, receiver protected
    */
-  function getDTokenTransferScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
+  function getSupplyTokenTransferScaledAmount(uint256 amount, uint256 liquidityIndex) internal pure returns (uint256) {
     return amount.rayDivCeil(liquidityIndex);
   }
 
@@ -69,7 +69,7 @@ library TokenMath {
    * @notice Calculate actual balance from scaled balance for DToken
    * @dev Floor rounding: Conservative for protocol
    */
-  function getDTokenBalance(uint256 scaledAmount, uint256 liquidityIndex) internal pure returns (uint256) {
+  function getSupplyTokenBalance(uint256 scaledAmount, uint256 liquidityIndex) internal pure returns (uint256) {
     return scaledAmount.rayMulFloor(liquidityIndex);
   }
 
@@ -79,7 +79,7 @@ library TokenMath {
    * @notice Calculate scaled amount for VariableDebtToken mint (borrow)
    * @dev Ceil rounding: User borrows slightly more, protocol protected
    */
-  function getVariableDebtTokenMintScaledAmount(uint256 amount, uint256 variableBorrowIndex) internal pure returns (uint256) {
+  function getBorrowTokenMintScaledAmount(uint256 amount, uint256 variableBorrowIndex) internal pure returns (uint256) {
     return amount.rayDivCeil(variableBorrowIndex);
   }
 
@@ -87,7 +87,7 @@ library TokenMath {
    * @notice Calculate scaled amount for VariableDebtToken burn (repay)
    * @dev Floor rounding: User repays slightly less, protocol protected
    */
-  function getVariableDebtTokenBurnScaledAmount(uint256 amount, uint256 variableBorrowIndex) internal pure returns (uint256) {
+  function getBorrowTokenBurnScaledAmount(uint256 amount, uint256 variableBorrowIndex) internal pure returns (uint256) {
     return amount.rayDivFloor(variableBorrowIndex);
   }
 
@@ -95,7 +95,7 @@ library TokenMath {
    * @notice Calculate actual debt from scaled debt for VariableDebtToken
    * @dev Ceil rounding: Conservative for protocol (debt rounded up)
    */
-  function getVariableDebtTokenBalance(uint256 scaledAmount, uint256 variableBorrowIndex) internal pure returns (uint256) {
+  function getBorrowTokenBalance(uint256 scaledAmount, uint256 variableBorrowIndex) internal pure returns (uint256) {
     return scaledAmount.rayMulCeil(variableBorrowIndex);
   }
 }

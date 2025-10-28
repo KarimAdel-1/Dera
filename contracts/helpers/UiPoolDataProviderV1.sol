@@ -88,7 +88,7 @@ contract UiPoolDataProviderV1 {
 
   struct UserReserveData {
     address underlyingAsset;
-    uint256 scaledDTokenBalance;
+    uint256 scaledSupplyTokenBalance;
     bool usageAsCollateralEnabledOnUser;
     uint256 scaledVariableDebt;
   }
@@ -211,7 +211,7 @@ contract UiPoolDataProviderV1 {
       (reserveData.borrowCap, reserveData.supplyCap) = reserveConfigurationMap.getCaps();
 
       // Additional fields
-      reserveData.accruedToTreasury = baseData.accruedToTreasury;
+      assetData.accruedToTreasury = baseData.accruedToTreasury;
       reserveData.unbacked = baseData.unbacked;
       reserveData.isolationModeTotalDebt = baseData.isolationModeTotalDebt;
       
@@ -256,7 +256,7 @@ contract UiPoolDataProviderV1 {
       DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
-      userReservesData[i].scaledDTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(
+      userReservesData[i].scaledSupplyTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(
         user
       );
       userReservesData[i].usageAsCollateralEnabledOnUser = userConfig.isUsingAsCollateral(i);

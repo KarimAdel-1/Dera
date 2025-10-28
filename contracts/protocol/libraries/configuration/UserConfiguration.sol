@@ -35,10 +35,10 @@ library UserConfiguration {
       uint256 bit = 1 << ((assetIndex << 1) + 1);
       if (usingAsCollateral) {
         self.data |= bit;
-        emit IPool.ReserveUsedAsCollateralEnabled(asset, user);
+        emit IPool.AssetUsedAsCollateralEnabled(asset, user);
       } else {
         self.data &= ~bit;
-        emit IPool.ReserveUsedAsCollateralDisabled(asset, user);
+        emit IPool.AssetUsedAsCollateralDisabled(asset, user);
       }
     }
   }

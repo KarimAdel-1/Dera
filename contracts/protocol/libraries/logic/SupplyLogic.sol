@@ -43,18 +43,18 @@ library SupplyLogic {
     DataTypes.ExecuteSupplyParams memory params
   ) external {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
-    DataTypes.AssetState memory assetState = reserve.cache();
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    reserve.updateState(assetState);
-    uint256 scaledAmount = params.amount.getDTokenMintScaledAmount(assetState.nextLiquidityIndex);
+    asset.updateState(assetState);
+    uint256 scaledAmount = params.amount.getSupplyTokenMintScaledAmount(assetState.nextLiquidityIndex);
 
-    ValidationLogic.validateSupply(assetState, reserve, scaledAmount, params.onBehalfOf);
+    ValidationLogic.validateSupply(assetState, asset, scaledAmount, params.onBehalfOf);
 
     // Transfer underlying asset from user to dToken contract via HTS
     // CRITICAL: User must be associated with the HTS token before this call
     _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, params.amount);
 
-    reserve.updateInterestRatesAndVirtualBalance(
+    asset.updateInterestRatesAndVirtualBalance(
       assetState,
       params.asset,
       params.amount,
@@ -76,11 +76,11 @@ library SupplyLogic {
           poolAssets,
           assetsList,
           userConfig,
-          assetState.reserveConfiguration,
+          assetState.assetConfiguration,
           assetState.supplyTokenAddress
         )
       ) {
-        userConfig.setUsingAsCollateral(reserve.id, params.asset, params.onBehalfOf, true);
+        userConfig.setUsingAsCollateral(asset.id, params.asset, params.onBehalfOf, true);
       }
     }
 
@@ -95,11 +95,11 @@ library SupplyLogic {
     DataTypes.ExecuteWithdrawParams memory params
   ) external returns (uint256) {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
-    DataTypes.AssetState memory assetState = reserve.cache();
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    require(params.to != assetState.supplyTokenAddress, Errors.WithdrawToDToken());
+    require(params.to != assetState.supplyTokenAddress, Errors.WithdrawToSupplyToken());
 
-    reserve.updateState(assetState);
+    asset.updateState(assetState);
 
     uint256 scaledUserBalance = IDeraSupplyToken(assetState.supplyTokenAddress).scaledBalanceOf(params.user);
 
@@ -107,15 +107,15 @@ library SupplyLogic {
     uint256 scaledAmountToWithdraw;
     if (params.amount == type(uint256).max) {
       scaledAmountToWithdraw = scaledUserBalance;
-      amountToWithdraw = scaledUserBalance.getDTokenBalance(assetState.nextLiquidityIndex);
+      amountToWithdraw = scaledUserBalance.getSupplyTokenBalance(assetState.nextLiquidityIndex);
     } else {
-      scaledAmountToWithdraw = params.amount.getDTokenBurnScaledAmount(assetState.nextLiquidityIndex);
+      scaledAmountToWithdraw = params.amount.getSupplyTokenBurnScaledAmount(assetState.nextLiquidityIndex);
       amountToWithdraw = params.amount;
     }
 
     ValidationLogic.validateWithdraw(assetState, scaledAmountToWithdraw, scaledUserBalance);
 
-    reserve.updateInterestRatesAndVirtualBalance(
+    asset.updateInterestRatesAndVirtualBalance(
       assetState,
       params.asset,
       0,
@@ -131,9 +131,9 @@ library SupplyLogic {
       index: assetState.nextLiquidityIndex
     });
 
-    if (userConfig.isUsingAsCollateral(reserve.id)) {
+    if (userConfig.isUsingAsCollateral(asset.id)) {
       if (zeroBalanceAfterBurn) {
-        userConfig.setUsingAsCollateral(reserve.id, params.asset, params.user, false);
+        userConfig.setUsingAsCollateral(asset.id, params.asset, params.user, false);
       }
       if (userConfig.isBorrowingAny()) {
         ValidationLogic.validateHFAndLtvzero(
@@ -163,9 +163,9 @@ library SupplyLogic {
   ) external {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
 
-    ValidationLogic.validateTransfer(reserve);
+    ValidationLogic.validateTransfer(asset);
 
-    uint256 reserveId = reserve.id;
+    uint256 reserveId = asset.id;
 
     if (params.from != params.to && params.scaledAmount != 0) {
       DataTypes.UserConfigurationMap storage fromConfig = usersConfig[params.from];
@@ -196,8 +196,8 @@ library SupplyLogic {
             poolAssets,
             assetsList,
             toConfig,
-            reserve.configuration,
-            reserve.supplyTokenAddress
+            asset.configuration,
+            asset.supplyTokenAddress
           )
         ) {
           toConfig.setUsingAsCollateral(reserveId, params.asset, params.to, true);
@@ -218,21 +218,21 @@ library SupplyLogic {
     uint8 
   ) external {
     DataTypes.PoolAssetData storage asset = poolAssets[asset];
-    DataTypes.AssetConfigurationMap memory reserveConfigCached = reserve.configuration;
+    DataTypes.AssetConfigurationMap memory reserveConfigCached = asset.configuration;
 
     ValidationLogic.validateSetUseAssetAsCollateral(reserveConfigCached);
 
-    if (useAsCollateral == userConfig.isUsingAsCollateral(reserve.id)) return;
+    if (useAsCollateral == userConfig.isUsingAsCollateral(asset.id)) return;
 
     if (useAsCollateral) {
-      require(IDeraSupplyToken(reserve.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
+      require(IDeraSupplyToken(asset.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
       require(
         ValidationLogic.validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfigCached),
         Errors.UserInIsolationModeOrLtvZero()
       );
-      userConfig.setUsingAsCollateral(reserve.id, asset, user, true);
+      userConfig.setUsingAsCollateral(asset.id, asset, user, true);
     } else {
-      userConfig.setUsingAsCollateral(reserve.id, asset, user, false);
+      userConfig.setUsingAsCollateral(asset.id, asset, user, false);
       ValidationLogic.validateHFAndLtvzero(
         poolAssets,
         assetsList,

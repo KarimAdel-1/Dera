@@ -173,8 +173,8 @@ library GenericLogic {
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
-    uint256 normalizedIncome = reserve.getNormalizedIncome();
-    uint256 balance = (IERC20(reserve.supplyTokenAddress).balanceOf(user).rayMul(normalizedIncome)) *
+    uint256 normalizedIncome = asset.getNormalizedIncome();
+    uint256 balance = (IERC20(asset.supplyTokenAddress).balanceOf(user).rayMul(normalizedIncome)) *
       assetPrice;
     unchecked {
       return balance / assetUnit;
@@ -187,8 +187,8 @@ library GenericLogic {
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
-    uint256 normalizedDebt = reserve.getNormalizedDebt();
-    uint256 balance = (IERC20(reserve.borrowTokenAddress).balanceOf(user).rayMul(normalizedDebt)) *
+    uint256 normalizedDebt = asset.getNormalizedDebt();
+    uint256 balance = (IERC20(asset.borrowTokenAddress).balanceOf(user).rayMul(normalizedDebt)) *
       assetPrice;
     unchecked {
       return balance / assetUnit;

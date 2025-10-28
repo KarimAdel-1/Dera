@@ -58,8 +58,8 @@ library PoolLogic {
     require(Address.isContract(params.asset), Errors.NotContract());
     poolAssets[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
 
-    bool reserveAlreadyAdded = poolAssets[params.asset].id != 0 || assetsList[0] == params.asset;
-    require(!reserveAlreadyAdded, Errors.ReserveAlreadyAdded());
+    bool assetAlreadyAdded = poolAssets[params.asset].id != 0 || assetsList[0] == params.asset;
+    require(!assetAlreadyAdded, Errors.AssetAlreadyAdded());
 
     for (uint16 i = 0; i < params.assetsCount; i++) {
       if (assetsList[i] == address(0)) {
@@ -76,8 +76,8 @@ library PoolLogic {
   }
 
   function executeSyncIndexesState(DataTypes.PoolAssetData storage asset) external {
-    DataTypes.AssetState memory assetState = reserve.cache();
-    reserve.updateState(assetState);
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateState(assetState);
   }
 
   function executeSyncRatesState(
@@ -85,8 +85,8 @@ library PoolLogic {
     address asset,
     address interestRateStrategyAddress
   ) external {
-    DataTypes.AssetState memory assetState = reserve.cache();
-    reserve.updateInterestRatesAndVirtualBalance(assetState, asset, 0, 0, interestRateStrategyAddress);
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateInterestRatesAndVirtualBalance(assetState, asset, 0, 0, interestRateStrategyAddress);
   }
 
   /**
@@ -110,17 +110,17 @@ library PoolLogic {
       address assetAddress = assets[i];
       DataTypes.PoolAssetData storage asset = poolAssets[assetAddress];
 
-      if (!reserve.configuration.getActive()) {
+      if (!asset.configuration.getActive()) {
         continue;
       }
 
-      uint256 accruedToTreasury = reserve.accruedToTreasury;
+      uint256 accruedToTreasury = asset.accruedToTreasury;
 
       if (accruedToTreasury != 0) {
-        reserve.accruedToTreasury = 0;
-        uint256 normalizedIncome = reserve.getNormalizedIncome();
-        uint256 amountToMint = accruedToTreasury.getDTokenBalance(normalizedIncome);
-        IDeraSupplyToken(reserve.supplyTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
+        asset.accruedToTreasury = 0;
+        uint256 normalizedIncome = asset.getNormalizedIncome();
+        uint256 amountToMint = accruedToTreasury.getSupplyTokenBalance(normalizedIncome);
+        IDeraSupplyToken(asset.supplyTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
 
         emit IPool.MintedToTreasury(assetAddress, amountToMint);
       }
@@ -153,7 +153,7 @@ library PoolLogic {
     address asset
   ) external {
     DataTypes.PoolAssetData storage asset = poolAssets[asset];
-    ValidationLogic.validateDropAsset(assetsList, reserve, asset);
+    ValidationLogic.validateDropAsset(assetsList, asset, asset);
     assetsList[poolAssets[asset].id] = address(0);
     delete poolAssets[asset];
   }
