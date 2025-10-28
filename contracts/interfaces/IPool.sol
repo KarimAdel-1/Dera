@@ -43,8 +43,8 @@ interface IPool {
   function dropReserve(address asset) external;
   function syncIndexesState(address asset) external;
   function syncRatesState(address asset) external;
-  function setConfiguration(address asset, DataTypes.ReserveConfigurationMap calldata configuration) external;
-  function getConfiguration(address asset) external view returns (DataTypes.ReserveConfigurationMap memory);
+  function setConfiguration(address asset, DataTypes.AssetConfigurationMap calldata configuration) external;
+  function getConfiguration(address asset) external view returns (DataTypes.AssetConfigurationMap memory);
   function getUserConfiguration(address user) external view returns (DataTypes.UserConfigurationMap memory);
   function getReserveNormalizedIncome(address asset) external view returns (uint256);
   function getReserveNormalizedVariableDebt(address asset) external view returns (uint256);

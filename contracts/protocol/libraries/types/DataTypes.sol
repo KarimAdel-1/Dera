@@ -3,38 +3,37 @@ pragma solidity ^0.8.19;
 
 /**
  * @title DataTypes library
- * @author DERA Protocol
- * @notice Core data structures for lending protocol on Hedera
+ * @author Dera Protocol
+ * @notice Core data structures for Dera lending protocol on Hedera
  * @dev Defines all structs used across the protocol for gas-efficient storage
- * 
+ *
  * HEDERA TOOLS USED:
  * - Smart Contract State: All structs stored on-chain in optimized layout
  * - Storage Packing: Tight packing to minimize storage slots (gas savings)
- * 
+ *
  * KEY STRUCTURES:
- * - ReserveData: Per-asset state (liquidity index, borrow index, rates, addresses)
+ * - PoolAssetData: Per-asset state (liquidity index, borrow index, rates, token addresses)
  * - UserConfigurationMap: Bitmap of user's collateral/borrowing (1 bit per asset)
- * - ReserveConfigurationMap: Bitmap of reserve parameters (packed in 1 uint256)
+ * - AssetConfigurationMap: Bitmap of asset parameters (packed in 1 uint256)
  *
  * STORAGE OPTIMIZATION:
  * - Bitmaps: 256 assets in 1 uint256 (1 bit per asset)
  * - Packed structs: Multiple fields in single storage slot
  * - uint128/uint40/uint16: Smaller types where possible
  *
- * REMOVED FEATURES (MVP Simplification):
- * - E-Mode (Efficiency Mode): Removed for simplicity
- * - Isolation Mode: Removed for simplicity
- * - Stable rate: Only variable rate supported
- * - Flash loans: Not needed for MVP
- * 
+ * DERA PROTOCOL:
+ * - Unique architecture: Pool asset model instead of reserve-based
+ * - Hedera-native: Optimized for HTS token operations
+ * - Simplified: Only variable rate, no complex modes
+ *
  * HEDERA BENEFITS:
  * - Low gas costs make complex structs affordable
  * - Storage optimization still valuable for high-frequency operations
  * - Mirror Nodes can query all struct data via contract state
  */
 library DataTypes {
-  struct ReserveData {
-    ReserveConfigurationMap configuration;
+  struct PoolAssetData {
+    AssetConfigurationMap configuration;
     uint128 liquidityIndex;
     uint128 currentLiquidityRate;
     uint128 variableBorrowIndex;
@@ -49,7 +48,7 @@ library DataTypes {
     uint128 virtualUnderlyingBalance;
   }
 
-  struct ReserveConfigurationMap {
+  struct AssetConfigurationMap {
     uint256 data;
   }
 
@@ -68,7 +67,7 @@ library DataTypes {
     VARIABLE
   }
 
-  struct ReserveCache {
+  struct AssetState {
     uint256 currScaledVariableDebt;
     uint256 nextScaledVariableDebt;
     uint256 currLiquidityIndex;
@@ -77,11 +76,11 @@ library DataTypes {
     uint256 nextVariableBorrowIndex;
     uint256 currLiquidityRate;
     uint256 currVariableBorrowRate;
-    uint256 reserveFactor;
-    ReserveConfigurationMap reserveConfiguration;
+    uint256 assetFactor;
+    AssetConfigurationMap assetConfiguration;
     address supplyTokenAddress;
     address borrowTokenAddress;
-    uint40 reserveLastUpdateTimestamp;
+    uint40 assetLastUpdateTimestamp;
   }
 
   struct ExecuteLiquidationCallParams {
@@ -162,7 +161,7 @@ library DataTypes {
   }
 
   struct ValidateBorrowParams {
-    ReserveCache reserveCache;
+    AssetState assetState;
     UserConfigurationMap userConfig;
     address asset;
     address userAddress;
@@ -173,7 +172,7 @@ library DataTypes {
   }
 
   struct ValidateLiquidationCallParams {
-    ReserveCache debtReserveCache;
+    AssetState debtReserveCache;
     uint256 totalDebt;
     uint256 healthFactor;
     address priceOracleSentinel;
@@ -186,17 +185,17 @@ library DataTypes {
     uint256 liquidityAdded;
     uint256 liquidityTaken;
     uint256 totalDebt;
-    uint256 reserveFactor;
-    address reserve;
+    uint256 assetFactor;
+    address asset;
     bool usingVirtualBalance;
     uint256 virtualUnderlyingBalance;
   }
 
-  struct InitReserveParams {
+  struct InitPoolAssetParams {
     address asset;
     address supplyTokenAddress;
     address variableDebtAddress;
-    uint16 reservesCount;
-    uint16 maxNumberReserves;
+    uint16 assetsCount;
+    uint16 maxNumberAssets;
   }
 }

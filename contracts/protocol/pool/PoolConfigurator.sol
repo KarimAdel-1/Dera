@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
-import {ReserveConfiguration} from '../libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.sol';
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {PercentageMath} from '../libraries/math/PercentageMath.sol';
@@ -28,7 +28,7 @@ import {IACLManager} from '../../interfaces/IACLManager.sol';
  */
 abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator {
   using PercentageMath for uint256;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
   IPoolAddressesProvider internal _addressesProvider;
   IPool internal _pool;
@@ -89,7 +89,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setReserveBorrowing(address asset, bool enabled) external override onlyRiskOrPoolAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setBorrowingEnabled(enabled);
     _pool.setConfiguration(asset, currentConfig);
     emit ReserveBorrowing(asset, enabled);
@@ -98,7 +98,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   function configureReserveAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external override onlyRiskOrPoolAdmins {
     require(ltv <= liquidationThreshold, Errors.InvalidReserveParams());
     
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
 
     if (liquidationThreshold != 0) {
       require(liquidationBonus > PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidReserveParams());
@@ -129,14 +129,14 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function setReserveActive(address asset, bool active) external override onlyPoolAdmin {
     if (!active) _checkNoSuppliers(asset);
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setActive(active);
     _pool.setConfiguration(asset, currentConfig);
     emit ReserveActive(asset, active);
   }
 
   function setReserveFreeze(address asset, bool freeze) external override onlyRiskOrPoolOrEmergencyAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     require(freeze != currentConfig.getFrozen(), Errors.InvalidFreezeState());
     currentConfig.setFrozen(freeze);
 
@@ -161,7 +161,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setBorrowableInIsolation(address asset, bool borrowable) external override onlyRiskOrPoolAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setBorrowableInIsolation(borrowable);
     _pool.setConfiguration(asset, currentConfig);
     emit BorrowableInIsolationChanged(asset, borrowable);
@@ -175,7 +175,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
       emit LiquidationGracePeriodChanged(asset, until);
     }
 
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setPaused(paused);
     _pool.setConfiguration(asset, currentConfig);
     emit ReservePaused(asset, paused);
@@ -190,14 +190,14 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     emit LiquidationGracePeriodDisabled(asset);
   }
 
-  function setReserveFactor(address asset, uint256 newReserveFactor) external override onlyRiskOrPoolAdmins {
+  function setAssetFactor(address asset, uint256 newReserveFactor) external override onlyRiskOrPoolAdmins {
     require(newReserveFactor <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidReserveFactor());
     
     _pool.syncIndexesState(asset);
     
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    uint256 oldReserveFactor = currentConfig.getReserveFactor();
-    currentConfig.setReserveFactor(newReserveFactor);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    uint256 oldReserveFactor = currentConfig.getAssetFactor();
+    currentConfig.setAssetFactor(newReserveFactor);
     _pool.setConfiguration(asset, currentConfig);
     
     emit ReserveFactorChanged(asset, oldReserveFactor, newReserveFactor);
@@ -206,7 +206,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setBorrowCap(address asset, uint256 newBorrowCap) external override onlyRiskOrPoolAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     uint256 oldBorrowCap = currentConfig.getBorrowCap();
     currentConfig.setBorrowCap(newBorrowCap);
     _pool.setConfiguration(asset, currentConfig);
@@ -214,7 +214,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setSupplyCap(address asset, uint256 newSupplyCap) external override onlyRiskOrPoolAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     uint256 oldSupplyCap = currentConfig.getSupplyCap();
     currentConfig.setSupplyCap(newSupplyCap);
     _pool.setConfiguration(asset, currentConfig);
@@ -223,7 +223,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function setLiquidationProtocolFee(address asset, uint256 newFee) external override onlyRiskOrPoolAdmins {
     require(newFee <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidLiquidationProtocolFee());
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     uint256 oldFee = currentConfig.getLiquidationProtocolFee();
     currentConfig.setLiquidationProtocolFee(newFee);
     _pool.setConfiguration(asset, currentConfig);
@@ -231,7 +231,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setDebtCeiling(address asset, uint256 newDebtCeiling) external override onlyRiskOrPoolAdmins {
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     uint256 oldDebtCeiling = currentConfig.getDebtCeiling();
     if (currentConfig.getLiquidationThreshold() != 0 && oldDebtCeiling == 0) {
       _checkNoSuppliers(asset);
@@ -246,7 +246,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     if (newSiloed) {
       _checkNoBorrowers(asset);
     }
-    DataTypes.ReserveConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     bool oldSiloed = currentConfig.getSiloedBorrowing();
     currentConfig.setSiloedBorrowing(newSiloed);
     _pool.setConfiguration(asset, currentConfig);

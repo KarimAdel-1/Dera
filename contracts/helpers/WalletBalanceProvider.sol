@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
 
 interface IHTS {
@@ -28,7 +28,7 @@ interface IHTS {
  * - HBAR Balance: Native account balance via user.balance
  */
 contract WalletBalanceProvider {
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
   IHTS private constant HTS = IHTS(address(0x167));
 
@@ -97,7 +97,7 @@ contract WalletBalanceProvider {
     uint256[] memory balances = new uint256[](reservesWithHbar.length);
 
     for (uint256 j = 0; j < reserves.length; j++) {
-      DataTypes.ReserveConfigurationMap memory configuration = pool.getConfiguration(
+      DataTypes.AssetConfigurationMap memory configuration = pool.getConfiguration(
         reservesWithHbar[j]
       );
 

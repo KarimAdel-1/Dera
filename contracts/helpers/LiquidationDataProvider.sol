@@ -7,7 +7,7 @@ import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
 import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
 import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
-import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
 import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
 import {PercentageMath} from '../../protocol/libraries/math/PercentageMath.sol';
@@ -38,7 +38,7 @@ import {PercentageMath} from '../../protocol/libraries/math/PercentageMath.sol';
 contract LiquidationDataProvider {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
 
   struct LiquidationData {
@@ -94,7 +94,7 @@ contract LiquidationDataProvider {
         (address debtAsset, uint256 debtAmount) = _getLargestDebt(pool, oracle, user);
 
         if (collateralAsset != address(0) && debtAsset != address(0)) {
-          DataTypes.ReserveConfigurationMap memory config = pool.getConfiguration(collateralAsset);
+          DataTypes.AssetConfigurationMap memory config = pool.getConfiguration(collateralAsset);
           (, , uint256 liquidationBonus, , ) = config.getParams();
 
           tempLiquidations[liquidationCount] = LiquidationData({
@@ -150,7 +150,7 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
+      DataTypes.PoolAssetData memory reserve = pool.getReserveData(asset);
       
       uint256 balance = IDeraSupplyToken(reserve.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
@@ -180,7 +180,7 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
+      DataTypes.PoolAssetData memory reserve = pool.getReserveData(asset);
       
       uint256 debt = IDeraBorrowToken(reserve.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {

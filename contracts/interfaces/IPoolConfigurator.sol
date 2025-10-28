@@ -49,7 +49,7 @@ interface IPoolConfigurator {
   function setReservePause(address asset, bool paused, uint40 gracePeriod) external;
   function setReservePause(address asset, bool paused) external;
   function disableLiquidationGracePeriod(address asset) external;
-  function setReserveFactor(address asset, uint256 newReserveFactor) external;
+  function setAssetFactor(address asset, uint256 newReserveFactor) external;
   function setReserveInterestRateData(address asset, bytes calldata rateData) external;
   function setPoolPause(bool paused, uint40 gracePeriod) external;
   function setPoolPause(bool paused) external;

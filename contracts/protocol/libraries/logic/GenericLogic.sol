@@ -5,7 +5,7 @@ import {IERC20} from '../../../interfaces/IERC20.sol';
 import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
-import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
 import {PercentageMath} from '../math/PercentageMath.sol';
 import {WadRayMath} from '../math/WadRayMath.sol';
@@ -35,7 +35,7 @@ import {DataTypes} from '../types/DataTypes.sol';
  * - Standard LTV/liquidation thresholds for all assets
  */
 library GenericLogic {
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -58,8 +58,8 @@ library GenericLogic {
   }
 
   function calculateUserAccountData(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.CalculateUserAccountDataParams memory params
   ) internal view returns (uint256, uint256, uint256, uint256, uint256, bool) {
     if (params.userConfig.isEmpty()) {
@@ -76,7 +76,7 @@ library GenericLogic {
         continue;
       }
 
-      vars.currentReserveAddress = reservesList[vars.i];
+      vars.currentReserveAddress = assetsList[vars.i];
 
       if (vars.currentReserveAddress == address(0)) {
         unchecked {
@@ -85,7 +85,7 @@ library GenericLogic {
         continue;
       }
 
-      DataTypes.ReserveData storage currentReserve = reservesData[vars.currentReserveAddress];
+      DataTypes.PoolAssetData storage currentReserve = poolAssets[vars.currentReserveAddress];
       (vars.ltv, vars.liquidationThreshold, , vars.decimals, ) = currentReserve.configuration.getParams();
 
       unchecked {
@@ -169,7 +169,7 @@ library GenericLogic {
 
   function _getUserBalanceInBaseCurrency(
     address user,
-    DataTypes.ReserveData storage reserve,
+    DataTypes.PoolAssetData storage reserve,
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
@@ -183,7 +183,7 @@ library GenericLogic {
 
   function _getUserDebtInBaseCurrency(
     address user,
-    DataTypes.ReserveData storage reserve,
+    DataTypes.PoolAssetData storage reserve,
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {

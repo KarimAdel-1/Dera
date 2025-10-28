@@ -65,7 +65,7 @@ library ConfiguratorLogic {
 
     pool.initReserve(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
 
-    DataTypes.ReserveConfigurationMap memory currentConfig;
+    DataTypes.AssetConfigurationMap memory currentConfig;
     currentConfig.data = 0;
     currentConfig = _setDecimals(currentConfig, input.underlyingAssetDecimals);
     currentConfig = _setActive(currentConfig, true);
@@ -114,22 +114,22 @@ library ConfiguratorLogic {
     require(success, 'UPGRADE_FAILED');
   }
 
-  function _setDecimals(DataTypes.ReserveConfigurationMap memory config, uint256 decimals) internal pure returns (DataTypes.ReserveConfigurationMap memory) {
+  function _setDecimals(DataTypes.AssetConfigurationMap memory config, uint256 decimals) internal pure returns (DataTypes.AssetConfigurationMap memory) {
     config.data = (config.data & ~(uint256(0xFF))) | decimals;
     return config;
   }
 
-  function _setActive(DataTypes.ReserveConfigurationMap memory config, bool active) internal pure returns (DataTypes.ReserveConfigurationMap memory) {
+  function _setActive(DataTypes.AssetConfigurationMap memory config, bool active) internal pure returns (DataTypes.AssetConfigurationMap memory) {
     config.data = (config.data & ~(uint256(1) << 56)) | (uint256(active ? 1 : 0) << 56);
     return config;
   }
 
-  function _setPaused(DataTypes.ReserveConfigurationMap memory config, bool paused) internal pure returns (DataTypes.ReserveConfigurationMap memory) {
+  function _setPaused(DataTypes.AssetConfigurationMap memory config, bool paused) internal pure returns (DataTypes.AssetConfigurationMap memory) {
     config.data = (config.data & ~(uint256(1) << 60)) | (uint256(paused ? 1 : 0) << 60);
     return config;
   }
 
-  function _setFrozen(DataTypes.ReserveConfigurationMap memory config, bool frozen) internal pure returns (DataTypes.ReserveConfigurationMap memory) {
+  function _setFrozen(DataTypes.AssetConfigurationMap memory config, bool frozen) internal pure returns (DataTypes.AssetConfigurationMap memory) {
     config.data = (config.data & ~(uint256(1) << 57)) | (uint256(frozen ? 1 : 0) << 57);
     return config;
   }

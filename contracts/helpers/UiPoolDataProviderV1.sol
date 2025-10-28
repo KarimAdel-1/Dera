@@ -15,7 +15,7 @@ import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {IDefaultInterestRateStrategy} from '../../interfaces/IDefaultInterestRateStrategy.sol';
 
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
-import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
 import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
 
@@ -39,7 +39,7 @@ import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
  */
 contract UiPoolDataProviderV1 {
   using WadRayMath for uint256;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
 
   struct AggregatedReserveData {
@@ -115,7 +115,7 @@ contract UiPoolDataProviderV1 {
   /**
    * @notice Get aggregated data for all reserves
    * @param provider PoolAddressesProvider address
-   * @return reservesData Array of reserve data
+   * @return poolAssets Array of reserve data
    * @return baseCurrencyInfo Base currency information
    * @dev PERFORMANCE: Single call gets ALL pool data
    * @dev Uses Pyth oracle for prices (decentralized)
@@ -128,14 +128,14 @@ contract UiPoolDataProviderV1 {
     IHTS hts = IHTS(address(0x167)); // HTS precompile address
 
     address[] memory reserves = pool.getReservesList();
-    AggregatedReserveData[] memory reservesData = new AggregatedReserveData[](reserves.length);
+    AggregatedReserveData[] memory poolAssets = new AggregatedReserveData[](reserves.length);
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      AggregatedReserveData memory reserveData = reservesData[i];
+      AggregatedReserveData memory reserveData = poolAssets[i];
       reserveData.underlyingAsset = reserves[i];
 
       // Reserve current state
-      DataTypes.ReserveData memory baseData = pool.getReserveData(reserveData.underlyingAsset);
+      DataTypes.PoolAssetData memory baseData = pool.getReserveData(reserveData.underlyingAsset);
       
       reserveData.liquidityIndex = baseData.liquidityIndex;
       reserveData.variableBorrowIndex = baseData.variableBorrowIndex;
@@ -167,7 +167,7 @@ contract UiPoolDataProviderV1 {
       reserveData.decimals = hts.decimals(reserveData.underlyingAsset);
 
       // Configuration
-      DataTypes.ReserveConfigurationMap memory reserveConfigurationMap = baseData.configuration;
+      DataTypes.AssetConfigurationMap memory reserveConfigurationMap = baseData.configuration;
       uint256 tempDecimals;
       (
         reserveData.baseLTVasCollateral,
@@ -228,7 +228,7 @@ contract UiPoolDataProviderV1 {
     baseCurrencyInfo.networkBaseTokenPriceInUsd = int256(oracle.getAssetPrice(address(0))); // HBAR price
     baseCurrencyInfo.networkBaseTokenPriceDecimals = 8;
 
-    return (reservesData, baseCurrencyInfo);
+    return (poolAssets, baseCurrencyInfo);
   }
 
   /**
@@ -253,7 +253,7 @@ contract UiPoolDataProviderV1 {
     );
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      DataTypes.ReserveData memory baseData = pool.getReserveData(reserves[i]);
+      DataTypes.PoolAssetData memory baseData = pool.getReserveData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
       userReservesData[i].scaledDTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(

@@ -5,11 +5,11 @@ import {PercentageMath} from '../../libraries/math/PercentageMath.sol';
 import {MathUtils} from '../../libraries/math/MathUtils.sol';
 import {TokenMath} from '../../libraries/helpers/TokenMath.sol';
 import {DataTypes} from '../../libraries/types/DataTypes.sol';
-import {ReserveLogic} from './ReserveLogic.sol';
+import {AssetLogic} from './AssetLogic.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
 import {UserConfiguration} from '../../libraries/configuration/UserConfiguration.sol';
-import {ReserveConfiguration} from '../../libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../libraries/configuration/AssetConfiguration.sol';
 import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
@@ -30,10 +30,10 @@ interface IHTS {
 library LiquidationLogic {
   using TokenMath for uint256;
   using PercentageMath for uint256;
-  using ReserveLogic for DataTypes.ReserveCache;
-  using ReserveLogic for DataTypes.ReserveData;
+  using AssetLogic for DataTypes.AssetState;
+  using AssetLogic for DataTypes.PoolAssetData;
   using UserConfiguration for DataTypes.UserConfigurationMap;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using SafeCast for uint256;
 
   IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
@@ -64,21 +64,21 @@ library LiquidationLogic {
     uint256 debtAssetPrice;
     uint256 collateralAssetUnit;
     uint256 debtAssetUnit;
-    DataTypes.ReserveCache debtReserveCache;
-    DataTypes.ReserveCache collateralReserveCache;
+    DataTypes.AssetState debtReserveCache;
+    DataTypes.AssetState collateralReserveCache;
   }
 
   function executeLiquidationCall(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
     
     DataTypes.ExecuteLiquidationCallParams memory params
   ) external {
     LiquidationCallLocalVars memory vars;
 
-    DataTypes.ReserveData storage collateralReserve = reservesData[params.collateralAsset];
-    DataTypes.ReserveData storage debtReserve = reservesData[params.debtAsset];
+    DataTypes.PoolAssetData storage collateralReserve = poolAssets[params.collateralAsset];
+    DataTypes.PoolAssetData storage debtReserve = poolAssets[params.debtAsset];
     DataTypes.UserConfigurationMap storage borrowerConfig = usersConfig[params.borrower];
     
     vars.debtReserveCache = debtReserve.cache();
@@ -93,8 +93,8 @@ library LiquidationLogic {
       ,
       vars.healthFactor,
     ) = GenericLogic.calculateUserAccountData(
-      reservesData,
-      reservesList,
+      poolAssets,
+      assetsList,
       DataTypes.CalculateUserAccountDataParams({
         userConfig: borrowerConfig,
         user: params.borrower,
@@ -211,7 +211,7 @@ library LiquidationLogic {
     );
 
     if (params.receiveSupplyToken) {
-      _liquidateDTokens(reservesData, reservesList, usersConfig, collateralReserve, params, vars);
+      _liquidateDTokens(poolAssets, assetsList, usersConfig, collateralReserve, params, vars);
     } else {
       if (params.collateralAsset == params.debtAsset) {
         vars.collateralReserveCache.nextScaledVariableDebt = vars.debtReserveCache.nextScaledVariableDebt;
@@ -242,7 +242,7 @@ library LiquidationLogic {
     }
 
     if (hasNoCollateralLeft && borrowerConfig.isBorrowingAny()) {
-      _burnBadDebt(reservesData, reservesList, borrowerConfig, params);
+      _burnBadDebt(poolAssets, assetsList, borrowerConfig, params);
     }
 
     // Transfer debt asset from liquidator to dToken contract via HTS
@@ -266,7 +266,7 @@ library LiquidationLogic {
   }
 
   function _burnCollateralDTokens(
-    DataTypes.ReserveData storage collateralReserve,
+    DataTypes.PoolAssetData storage collateralReserve,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
@@ -290,10 +290,10 @@ library LiquidationLogic {
   }
 
   function _liquidateDTokens(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    DataTypes.ReserveData storage collateralReserve,
+    DataTypes.PoolAssetData storage collateralReserve,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
@@ -314,8 +314,8 @@ library LiquidationLogic {
       if (
         ValidationLogic.validateAutomaticUseAsCollateral(
           params.liquidator,
-          reservesData,
-          reservesList,
+          poolAssets,
+          assetsList,
           liquidatorConfig,
           vars.collateralReserveCache.reserveConfiguration,
           vars.collateralReserveCache.supplyTokenAddress
@@ -327,8 +327,8 @@ library LiquidationLogic {
   }
 
   function _burnDebtTokens(
-    DataTypes.ReserveCache memory debtReserveCache,
-    DataTypes.ReserveData storage debtReserve,
+    DataTypes.AssetState memory debtReserveCache,
+    DataTypes.PoolAssetData storage debtReserve,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     address borrower,
     address debtAsset,
@@ -383,7 +383,7 @@ library LiquidationLogic {
   }
 
   function _calculateAvailableCollateralToLiquidate(
-    DataTypes.ReserveConfigurationMap memory collateralReserveConfiguration,
+    DataTypes.AssetConfigurationMap memory collateralReserveConfiguration,
     uint256 collateralAssetPrice,
     uint256 collateralAssetUnit,
     uint256 debtAssetPrice,
@@ -427,8 +427,8 @@ library LiquidationLogic {
   }
 
   function _burnBadDebt(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     DataTypes.ExecuteLiquidationCallParams memory params
   ) internal {
@@ -439,21 +439,21 @@ library LiquidationLogic {
     while (cachedBorrowerConfig != 0) {
       (cachedBorrowerConfig, isBorrowed, ) = UserConfiguration.getNextFlags(cachedBorrowerConfig);
       if (isBorrowed) {
-        address reserveAddress = reservesList[i];
+        address reserveAddress = assetsList[i];
         if (reserveAddress != address(0)) {
-          DataTypes.ReserveCache memory reserveCache = reservesData[reserveAddress].cache();
-          if (reserveCache.reserveConfiguration.getActive()) {
-            reservesData[reserveAddress].updateState(reserveCache);
+          DataTypes.AssetState memory assetState = poolAssets[reserveAddress].cache();
+          if (assetState.reserveConfiguration.getActive()) {
+            poolAssets[reserveAddress].updateState(assetState);
 
             _burnDebtTokens(
-              reserveCache,
-              reservesData[reserveAddress],
+              assetState,
+              poolAssets[reserveAddress],
               borrowerConfig,
               params.borrower,
               reserveAddress,
-              IDeraBorrowToken(reserveCache.borrowTokenAddress)
+              IDeraBorrowToken(assetState.borrowTokenAddress)
                 .scaledBalanceOf(params.borrower)
-                .getVariableDebtTokenBalance(reserveCache.nextVariableBorrowIndex),
+                .getVariableDebtTokenBalance(assetState.nextVariableBorrowIndex),
               0,
               true,
               params.interestRateStrategyAddress

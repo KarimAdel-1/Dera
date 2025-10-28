@@ -2,44 +2,48 @@
 pragma solidity ^0.8.19;
 
 import {UserConfiguration} from '../libraries/configuration/UserConfiguration.sol';
-import {ReserveConfiguration} from '../libraries/configuration/ReserveConfiguration.sol';
-import {ReserveLogic} from '../libraries/logic/ReserveLogic.sol';
+import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.sol';
+import {AssetLogic} from '../libraries/logic/AssetLogic.sol';
 import {DataTypes} from '../libraries/types/DataTypes.sol';
 
 /**
  * @title PoolStorage
- * @author DERA Protocol
+ * @author Dera Protocol
  * @notice Storage layout for Pool contract on Hedera
  * @dev Defines all storage variables for upgradeable Pool implementation
- * 
+ *
  * HEDERA TOOLS USED:
  * - Smart Contract State: All protocol state stored on-chain
  * - HFS (Hedera File Service): Storage layout documented in HFS for audits
  * - Mirror Nodes: Historical state changes queryable via REST API
- * 
+ *
  * INTEGRATION:
  * - Storage Slots: Fixed layout for proxy upgrades
  * - Gas Optimization: Packed structs, mappings over arrays
  * - Optimized Storage: Mappings for gas efficiency
+ *
+ * DERA PROTOCOL:
+ * - Unique architecture: Pool assets instead of reserves
+ * - HTS-native token management
  */
 contract PoolStorage {
   uint256 public constant POOL_STORAGE_REVISION = 0x1;
-  using ReserveLogic for DataTypes.ReserveData;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetLogic for DataTypes.PoolAssetData;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
 
-  // Map of reserves and their data (underlyingAssetOfReserve => reserveData)
-  mapping(address => DataTypes.ReserveData) internal _reserves;
+  // Map of pool assets and their data (underlyingAsset => poolAssetData)
+  mapping(address => DataTypes.PoolAssetData) internal _poolAssets;
 
-  // Map of users address and their configuration data (userAddress => userConfiguration)
+  // Map of user addresses and their configuration data (userAddress => userConfiguration)
   mapping(address => DataTypes.UserConfigurationMap) internal _usersConfig;
 
-  // List of reserves as a map (reserveId => reserve).
-  // It is structured as a mapping for gas savings reasons, using the reserve id as index
-  mapping(uint256 => address) internal _reservesList;
+  // List of assets as a map (assetId => assetAddress).
+  // Structured as a mapping for gas savings, using the asset id as index
+  mapping(uint256 => address) internal _assetsList;
 
-  // Maximum number of active reserves there have been in the protocol. It is the upper bound of the reserves list
-  uint16 internal _reservesCount;
+  // Maximum number of active assets in the protocol. Upper bound of the assets list
+  uint16 internal _assetsCount;
 
   // Emergency pause flag - can be toggled by EMERGENCY_ADMIN to halt all protocol operations
   bool internal _paused;
