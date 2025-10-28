@@ -82,7 +82,6 @@ contract UiPoolDataProviderV1 {
     uint8 eModeCategoryId;
     uint256 borrowCap;
     uint256 supplyCap;
-    bool flashLoanEnabled;
     uint256 virtualUnderlyingBalance;
   }
 

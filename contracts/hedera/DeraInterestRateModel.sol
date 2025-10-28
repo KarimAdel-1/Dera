@@ -24,7 +24,7 @@ import {PercentageMath} from '../protocol/libraries/math/PercentageMath.sol';
  * INNOVATIVE FEATURES:
  * 1. **Dynamic Utilization Targets**: Adjust optimal utilization based on market conditions
  * 2. **Volatility-Adjusted Rates**: Higher rates during high volatility periods
- * 3. **Time-Weighted Utilization**: Smooth out flash loan attacks and manipulation
+ * 3. **Time-Weighted Utilization**: Smooth out rapid rate manipulation
  * 4. **Multi-Tier Rate Curves**: Different slopes for different utilization ranges
  * 5. **Asset-Specific Parameters**: Customizable per asset based on risk profile
  *
@@ -217,7 +217,7 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
     uint256 adjustedRate = baseRate.percentMul(volatilityMultiplier);
 
     // Apply time-weighted utilization smoothing
-    // This prevents manipulation via flash loans
+    // This prevents manipulation via rapid rate changes
     uint256 smoothedUtilization = _getTimeWeightedUtilization(currentUtilization);
 
     // Adjust rate based on utilization trend

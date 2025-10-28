@@ -39,12 +39,10 @@ library Errors {
   error CallerNotPoolConfigurator();
   error CallerNotSupplyToken();
   error InvalidAddressesProvider();
-  error InvalidFlashloanExecutorReturn();
   error AssetAlreadyAdded();
   error NoMoreReservesAllowed();
   error EModeCategoryReserved();
   error AssetLiquidityNotZero();
-  error FlashloanPremiumInvalid();
   error InvalidReserveParams();
   error InvalidEmodeCategoryParams();
   error CallerMustBePool();
@@ -65,7 +63,6 @@ library Errors {
   error HealthFactorNotBelowThreshold();
   error CollateralCannotBeLiquidated();
   error SpecifiedCurrencyNotBorrowedByUser();
-  error InconsistentFlashloanParams();
   error BorrowCapExceeded();
   error SupplyCapExceeded();
   error DebtCeilingExceeded();
@@ -101,7 +98,6 @@ library Errors {
   error PoolAddressesDoNotMatch();
   error SiloedBorrowingViolation();
   error AssetDebtNotZero();
-  error FlashloanDisabled();
   error InvalidMaxRate();
   error WithdrawToSupplyToken();
   error SupplyToSupplyToken();
