@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
-import {Address} from "@openzeppelin/contracts/Address.sol";
-import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
@@ -38,7 +38,7 @@ interface IHTS {
 }
 
 library PoolLogic {
-  using GPv2SafeERC20 for IERC20;
+  using SafeERC20 for IERC20;
   using TokenMath for uint256;
   using AssetLogic for DataTypes.PoolAssetData;
   using AssetConfiguration for DataTypes.AssetConfigurationMap;

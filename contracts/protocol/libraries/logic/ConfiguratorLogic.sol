@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IPoolConfigurator} from '../../../interfaces/IPoolConfigurator.sol';
 import {IInitializableDeraSupplyToken} from '../../../interfaces/IInitializableDeraSupplyToken.sol';
-import {IInitializableDebtToken} from '../../../interfaces/IInitializableDebtToken.sol';
+import {IInitializableDeraBorrowToken} from '../../../interfaces/IInitializableDeraBorrowToken.sol';
 import {IReserveInterestRateStrategy} from '../../../interfaces/IReserveInterestRateStrategy.sol';
 import {DataTypes} from '../types/DataTypes.sol';
 import {IERC20} from '../../../interfaces/IERC20.sol';
@@ -61,7 +61,7 @@ library ConfiguratorLogic {
     require(input.underlyingAssetDecimals > 5, 'INVALID_DECIMALS');
 
     address dTokenProxyAddress = _initTokenWithProxy(input.supplyTokenImpl, abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.supplyTokenName, input.supplyTokenSymbol, input.params));
-    address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, abi.encodeWithSelector(IInitializableDebtToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.variableDebtTokenName, input.variableDebtTokenSymbol, input.params));
+    address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, abi.encodeWithSelector(IInitializableDeraBorrowToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.variableDebtTokenName, input.variableDebtTokenSymbol, input.params));
 
     pool.initAsset(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
 
@@ -91,7 +91,7 @@ library ConfiguratorLogic {
     address borrowTokenAddress = pool.getAssetData(input.asset).borrowTokenAddress;
     uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
 
-    bytes memory encodedCall = abi.encodeWithSelector(IInitializableDebtToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
+    bytes memory encodedCall = abi.encodeWithSelector(IInitializableDeraBorrowToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
     _upgradeTokenImplementation(borrowTokenAddress, input.implementation, encodedCall);
 
     emit BorrowTokenUpgraded(input.asset, borrowTokenAddress, input.implementation);

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Context} from "@openzeppelin/contracts/Context.sol";
-import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
-import {IERC20Detailed} from "@openzeppelin/contracts/IERC20Detailed.sol";
-import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {WadRayMath} from '../../libraries/math/WadRayMath.sol';
 import {Errors} from '../../libraries/helpers/Errors.sol';
 import {IPoolAddressesProvider} from '../../../interfaces/IPoolAddressesProvider.sol';
@@ -33,7 +33,7 @@ import {IACLManager} from '../../../interfaces/IACLManager.sol';
  * - Sufficient for most tokens with 18 decimals (~1.33e18 tokens)
  * - High-supply tokens should verify compatibility before deployment
  */
-abstract contract IncentivizedERC20 is Context, IERC20Detailed {
+abstract contract IncentivizedERC20 is Context, IERC20Metadata {
   using WadRayMath for uint256;
   using SafeCast for uint256;
 

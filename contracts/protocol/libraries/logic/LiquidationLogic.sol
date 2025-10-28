@@ -14,7 +14,7 @@ import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
-import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Errors} from '../helpers/Errors.sol';
 
 // HTS precompile interface for native Hedera token operations

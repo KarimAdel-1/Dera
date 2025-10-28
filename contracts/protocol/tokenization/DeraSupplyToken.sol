@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {SafeCast} from "@openzeppelin/contracts/SafeCast.sol";
-import {ECDSA} from "@openzeppelin/contracts/ECDSA.sol";
-import {IERC20} from "@openzeppelin/contracts/IERC20.sol";
-import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IHTS {
   function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
@@ -40,7 +40,7 @@ import {TokenMath} from '../libraries/helpers/TokenMath.sol';
 abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenBase, IDeraSupplyToken {
   using TokenMath for uint256;
   using SafeCast for uint256;
-  using GPv2SafeERC20 for IERC20;
+  using SafeERC20 for IERC20;
 
   IHTS private constant HTS = IHTS(address(0x167));
 

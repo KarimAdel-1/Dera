@@ -10,7 +10,7 @@ module.exports = {
         enabled: true,
         runs: 200,
       },
-      viaIR: false, // Disable IR compilation for compatibility
+      viaIR: false,
     },
   },
   networks: {
