@@ -48,6 +48,20 @@ contract PoolStorage {
   // Emergency pause flag - can be toggled by EMERGENCY_ADMIN to halt all protocol operations
   bool internal _paused;
 
+  // ============ Phase 2: Hedera-Exclusive Integration ============
+
+  // HCS Event Streamer for immutable event logging
+  address public hcsEventStreamer;
+
+  // Node Staking contract for protocol revenue staking
+  address public nodeStakingContract;
+
+  // Mirror Node Analytics for on-chain metrics
+  address public analyticsContract;
+
+  // Dera Interest Rate Model (can be set per-asset or globally)
+  address public defaultInterestRateModel;
+
   function getRevision() external pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }
