@@ -63,7 +63,7 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
   uint256 public immutable BASE_VARIABLE_BORROW_RATE;
   uint256 public immutable VARIABLE_RATE_SLOPE1;
   uint256 public immutable VARIABLE_RATE_SLOPE2;
-  uint256 public immutable ASSET_FACTOR; // Renamed from reserveFactor
+  uint256 public immutable ASSET_FACTOR; // Renamed from assetFactor
 
   // ============ State Variables (Dera-Specific) ============
 
@@ -111,7 +111,7 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
    * @param baseVariableBorrowRate Base borrow rate at 0% utilization
    * @param variableRateSlope1 Rate increase slope when util < optimal
    * @param variableRateSlope2 Rate increase slope when util > optimal
-   * @param assetFactor Percentage of interest going to protocol (renamed from reserveFactor)
+   * @param assetFactor Percentage of interest going to protocol (renamed from assetFactor)
    */
   constructor(
     uint256 optimalUtilizationRate,

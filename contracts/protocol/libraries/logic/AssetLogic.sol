@@ -24,7 +24,7 @@ library AssetLogic {
   using AssetLogic for DataTypes.PoolAssetData;
   using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
-  function getNormalizedIncome(DataTypes.PoolAssetData storage reserve) internal view returns (uint256) {
+  function getNormalizedIncome(DataTypes.PoolAssetData storage asset) internal view returns (uint256) {
     uint40 timestamp = reserve.lastUpdateTimestamp;
     if (timestamp == block.timestamp) {
       return reserve.liquidityIndex;
@@ -33,7 +33,7 @@ library AssetLogic {
     }
   }
 
-  function getNormalizedDebt(DataTypes.PoolAssetData storage reserve) internal view returns (uint256) {
+  function getNormalizedDebt(DataTypes.PoolAssetData storage asset) internal view returns (uint256) {
     uint40 timestamp = reserve.lastUpdateTimestamp;
     if (timestamp == block.timestamp) {
       return reserve.variableBorrowIndex;
@@ -42,7 +42,7 @@ library AssetLogic {
     }
   }
 
-  function updateState(DataTypes.PoolAssetData storage reserve, DataTypes.AssetState memory assetState) internal {
+  function updateState(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState) internal {
     if (assetState.reserveLastUpdateTimestamp == uint40(block.timestamp)) {
       return;
     }
@@ -52,7 +52,7 @@ library AssetLogic {
     assetState.reserveLastUpdateTimestamp = uint40(block.timestamp);
   }
 
-  function init(DataTypes.PoolAssetData storage reserve, address supplyTokenAddress, address borrowTokenAddress) internal {
+  function init(DataTypes.PoolAssetData storage asset, address supplyTokenAddress, address borrowTokenAddress) internal {
     require(reserve.supplyTokenAddress == address(0), Errors.ReserveAlreadyInitialized());
     reserve.liquidityIndex = uint128(WadRayMath.RAY);
     reserve.variableBorrowIndex = uint128(WadRayMath.RAY);
@@ -60,7 +60,7 @@ library AssetLogic {
     reserve.borrowTokenAddress = borrowTokenAddress;
   }
 
-  function updateInterestRatesAndVirtualBalance(DataTypes.PoolAssetData storage reserve, DataTypes.AssetState memory assetState, address reserveAddress, uint256 liquidityAdded, uint256 liquidityTaken, address interestRateStrategyAddress) internal {
+  function updateInterestRatesAndVirtualBalance(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState, address assetAddress, uint256 liquidityAdded, uint256 liquidityTaken, address interestRateStrategyAddress) internal {
     uint256 totalVariableDebt = assetState.nextScaledVariableDebt.getVariableDebtTokenBalance(assetState.nextVariableBorrowIndex);
     (uint256 nextLiquidityRate, uint256 nextVariableRate) = IReserveInterestRateStrategy(interestRateStrategyAddress).calculateInterestRates(
       DataTypes.CalculateInterestRatesParams({
@@ -68,8 +68,8 @@ library AssetLogic {
         liquidityAdded: liquidityAdded,
         liquidityTaken: liquidityTaken,
         totalDebt: totalVariableDebt,
-        reserveFactor: assetState.reserveFactor,
-        reserve: reserveAddress,
+        assetFactor: assetState.assetFactor,
+        reserve: assetAddress,
         usingVirtualBalance: true,
         virtualUnderlyingBalance: reserve.virtualUnderlyingBalance
       })
@@ -82,21 +82,21 @@ library AssetLogic {
     if (liquidityTaken > 0) {
       reserve.virtualUnderlyingBalance -= uint128(liquidityTaken);
     }
-    emit IPool.ReserveDataUpdated(reserveAddress, nextLiquidityRate, 0, nextVariableRate, assetState.nextLiquidityIndex, assetState.nextVariableBorrowIndex);
+    emit IPool.ReserveDataUpdated(assetAddress, nextLiquidityRate, 0, nextVariableRate, assetState.nextLiquidityIndex, assetState.nextVariableBorrowIndex);
   }
 
-  function _accrueToTreasury(DataTypes.PoolAssetData storage reserve, DataTypes.AssetState memory assetState) internal {
-    if (assetState.reserveFactor == 0) {
+  function _accrueToTreasury(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState) internal {
+    if (assetState.assetFactor == 0) {
       return;
     }
     uint256 totalDebtAccrued = assetState.currScaledVariableDebt.rayMulFloor(assetState.nextVariableBorrowIndex - assetState.currVariableBorrowIndex);
-    uint256 amountToMint = totalDebtAccrued.percentMul(assetState.reserveFactor);
+    uint256 amountToMint = totalDebtAccrued.percentMul(assetState.assetFactor);
     if (amountToMint != 0) {
       reserve.accruedToTreasury += uint128(amountToMint.getDTokenMintScaledAmount(assetState.nextLiquidityIndex));
     }
   }
 
-  function _updateIndexes(DataTypes.PoolAssetData storage reserve, DataTypes.AssetState memory assetState) internal {
+  function _updateIndexes(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState) internal {
     if (assetState.currLiquidityRate != 0) {
       uint256 cumulatedLiquidityInterest = MathUtils.calculateLinearInterest(assetState.currLiquidityRate, assetState.reserveLastUpdateTimestamp);
       assetState.nextLiquidityIndex = cumulatedLiquidityInterest.rayMul(assetState.currLiquidityIndex);
@@ -109,10 +109,10 @@ library AssetLogic {
     }
   }
 
-  function cache(DataTypes.PoolAssetData storage reserve) internal view returns (DataTypes.AssetState memory) {
+  function cache(DataTypes.PoolAssetData storage asset) internal view returns (DataTypes.AssetState memory) {
     DataTypes.AssetState memory assetState;
     assetState.reserveConfiguration = reserve.configuration;
-    assetState.reserveFactor = assetState.reserveConfiguration.getAssetFactor();
+    assetState.assetFactor = assetState.reserveConfiguration.getAssetFactor();
     assetState.currLiquidityIndex = assetState.nextLiquidityIndex = reserve.liquidityIndex;
     assetState.currVariableBorrowIndex = assetState.nextVariableBorrowIndex = reserve.variableBorrowIndex;
     assetState.currLiquidityRate = reserve.currentLiquidityRate;

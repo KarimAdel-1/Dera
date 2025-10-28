@@ -17,17 +17,17 @@ import {GenericLogic} from './GenericLogic.sol';
 /**
  * @title PoolLogic library
  * @author Dera Protocol
- * @notice Pool utility functions (reserve init, treasury minting, state sync) on Hedera
- * 
+ * @notice Pool utility functions (asset init, treasury minting, state sync) on Hedera
+ *
  * HEDERA TOOLS USED:
- * - Smart Contract State: Reserve data and configuration stored in contract storage
+ * - Smart Contract State: Pool asset data and configuration stored in contract storage
  * - HTS (Hedera Token Service): Token transfers use HTS precompile (0x167)
- * 
+ *
  * INTEGRATION:
- * - Reserve Init: Initialize new reserve with DToken and VariableDebtToken addresses
+ * - Asset Init: Initialize new pool asset with DeraSupplyToken and DeraBorrowToken addresses
  * - Treasury Minting: Mint accrued fees to treasury (protocol revenue)
- * - State Sync: Update reserve indexes and interest rates
- * - Reserve Management: Drop reserves, reset isolation mode debt
+ * - State Sync: Update asset indexes and interest rates
+ * - Asset Management: Drop assets, reset isolation mode debt
  * 
  * SAFETY:
  * - Validation: Checks reserve not already added, max reserves not exceeded
@@ -50,7 +50,7 @@ library PoolLogic {
   error GracePeriodTooLong();
   error GracePeriodInPast();
 
-  function executeInitReserve(
+  function executeInitAsset(
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     DataTypes.InitPoolAssetParams memory params
@@ -75,13 +75,13 @@ library PoolLogic {
     return true;
   }
 
-  function executeSyncIndexesState(DataTypes.PoolAssetData storage reserve) external {
+  function executeSyncIndexesState(DataTypes.PoolAssetData storage asset) external {
     DataTypes.AssetState memory assetState = reserve.cache();
     reserve.updateState(assetState);
   }
 
   function executeSyncRatesState(
-    DataTypes.PoolAssetData storage reserve,
+    DataTypes.PoolAssetData storage asset,
     address asset,
     address interestRateStrategyAddress
   ) external {
@@ -108,7 +108,7 @@ library PoolLogic {
   ) external {
     for (uint256 i = 0; i < assets.length; i++) {
       address assetAddress = assets[i];
-      DataTypes.PoolAssetData storage reserve = poolAssets[assetAddress];
+      DataTypes.PoolAssetData storage asset = poolAssets[assetAddress];
 
       if (!reserve.configuration.getActive()) {
         continue;
@@ -147,13 +147,13 @@ library PoolLogic {
     emit IPool.LiquidationGracePeriodUpdated(asset, until);
   }
 
-  function executeDropReserve(
+  function executeDropAsset(
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     address asset
   ) external {
-    DataTypes.PoolAssetData storage reserve = poolAssets[asset];
-    ValidationLogic.validateDropReserve(assetsList, reserve, asset);
+    DataTypes.PoolAssetData storage asset = poolAssets[asset];
+    ValidationLogic.validateDropAsset(assetsList, reserve, asset);
     assetsList[poolAssets[asset].id] = address(0);
     delete poolAssets[asset];
   }

@@ -77,14 +77,14 @@ library LiquidationLogic {
   ) external {
     LiquidationCallLocalVars memory vars;
 
-    DataTypes.PoolAssetData storage collateralReserve = poolAssets[params.collateralAsset];
-    DataTypes.PoolAssetData storage debtReserve = poolAssets[params.debtAsset];
+    DataTypes.PoolAssetData storage collateralAsset = poolAssets[params.collateralAsset];
+    DataTypes.PoolAssetData storage debtAsset = poolAssets[params.debtAsset];
     DataTypes.UserConfigurationMap storage borrowerConfig = usersConfig[params.borrower];
     
-    vars.debtReserveCache = debtReserve.cache();
-    vars.collateralReserveCache = collateralReserve.cache();
-    debtReserve.updateState(vars.debtReserveCache);
-    collateralReserve.updateState(vars.collateralReserveCache);
+    vars.debtReserveCache = debtAsset.cache();
+    vars.collateralReserveCache = collateralAsset.cache();
+    debtAsset.updateState(vars.debtReserveCache);
+    collateralAsset.updateState(vars.collateralReserveCache);
 
     (
       vars.totalCollateralInBaseCurrency,
@@ -112,8 +112,8 @@ library LiquidationLogic {
 
     ValidationLogic.validateLiquidationCall(
       borrowerConfig,
-      collateralReserve,
-      debtReserve,
+      collateralAsset,
+      debtAsset,
       DataTypes.ValidateLiquidationCallParams({
         debtReserveCache: vars.debtReserveCache,
         totalDebt: vars.borrowerReserveDebt,
@@ -193,14 +193,14 @@ library LiquidationLogic {
     }
 
     if (vars.actualCollateralToLiquidate + vars.liquidationProtocolFeeAmount == vars.borrowerCollateralBalance) {
-      borrowerConfig.setUsingAsCollateral(collateralReserve.id, params.collateralAsset, params.borrower, false);
+      borrowerConfig.setUsingAsCollateral(collateralAsset.id, params.collateralAsset, params.borrower, false);
     }
 
     bool hasNoCollateralLeft = vars.totalCollateralInBaseCurrency == vars.collateralToLiquidateInBaseCurrency;
     
     _burnDebtTokens(
       vars.debtReserveCache,
-      debtReserve,
+      debtAsset,
       borrowerConfig,
       params.borrower,
       params.debtAsset,
@@ -211,12 +211,12 @@ library LiquidationLogic {
     );
 
     if (params.receiveSupplyToken) {
-      _liquidateDTokens(poolAssets, assetsList, usersConfig, collateralReserve, params, vars);
+      _liquidateDTokens(poolAssets, assetsList, usersConfig, collateralAsset, params, vars);
     } else {
       if (params.collateralAsset == params.debtAsset) {
         vars.collateralReserveCache.nextScaledVariableDebt = vars.debtReserveCache.nextScaledVariableDebt;
       }
-      _burnCollateralDTokens(collateralReserve, params, vars);
+      _burnCollateralDTokens(collateralAsset, params, vars);
     }
 
     if (vars.liquidationProtocolFeeAmount != 0) {
@@ -266,11 +266,11 @@ library LiquidationLogic {
   }
 
   function _burnCollateralDTokens(
-    DataTypes.PoolAssetData storage collateralReserve,
+    DataTypes.PoolAssetData storage collateralAsset,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
-    collateralReserve.updateInterestRatesAndVirtualBalance(
+    collateralAsset.updateInterestRatesAndVirtualBalance(
       vars.collateralReserveCache,
       params.collateralAsset,
       0,
@@ -293,7 +293,7 @@ library LiquidationLogic {
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    DataTypes.PoolAssetData storage collateralReserve,
+    DataTypes.PoolAssetData storage collateralAsset,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
@@ -321,14 +321,14 @@ library LiquidationLogic {
           vars.collateralReserveCache.supplyTokenAddress
         )
       ) {
-        liquidatorConfig.setUsingAsCollateral(collateralReserve.id, params.collateralAsset, params.liquidator, true);
+        liquidatorConfig.setUsingAsCollateral(collateralAsset.id, params.collateralAsset, params.liquidator, true);
       }
     }
   }
 
   function _burnDebtTokens(
     DataTypes.AssetState memory debtReserveCache,
-    DataTypes.PoolAssetData storage debtReserve,
+    DataTypes.PoolAssetData storage debtAsset,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     address borrower,
     address debtAsset,
@@ -353,15 +353,15 @@ library LiquidationLogic {
 
     uint256 outstandingDebt = borrowerReserveDebt - actualDebtToLiquidate;
     if (hasNoCollateralLeft && outstandingDebt != 0) {
-      debtReserve.deficit += outstandingDebt.toUint128();
+      debtAsset.deficit += outstandingDebt.toUint128();
       emit IPool.DeficitCreated(borrower, debtAsset, outstandingDebt);
     }
 
     if (noMoreDebt) {
-      borrowerConfig.setBorrowing(debtReserve.id, false);
+      borrowerConfig.setBorrowing(debtAsset.id, false);
     }
 
-    debtReserve.updateInterestRatesAndVirtualBalance(
+    debtAsset.updateInterestRatesAndVirtualBalance(
       debtReserveCache,
       debtAsset,
       actualDebtToLiquidate,
@@ -439,18 +439,18 @@ library LiquidationLogic {
     while (cachedBorrowerConfig != 0) {
       (cachedBorrowerConfig, isBorrowed, ) = UserConfiguration.getNextFlags(cachedBorrowerConfig);
       if (isBorrowed) {
-        address reserveAddress = assetsList[i];
-        if (reserveAddress != address(0)) {
-          DataTypes.AssetState memory assetState = poolAssets[reserveAddress].cache();
+        address assetAddress = assetsList[i];
+        if (assetAddress != address(0)) {
+          DataTypes.AssetState memory assetState = poolAssets[assetAddress].cache();
           if (assetState.reserveConfiguration.getActive()) {
-            poolAssets[reserveAddress].updateState(assetState);
+            poolAssets[assetAddress].updateState(assetState);
 
             _burnDebtTokens(
               assetState,
-              poolAssets[reserveAddress],
+              poolAssets[assetAddress],
               borrowerConfig,
               params.borrower,
-              reserveAddress,
+              assetAddress,
               IDeraBorrowToken(assetState.borrowTokenAddress)
                 .scaledBalanceOf(params.borrower)
                 .getVariableDebtTokenBalance(assetState.nextVariableBorrowIndex),

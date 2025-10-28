@@ -145,12 +145,12 @@ contract LiquidationDataProvider {
     IDeraOracle oracle,
     address user
   ) internal view returns (address bestAsset, uint256 bestAmount) {
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     uint256 maxValue = 0;
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.PoolAssetData memory reserve = pool.getReserveData(asset);
+      DataTypes.PoolAssetData memory reserve = pool.getAssetData(asset);
       
       uint256 balance = IDeraSupplyToken(reserve.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
@@ -175,12 +175,12 @@ contract LiquidationDataProvider {
     IDeraOracle oracle,
     address user
   ) internal view returns (address largestAsset, uint256 largestAmount) {
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     uint256 maxValue = 0;
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address asset = reserves[i];
-      DataTypes.PoolAssetData memory reserve = pool.getReserveData(asset);
+      DataTypes.PoolAssetData memory reserve = pool.getAssetData(asset);
       
       uint256 debt = IDeraBorrowToken(reserve.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {

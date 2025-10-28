@@ -86,7 +86,7 @@ contract WalletBalanceProvider {
   ) external view returns (address[] memory, uint256[] memory) {
     IPool pool = IPool(IPoolAddressesProvider(provider).getPool());
 
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     address[] memory reservesWithHbar = new address[](reserves.length + 1);
     
     for (uint256 i = 0; i < reserves.length; i++) {

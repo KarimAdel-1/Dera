@@ -18,7 +18,7 @@ interface IPoolConfigurator {
   event ReserveFrozen(address indexed asset, bool frozen);
   event ReservePaused(address indexed asset, bool paused);
   event ReserveDropped(address indexed asset);
-  event ReserveFactorChanged(address indexed asset, uint256 oldReserveFactor, uint256 newReserveFactor);
+  event ReserveFactorChanged(address indexed asset, uint256 oldReserveFactor, uint256 newAssetFactor);
   event BorrowCapChanged(address indexed asset, uint256 oldBorrowCap, uint256 newBorrowCap);
   event SupplyCapChanged(address indexed asset, uint256 oldSupplyCap, uint256 newSupplyCap);
   event LiquidationProtocolFeeChanged(address indexed asset, uint256 oldFee, uint256 newFee);
@@ -37,20 +37,20 @@ interface IPoolConfigurator {
 
   event BorrowableInIsolationChanged(address asset, bool borrowable);
 
-  function initReserves(ConfiguratorInputTypes.InitReserveInput[] calldata input) external;
+  function initAssets(ConfiguratorInputTypes.InitAssetInput[] calldata input) external;
   function updateDToken(ConfiguratorInputTypes.UpdateDTokenInput calldata input) external;
   function updateVariableDebtToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external;
-  function setReserveBorrowing(address asset, bool enabled) external;
-  function configureReserveAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external;
+  function setAssetBorrowing(address asset, bool enabled) external;
+  function configureAssetAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external;
 
-  function setReserveActive(address asset, bool active) external;
-  function setReserveFreeze(address asset, bool freeze) external;
+  function setAssetActive(address asset, bool active) external;
+  function setAssetFreeze(address asset, bool freeze) external;
   function setBorrowableInIsolation(address asset, bool borrowable) external;
-  function setReservePause(address asset, bool paused, uint40 gracePeriod) external;
-  function setReservePause(address asset, bool paused) external;
+  function setAssetPause(address asset, bool paused, uint40 gracePeriod) external;
+  function setAssetPause(address asset, bool paused) external;
   function disableLiquidationGracePeriod(address asset) external;
-  function setAssetFactor(address asset, uint256 newReserveFactor) external;
-  function setReserveInterestRateData(address asset, bytes calldata rateData) external;
+  function setAssetFactor(address asset, uint256 newAssetFactor) external;
+  function setAssetInterestRateData(address asset, bytes calldata rateData) external;
   function setPoolPause(bool paused, uint40 gracePeriod) external;
   function setPoolPause(bool paused) external;
   function setBorrowCap(address asset, uint256 newBorrowCap) external;
@@ -59,7 +59,7 @@ interface IPoolConfigurator {
   function setAssetBorrowableInEMode(address asset, uint8 categoryId, bool borrowable) external;
   function setAssetCollateralInEMode(address asset, uint8 categoryId, bool collateral) external;
   function setEModeCategory(uint8 categoryId, uint16 ltv, uint16 liquidationThreshold, uint16 liquidationBonus, string calldata label) external;
-  function dropReserve(address asset) external;
+  function dropAsset(address asset) external;
 
   function setDebtCeiling(address asset, uint256 newDebtCeiling) external;
   function setSiloedBorrowing(address asset, bool siloed) external;

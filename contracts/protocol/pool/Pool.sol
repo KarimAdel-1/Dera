@@ -274,8 +274,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     );
   }
 
-  function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) public virtual override nonReentrant {
-    SupplyLogic.executeUseReserveAsCollateral(
+  function setUserUseAssetAsCollateral(address asset, bool useAsCollateral) public virtual override nonReentrant {
+    SupplyLogic.executeUseAssetAsCollateral(
       _poolAssets,
       _assetsList,
       _usersConfig[_msgSender()],
@@ -326,8 +326,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     );
   }
 
-  function getReserveData(address asset) external view virtual override returns (DataTypes.ReserveDataLegacy memory res) {
-    DataTypes.PoolAssetData storage reserve = _poolAssets[asset];
+  function getAssetData(address asset) external view virtual override returns (DataTypes.AssetDataLegacy memory res) {
+    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
     res.configuration = reserve.configuration;
     res.liquidityIndex = reserve.liquidityIndex;
     res.currentLiquidityRate = reserve.currentLiquidityRate;
@@ -349,15 +349,15 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return _usersConfig[user];
   }
 
-  function getReserveNormalizedIncome(address asset) external view virtual override returns (uint256) {
+  function getAssetNormalizedIncome(address asset) external view virtual override returns (uint256) {
     return _poolAssets[asset].getNormalizedIncome();
   }
 
-  function getReserveNormalizedVariableDebt(address asset) external view virtual override returns (uint256) {
+  function getAssetNormalizedVariableDebt(address asset) external view virtual override returns (uint256) {
     return _poolAssets[asset].getNormalizedDebt();
   }
 
-  function getReservesList() external view virtual override returns (address[] memory) {
+  function getAssetsList() external view virtual override returns (address[] memory) {
     uint256 reservesListCount = _assetsCount;
     uint256 droppedReservesCount = 0;
     address[] memory assetsList = new address[](reservesListCount);
@@ -378,8 +378,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return assetsList;
   }
 
-  function initReserve(address asset, address supplyTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
-    if (PoolLogic.executeInitReserve(_poolAssets, _assetsList, DataTypes.InitPoolAssetParams({
+  function initAsset(address asset, address supplyTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
+    if (PoolLogic.executeInitAsset(_poolAssets, _assetsList, DataTypes.InitPoolAssetParams({
       asset: asset,
       supplyTokenAddress: supplyTokenAddress,
       variableDebtAddress: variableDebtAddress,
@@ -396,8 +396,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     _poolAssets[asset].configuration = configuration;
   }
 
-  function dropReserve(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeDropReserve(_poolAssets, _assetsList, asset);
+  function dropAsset(address asset) external virtual override onlyPoolConfigurator {
+    PoolLogic.executeDropAsset(_poolAssets, _assetsList, asset);
   }
 
   function syncIndexesState(address asset) external virtual override onlyPoolConfigurator {
@@ -441,11 +441,11 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     );
   }
 
-  function getReserveDToken(address asset) external view virtual returns (address) {
+  function getAssetSupplyToken(address asset) external view virtual returns (address) {
     return _poolAssets[asset].supplyTokenAddress;
   }
 
-  function getReserveVariableDebtToken(address asset) external view virtual returns (address) {
+  function getAssetBorrowToken(address asset) external view virtual returns (address) {
     return _poolAssets[asset].borrowTokenAddress;
   }
 
@@ -453,15 +453,15 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return _poolAssets[asset].virtualUnderlyingBalance;
   }
 
-  function getReservesCount() external view virtual override returns (uint256) {
+  function getAssetsCount() external view virtual override returns (uint256) {
     return _assetsCount;
   }
 
-  function getReserveAddressById(uint16 id) external view returns (address) {
+  function getAssetAddressById(uint16 id) external view returns (address) {
     return _assetsList[id];
   }
 
-  function getReserveDeficit(address asset) external view virtual returns (uint256) {
+  function getAssetDeficit(address asset) external view virtual returns (uint256) {
     return _poolAssets[asset].deficit;
   }
 
@@ -471,8 +471,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param asset The address of the reserve with deficit
    * @param amount Amount of deficit to cover
    */
-  function coverReserveDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
-    DataTypes.PoolAssetData storage reserve = _poolAssets[asset];
+  function coverAssetDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
+    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
     require(reserve.deficit > 0, Errors.NoDebtToCover());
     require(amount <= reserve.deficit, Errors.AmountExceedsDeficit());
 

@@ -169,7 +169,7 @@ library GenericLogic {
 
   function _getUserBalanceInBaseCurrency(
     address user,
-    DataTypes.PoolAssetData storage reserve,
+    DataTypes.PoolAssetData storage asset,
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
@@ -183,7 +183,7 @@ library GenericLogic {
 
   function _getUserDebtInBaseCurrency(
     address user,
-    DataTypes.PoolAssetData storage reserve,
+    DataTypes.PoolAssetData storage asset,
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {

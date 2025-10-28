@@ -33,7 +33,7 @@ import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
  * 
  * INTEGRATION:
  * - Mirror Node API: GET /api/v1/contracts/{contractId}/state for cached data
- * - Hedera SDK: ContractCallQuery for getReservesData() and getUserReservesData()
+ * - Hedera SDK: ContractCallQuery for getAssetsData() and getUserAssetsData()
  * - HTS: Token info retrieved via native Hedera token properties
  * - Frontend caching: Use Mirror Nodes for historical data, SDK for real-time updates
  */
@@ -50,7 +50,7 @@ contract UiPoolDataProviderV1 {
     uint256 baseLTVasCollateral;
     uint256 reserveLiquidationThreshold;
     uint256 reserveLiquidationBonus;
-    uint256 reserveFactor;
+    uint256 assetFactor;
     bool usageAsCollateralEnabled;
     bool borrowingEnabled;
     bool isActive;
@@ -105,11 +105,11 @@ contract UiPoolDataProviderV1 {
    * @param provider PoolAddressesProvider address
    * @return Array of reserve addresses
    */
-  function getReservesList(
+  function getAssetsList(
     IPoolAddressesProvider provider
   ) external view returns (address[] memory) {
     IPool pool = IPool(provider.getPool());
-    return pool.getReservesList();
+    return pool.getAssetsList();
   }
 
   /**
@@ -120,14 +120,14 @@ contract UiPoolDataProviderV1 {
    * @dev PERFORMANCE: Single call gets ALL pool data
    * @dev Uses Pyth oracle for prices (decentralized)
    */
-  function getReservesData(
+  function getAssetsData(
     IPoolAddressesProvider provider
   ) external view returns (AggregatedReserveData[] memory, BaseCurrencyInfo memory) {
     IDeraOracle oracle = IDeraOracle(provider.getPriceOracle());
     IPool pool = IPool(provider.getPool());
     IHTS hts = IHTS(address(0x167)); // HTS precompile address
 
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     AggregatedReserveData[] memory poolAssets = new AggregatedReserveData[](reserves.length);
 
     for (uint256 i = 0; i < reserves.length; i++) {
@@ -135,7 +135,7 @@ contract UiPoolDataProviderV1 {
       reserveData.underlyingAsset = reserves[i];
 
       // Reserve current state
-      DataTypes.PoolAssetData memory baseData = pool.getReserveData(reserveData.underlyingAsset);
+      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserveData.underlyingAsset);
       
       reserveData.liquidityIndex = baseData.liquidityIndex;
       reserveData.variableBorrowIndex = baseData.variableBorrowIndex;
@@ -174,7 +174,7 @@ contract UiPoolDataProviderV1 {
         reserveData.reserveLiquidationThreshold,
         reserveData.reserveLiquidationBonus,
         tempDecimals,
-        reserveData.reserveFactor
+        reserveData.assetFactor
       ) = reserveConfigurationMap.getParams();
       reserveData.usageAsCollateralEnabled = reserveData.baseLTVasCollateral != 0;
 
@@ -238,12 +238,12 @@ contract UiPoolDataProviderV1 {
    * @return userReservesData Array of user reserve data
    * @return userEmodeCategoryId User's eMode category
    */
-  function getUserReservesData(
+  function getUserAssetsData(
     IPoolAddressesProvider provider,
     address user
   ) external view returns (UserReserveData[] memory, uint8) {
     IPool pool = IPool(provider.getPool());
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     DataTypes.UserConfigurationMap memory userConfig = pool.getUserConfiguration(user);
 
     uint8 userEmodeCategoryId = uint8(pool.getUserEMode(user));
@@ -253,7 +253,7 @@ contract UiPoolDataProviderV1 {
     );
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      DataTypes.PoolAssetData memory baseData = pool.getReserveData(reserves[i]);
+      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
       userReservesData[i].scaledDTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(

@@ -17,10 +17,10 @@ library UserConfiguration {
   uint256 internal constant BORROWING_MASK = 0x5555555555555555555555555555555555555555555555555555555555555555;
   uint256 internal constant COLLATERAL_MASK = 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;
 
-  function setBorrowing(DataTypes.UserConfigurationMap storage self, uint256 reserveIndex, bool borrowing) internal {
+  function setBorrowing(DataTypes.UserConfigurationMap storage self, uint256 assetIndex, bool borrowing) internal {
     unchecked {
-      require(reserveIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
-      uint256 bit = 1 << (reserveIndex << 1);
+      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      uint256 bit = 1 << (assetIndex << 1);
       if (borrowing) {
         self.data |= bit;
       } else {
@@ -29,10 +29,10 @@ library UserConfiguration {
     }
   }
 
-  function setUsingAsCollateral(DataTypes.UserConfigurationMap storage self, uint256 reserveIndex, address asset, address user, bool usingAsCollateral) internal {
+  function setUsingAsCollateral(DataTypes.UserConfigurationMap storage self, uint256 assetIndex, address asset, address user, bool usingAsCollateral) internal {
     unchecked {
-      require(reserveIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
-      uint256 bit = 1 << ((reserveIndex << 1) + 1);
+      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      uint256 bit = 1 << ((assetIndex << 1) + 1);
       if (usingAsCollateral) {
         self.data |= bit;
         emit IPool.ReserveUsedAsCollateralEnabled(asset, user);
@@ -43,24 +43,24 @@ library UserConfiguration {
     }
   }
 
-  function isUsingAsCollateralOrBorrowing(DataTypes.UserConfigurationMap memory self, uint256 reserveIndex) internal pure returns (bool) {
+  function isUsingAsCollateralOrBorrowing(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(reserveIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
-      return (self.data >> (reserveIndex << 1)) & 3 != 0;
+      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      return (self.data >> (assetIndex << 1)) & 3 != 0;
     }
   }
 
-  function isBorrowing(DataTypes.UserConfigurationMap memory self, uint256 reserveIndex) internal pure returns (bool) {
+  function isBorrowing(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(reserveIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
-      return (self.data >> (reserveIndex << 1)) & 1 != 0;
+      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      return (self.data >> (assetIndex << 1)) & 1 != 0;
     }
   }
 
-  function isUsingAsCollateral(DataTypes.UserConfigurationMap memory self, uint256 reserveIndex) internal pure returns (bool) {
+  function isUsingAsCollateral(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(reserveIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
-      return (self.data >> ((reserveIndex << 1) + 1)) & 1 != 0;
+      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      return (self.data >> ((assetIndex << 1) + 1)) & 1 != 0;
     }
   }
 

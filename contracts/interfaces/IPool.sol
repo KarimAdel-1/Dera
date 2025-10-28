@@ -35,25 +35,25 @@ interface IPool {
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256);
   function repayWithPermit(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS) external returns (uint256);
   function repayWithDTokens(address asset, uint256 amount, uint256 interestRateMode) external returns (uint256);
-  function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external;
+  function setUserUseAssetAsCollateral(address asset, bool useAsCollateral) external;
   function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) external;
 
   function getUserAccountData(address user) external view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor);
-  function initReserve(address asset, address supplyTokenAddress, address variableDebtAddress) external;
-  function dropReserve(address asset) external;
+  function initAsset(address asset, address supplyTokenAddress, address variableDebtAddress) external;
+  function dropAsset(address asset) external;
   function syncIndexesState(address asset) external;
   function syncRatesState(address asset) external;
   function setConfiguration(address asset, DataTypes.AssetConfigurationMap calldata configuration) external;
   function getConfiguration(address asset) external view returns (DataTypes.AssetConfigurationMap memory);
   function getUserConfiguration(address user) external view returns (DataTypes.UserConfigurationMap memory);
-  function getReserveNormalizedIncome(address asset) external view returns (uint256);
-  function getReserveNormalizedVariableDebt(address asset) external view returns (uint256);
-  function getReserveData(address asset) external view returns (DataTypes.ReserveDataLegacy memory);
+  function getAssetNormalizedIncome(address asset) external view returns (uint256);
+  function getAssetNormalizedVariableDebt(address asset) external view returns (uint256);
+  function getAssetData(address asset) external view returns (DataTypes.AssetDataLegacy memory);
   function getVirtualUnderlyingBalance(address asset) external view returns (uint128);
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external;
-  function getReservesList() external view returns (address[] memory);
-  function getReservesCount() external view returns (uint256);
-  function getReserveAddressById(uint16 id) external view returns (address);
+  function getAssetsList() external view returns (address[] memory);
+  function getAssetsCount() external view returns (uint256);
+  function getAssetAddressById(uint16 id) external view returns (address);
   function ADDRESSES_PROVIDER() external view returns (IPoolAddressesProvider);
   function RESERVE_INTEREST_RATE_STRATEGY() external view returns (address);
 
@@ -75,15 +75,15 @@ interface IPool {
   function mintToTreasury(address[] calldata assets) external;
   function rescueTokens(address token, address to, uint256 amount) external;
   function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-  function eliminateReserveDeficit(address asset, uint256 amount) external returns (uint256);
+  function eliminateAssetDeficit(address asset, uint256 amount) external returns (uint256);
   function approvePositionManager(address positionManager, bool approve) external;
   function renouncePositionManagerRole(address user) external;
-  function setUserUseReserveAsCollateralOnBehalfOf(address asset, bool useAsCollateral, address onBehalfOf) external;
+  function setUserUseAssetAsCollateralOnBehalfOf(address asset, bool useAsCollateral, address onBehalfOf) external;
   function setUserEModeOnBehalfOf(uint8 categoryId, address onBehalfOf) external;
   function isApprovedPositionManager(address user, address positionManager) external view returns (bool);
-  function getReserveDeficit(address asset) external view returns (uint256);
-  function getReserveDToken(address asset) external view returns (address);
-  function getReserveVariableDebtToken(address asset) external view returns (address);
+  function getAssetDeficit(address asset) external view returns (uint256);
+  function getAssetSupplyToken(address asset) external view returns (address);
+  function getAssetBorrowToken(address asset) external view returns (address);
 
   function getBorrowLogic() external pure returns (address);
   function getEModeLogic() external pure returns (address);

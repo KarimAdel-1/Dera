@@ -42,7 +42,7 @@ library SupplyLogic {
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteSupplyParams memory params
   ) external {
-    DataTypes.PoolAssetData storage reserve = poolAssets[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
     DataTypes.AssetState memory assetState = reserve.cache();
 
     reserve.updateState(assetState);
@@ -94,7 +94,7 @@ library SupplyLogic {
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteWithdrawParams memory params
   ) external returns (uint256) {
-    DataTypes.PoolAssetData storage reserve = poolAssets[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
     DataTypes.AssetState memory assetState = reserve.cache();
 
     require(params.to != assetState.supplyTokenAddress, Errors.WithdrawToDToken());
@@ -161,7 +161,7 @@ library SupplyLogic {
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
     DataTypes.FinalizeTransferParams memory params
   ) external {
-    DataTypes.PoolAssetData storage reserve = poolAssets[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
 
     ValidationLogic.validateTransfer(reserve);
 
@@ -206,7 +206,7 @@ library SupplyLogic {
     }
   }
 
-  function executeUseReserveAsCollateral(
+  function executeUseAssetAsCollateral(
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     
@@ -217,10 +217,10 @@ library SupplyLogic {
     address priceOracle,
     uint8 
   ) external {
-    DataTypes.PoolAssetData storage reserve = poolAssets[asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[asset];
     DataTypes.AssetConfigurationMap memory reserveConfigCached = reserve.configuration;
 
-    ValidationLogic.validateSetUseReserveAsCollateral(reserveConfigCached);
+    ValidationLogic.validateSetUseAssetAsCollateral(reserveConfigCached);
 
     if (useAsCollateral == userConfig.isUsingAsCollateral(reserve.id)) return;
 

@@ -142,9 +142,9 @@ library AssetConfiguration {
     return (self.data & BORROWING_MASK) != 0;
   }
 
-  function setAssetFactor(DataTypes.AssetConfigurationMap memory self, uint256 reserveFactor) internal pure {
-    require(reserveFactor <= MAX_VALID_RESERVE_FACTOR, Errors.InvalidReserveFactor());
-    self.data = (self.data & ~ASSET_FACTOR_MASK) | (reserveFactor << RESERVE_FACTOR_START_BIT_POSITION);
+  function setAssetFactor(DataTypes.AssetConfigurationMap memory self, uint256 assetFactor) internal pure {
+    require(assetFactor <= MAX_VALID_RESERVE_FACTOR, Errors.InvalidReserveFactor());
+    self.data = (self.data & ~ASSET_FACTOR_MASK) | (assetFactor << RESERVE_FACTOR_START_BIT_POSITION);
   }
 
   function getAssetFactor(DataTypes.AssetConfigurationMap memory self) internal pure returns (uint256) {

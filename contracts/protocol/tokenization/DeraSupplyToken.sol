@@ -112,11 +112,11 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function balanceOf(address user) public view virtual override(IncentivizedERC20, IERC20) returns (uint256) {
-    return super.balanceOf(user).getDTokenBalance(POOL.getReserveNormalizedIncome(_underlyingAsset));
+    return super.balanceOf(user).getDTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
   }
 
   function totalSupply() public view virtual override(IncentivizedERC20, IERC20) returns (uint256) {
-    return super.totalSupply().getDTokenBalance(POOL.getReserveNormalizedIncome(_underlyingAsset));
+    return super.totalSupply().getDTokenBalance(POOL.getAssetNormalizedIncome(_underlyingAsset));
   }
 
   function RESERVE_TREASURY_ADDRESS() external view override returns (address) {
@@ -143,7 +143,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function transferFrom(address sender, address recipient, uint256 amount) external virtual override(IERC20, IncentivizedERC20) returns (bool) {
-    uint256 index = POOL.getReserveNormalizedIncome(_underlyingAsset);
+    uint256 index = POOL.getAssetNormalizedIncome(_underlyingAsset);
     uint256 scaledBalanceOfSender = super.balanceOf(sender);
     _spendAllowance(sender, _msgSender(), amount, scaledBalanceOfSender.getDTokenBalance(index) - (scaledBalanceOfSender - amount.getDTokenTransferScaledAmount(index)).getDTokenBalance(index));
     _transfer(sender, recipient, amount.toUint120());
@@ -151,7 +151,7 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function _transfer(address from, address to, uint120 amount) internal virtual override {
-    uint256 index = POOL.getReserveNormalizedIncome(_underlyingAsset);
+    uint256 index = POOL.getAssetNormalizedIncome(_underlyingAsset);
     uint256 scaledBalanceFromBefore = super.balanceOf(from);
     uint256 scaledBalanceToBefore = super.balanceOf(to);
     uint256 scaledAmount = uint256(amount).getDTokenTransferScaledAmount(index);

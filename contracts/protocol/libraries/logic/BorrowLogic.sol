@@ -40,7 +40,7 @@ library BorrowLogic {
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteBorrowParams memory params
   ) external {
-    DataTypes.PoolAssetData storage reserve = poolAssets[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
     DataTypes.AssetState memory assetState = reserve.cache();
 
     reserve.updateState(assetState);
@@ -112,7 +112,7 @@ library BorrowLogic {
     DataTypes.UserConfigurationMap storage onBehalfOfConfig,
     DataTypes.ExecuteRepayParams memory params
   ) external returns (uint256) {
-    DataTypes.PoolAssetData storage reserve = poolAssets[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
     DataTypes.AssetState memory assetState = reserve.cache();
     reserve.updateState(assetState);
 

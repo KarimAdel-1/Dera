@@ -30,7 +30,7 @@ library ValidationLogic {
   uint256 public constant HEALTH_FACTOR_LIQUIDATION_THRESHOLD = 1e18;
   bytes32 public constant ISOLATED_COLLATERAL_SUPPLIER_ROLE = keccak256('ISOLATED_COLLATERAL_SUPPLIER');
 
-  function validateSupply(DataTypes.AssetState memory assetState, DataTypes.PoolAssetData storage reserve, uint256 scaledAmount, address onBehalfOf) internal view {
+  function validateSupply(DataTypes.AssetState memory assetState, DataTypes.PoolAssetData storage asset, uint256 scaledAmount, address onBehalfOf) internal view {
     require(scaledAmount != 0, Errors.InvalidAmount());
     (bool isActive, bool isFrozen, , bool isPaused) = assetState.reserveConfiguration.getFlags();
     require(isActive, Errors.ReserveInactive());
@@ -93,15 +93,15 @@ library ValidationLogic {
     require(debtScaled != 0, Errors.NoDebtOfSelectedType());
   }
 
-  function validateSetUseReserveAsCollateral(DataTypes.AssetConfigurationMap memory reserveConfig) internal pure {
-    (bool isActive, , , bool isPaused) = reserveConfig.getFlags();
+  function validateSetUseAssetAsCollateral(DataTypes.AssetConfigurationMap memory assetConfig) internal pure {
+    (bool isActive, , , bool isPaused) = assetConfig.getFlags();
     require(isActive, Errors.ReserveInactive());
     require(!isPaused, Errors.ReservePaused());
   }
 
-  function validateLiquidationCall(DataTypes.UserConfigurationMap storage borrowerConfig, DataTypes.PoolAssetData storage collateralReserve, DataTypes.PoolAssetData storage debtReserve, DataTypes.ValidateLiquidationCallParams memory params) internal view {
+  function validateLiquidationCall(DataTypes.UserConfigurationMap storage borrowerConfig, DataTypes.PoolAssetData storage collateralAsset, DataTypes.PoolAssetData storage debtAsset, DataTypes.ValidateLiquidationCallParams memory params) internal view {
     require(params.borrower != params.liquidator, Errors.SelfLiquidation());
-    (bool collateralReserveActive, , , bool collateralReservePaused) = collateralReserve.configuration.getFlags();
+    (bool collateralReserveActive, , , bool collateralReservePaused) = collateralAsset.configuration.getFlags();
     (bool principalReserveActive, , , bool principalReservePaused) = params.debtReserveCache.reserveConfiguration.getFlags();
     require(collateralReserveActive && principalReserveActive, Errors.ReserveInactive());
     require(!collateralReservePaused && !principalReservePaused, Errors.ReservePaused());
@@ -109,9 +109,9 @@ library ValidationLogic {
       params.priceOracleSentinel == address(0) || params.healthFactor < MINIMUM_HEALTH_FACTOR_LIQUIDATION_THRESHOLD || IPriceOracleSentinel(params.priceOracleSentinel).isLiquidationAllowed(),
       Errors.PriceOracleSentinelCheckFailed()
     );
-    require(collateralReserve.liquidationGracePeriodUntil < uint40(block.timestamp) && debtReserve.liquidationGracePeriodUntil < uint40(block.timestamp), Errors.LiquidationGraceSentinelCheckFailed());
+    require(collateralAsset.liquidationGracePeriodUntil < uint40(block.timestamp) && debtAsset.liquidationGracePeriodUntil < uint40(block.timestamp), Errors.LiquidationGraceSentinelCheckFailed());
     require(params.healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorNotBelowThreshold());
-    bool isCollateralEnabled = collateralReserve.configuration.getLiquidationThreshold() != 0 && borrowerConfig.isUsingAsCollateral(collateralReserve.id);
+    bool isCollateralEnabled = collateralAsset.configuration.getLiquidationThreshold() != 0 && borrowerConfig.isUsingAsCollateral(collateralAsset.id);
     require(isCollateralEnabled, Errors.CollateralCannotBeLiquidated());
     require(params.totalDebt != 0, Errors.SpecifiedCurrencyNotBorrowedByUser());
   }
@@ -161,11 +161,11 @@ library ValidationLogic {
     require(!hasZeroLtvCollateral || poolAssets[asset].configuration.getLtv() == 0, Errors.LtvValidationFailed());
   }
 
-  function validateTransfer(DataTypes.PoolAssetData storage reserve) internal view {
+  function validateTransfer(DataTypes.PoolAssetData storage asset) internal view {
     require(!reserve.configuration.getPaused(), Errors.ReservePaused());
   }
 
-  function validateDropReserve(mapping(uint256 => address) storage assetsList, DataTypes.PoolAssetData storage reserve, address asset) internal view {
+  function validateDropAsset(mapping(uint256 => address) storage assetsList, DataTypes.PoolAssetData storage asset, address asset) internal view {
     require(asset != address(0), Errors.ZeroAddressNotValid());
     require(reserve.id != 0 || assetsList[0] == asset, Errors.AssetNotListed());
   }
@@ -174,16 +174,16 @@ library ValidationLogic {
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage userConfig,
-    DataTypes.AssetConfigurationMap memory reserveConfig
+    DataTypes.AssetConfigurationMap memory assetConfig
   ) internal view returns (bool) {
-    if (reserveConfig.getLtv() == 0) {
+    if (assetConfig.getLtv() == 0) {
       return false;
     }
     if (!userConfig.isUsingAsCollateralAny()) {
       return true;
     }
     (bool isolationModeActive, , ) = userConfig.getIsolationModeState(poolAssets, assetsList);
-    return (!isolationModeActive && reserveConfig.getDebtCeiling() == 0);
+    return (!isolationModeActive && assetConfig.getDebtCeiling() == 0);
   }
 
   function validateAutomaticUseAsCollateral(
@@ -191,9 +191,9 @@ library ValidationLogic {
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage userConfig,
-    DataTypes.AssetConfigurationMap memory reserveConfig,
+    DataTypes.AssetConfigurationMap memory assetConfig,
     address supplyTokenAddress
   ) internal view returns (bool) {
-    return validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfig);
+    return validateUseAsCollateral(poolAssets, assetsList, userConfig, assetConfig);
   }
 }
