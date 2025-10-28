@@ -4,12 +4,10 @@ pragma solidity ^0.8.19;
 import {Multicall} from '../../../dependencies/openzeppelin/contracts/Multicall.sol';
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
-import {ReserveConfiguration} from '../libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.sol';
 import {PoolLogic} from '../libraries/logic/PoolLogic.sol';
-import {ReserveLogic} from '../libraries/logic/ReserveLogic.sol';
-import {EModeLogic} from '../libraries/logic/EModeLogic.sol';
+import {AssetLogic} from '../libraries/logic/AssetLogic.sol';
 import {SupplyLogic} from '../libraries/logic/SupplyLogic.sol';
-
 import {BorrowLogic} from '../libraries/logic/BorrowLogic.sol';
 import {LiquidationLogic} from '../libraries/logic/LiquidationLogic.sol';
 import {DataTypes} from '../libraries/types/DataTypes.sol';
@@ -64,7 +62,7 @@ import {PoolStorage} from './PoolStorage.sol';
  * - PoolUpgraded event emitted on initialization
  */
 abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall {
-  using ReserveLogic for DataTypes.ReserveData;
+  using AssetLogic for DataTypes.PoolAssetData;
 
   IPoolAddressesProvider public immutable ADDRESSES_PROVIDER;
   address public immutable RESERVE_INTEREST_RATE_STRATEGY;
@@ -122,7 +120,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   event Withdraw(address indexed user, address indexed asset, uint256 amount, address indexed to, bytes32 hcsTopic);
   event Borrow(address indexed user, address indexed asset, uint256 amount, uint256 interestRateMode, address indexed onBehalfOf, uint16 referralCode, bytes32 hcsTopic);
   event Repay(address indexed user, address indexed asset, uint256 amount, uint256 interestRateMode, address indexed onBehalfOf, bytes32 hcsTopic);
-  event LiquidationCall(address indexed liquidator, address indexed borrower, address collateralAsset, address debtAsset, uint256 debtToCover, bool receiveDToken, bytes32 hcsTopic);
+  event LiquidationCall(address indexed liquidator, address indexed borrower, address collateralAsset, address debtAsset, uint256 debtToCover, bool receiveSupplyToken, bytes32 hcsTopic);
   event HTSErrorHandled(address indexed token, address indexed account, string operation, int64 responseCode);
   event PoolUpgraded(uint256 version);
   event HBARReceived(address indexed sender, uint256 amount);
@@ -134,6 +132,16 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   modifier onlyPoolAdmin() {
     require(IACLManager(ADDRESSES_PROVIDER.getACLManager()).isPoolAdmin(_msgSender()), Errors.CallerNotPoolAdmin());
+    _;
+  }
+
+  modifier onlyEmergencyAdmin() {
+    require(IACLManager(ADDRESSES_PROVIDER.getACLManager()).isEmergencyAdmin(_msgSender()), Errors.CallerNotPoolOrEmergencyAdmin());
+    _;
+  }
+
+  modifier whenNotPaused() {
+    require(!_paused, Errors.ProtocolPaused());
     _;
   }
 
@@ -153,13 +161,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param onBehalfOf Address receiving the dTokens
    * @param referralCode Referral code for tracking
    */
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant {
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
-    require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
+    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
     
     SupplyLogic.executeSupply(
-      _reserves,
-      _reservesList,
+      _poolAssets,
+      _assetsList,
       _usersConfig[onBehalfOf],
       DataTypes.ExecuteSupplyParams({
         user: _msgSender(),
@@ -175,11 +183,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
 
-  function withdraw(address asset, uint256 amount, address to) public virtual override nonReentrant returns (uint256) {
+  function withdraw(address asset, uint256 amount, address to) public virtual override nonReentrant whenNotPaused returns (uint256) {
     uint256 withdrawn = SupplyLogic.executeWithdraw(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       _usersConfig[_msgSender()],
       DataTypes.ExecuteWithdrawParams({
         user: _msgSender(),
@@ -187,8 +194,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
         amount: amount,
         to: to,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[_msgSender()]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
     emit Withdraw(_msgSender(), asset, withdrawn, to, HCSTopics.WITHDRAW_TOPIC());
@@ -204,14 +210,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param referralCode Referral code for tracking
    * @param onBehalfOf Address receiving the borrowed tokens
    */
-  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant {
+  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
-    require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
-    
+    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+
     BorrowLogic.executeBorrow(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       _usersConfig[onBehalfOf],
       DataTypes.ExecuteBorrowParams({
         asset: asset,
@@ -223,7 +228,6 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         referralCode: referralCode,
         releaseUnderlying: true,
         oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[onBehalfOf],
         priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel()
       })
     );
@@ -232,9 +236,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public virtual override nonReentrant returns (uint256) {
     uint256 repaid = BorrowLogic.executeRepay(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       _usersConfig[onBehalfOf],
       DataTypes.ExecuteRepayParams({
         asset: asset,
@@ -243,9 +246,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         amount: amount,
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: onBehalfOf,
-        useDTokens: false,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[onBehalfOf]
+        useSupplyTokens: false,
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
     emit Repay(_msgSender(), asset, repaid, interestRateMode, onBehalfOf, HCSTopics.REPAY_TOPIC());
@@ -254,11 +256,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   // Removed: repayWithPermit - HTS tokens don't use ERC20 permit pattern
 
-  function repayWithDTokens(address asset, uint256 amount, uint256 interestRateMode) public virtual override nonReentrant returns (uint256) {
+  function repayWithSupplyTokens(address asset, uint256 amount, uint256 interestRateMode) public virtual override nonReentrant returns (uint256) {
     return BorrowLogic.executeRepay(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       _usersConfig[_msgSender()],
       DataTypes.ExecuteRepayParams({
         asset: asset,
@@ -267,112 +268,104 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         amount: amount,
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: _msgSender(),
-        useDTokens: true,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[_msgSender()]
+        useSupplyTokens: true,
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }
 
-  function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) public virtual override nonReentrant {
-    SupplyLogic.executeUseReserveAsCollateral(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+  function setUserUseAssetAsCollateral(address asset, bool useAsCollateral) public virtual override nonReentrant {
+    SupplyLogic.executeUseAssetAsCollateral(
+      _poolAssets,
+      _assetsList,
       _usersConfig[_msgSender()],
       _msgSender(),
       asset,
       useAsCollateral,
-      ADDRESSES_PROVIDER.getPriceOracle(),
-      _usersEModeCategory[_msgSender()]
+      ADDRESSES_PROVIDER.getPriceOracle()
     );
   }
 
-  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveDToken) public virtual override nonReentrant {
+  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) public virtual override nonReentrant {
     if (debtToCover == 0) revert InvalidAmount();
-    
+
     LiquidationLogic.executeLiquidationCall(
-      _reserves,
-      _reservesList,
+      _poolAssets,
+      _assetsList,
       _usersConfig,
-      _eModeCategories,
       DataTypes.ExecuteLiquidationCallParams({
         liquidator: _msgSender(),
         debtToCover: debtToCover,
         collateralAsset: collateralAsset,
         debtAsset: debtAsset,
         borrower: borrower,
-        receiveDToken: receiveDToken,
+        receiveSupplyToken: receiveSupplyToken,
         priceOracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        borrowerEModeCategory: _usersEModeCategory[borrower],
         priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel(),
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
       })
     );
-    emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveDToken, HCSTopics.LIQUIDATION_TOPIC());
+    emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
   }
 
 
 
   function mintToTreasury(address[] calldata assets) external virtual override {
-    PoolLogic.executeMintToTreasury(_reserves, assets);
+    PoolLogic.executeMintToTreasury(_poolAssets, assets);
   }
 
   function getUserAccountData(address user) external view virtual override returns (uint256, uint256, uint256, uint256, uint256, uint256) {
     return PoolLogic.executeGetUserAccountData(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       DataTypes.CalculateUserAccountDataParams({
         userConfig: _usersConfig[user],
         user: user,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        userEModeCategory: _usersEModeCategory[user]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }
 
-  function getReserveData(address asset) external view virtual override returns (DataTypes.ReserveDataLegacy memory res) {
-    DataTypes.ReserveData storage reserve = _reserves[asset];
-    res.configuration = reserve.configuration;
-    res.liquidityIndex = reserve.liquidityIndex;
-    res.currentLiquidityRate = reserve.currentLiquidityRate;
-    res.variableBorrowIndex = reserve.variableBorrowIndex;
-    res.currentVariableBorrowRate = reserve.currentVariableBorrowRate;
-    res.lastUpdateTimestamp = reserve.lastUpdateTimestamp;
-    res.id = reserve.id;
-    res.dTokenAddress = reserve.dTokenAddress;
-    res.variableDebtTokenAddress = reserve.variableDebtTokenAddress;
+  function getAssetData(address asset) external view virtual override returns (DataTypes.AssetDataLegacy memory res) {
+    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
+    res.configuration = asset.configuration;
+    res.liquidityIndex = asset.liquidityIndex;
+    res.currentLiquidityRate = asset.currentLiquidityRate;
+    res.variableBorrowIndex = asset.variableBorrowIndex;
+    res.currentVariableBorrowRate = asset.currentVariableBorrowRate;
+    res.lastUpdateTimestamp = asset.lastUpdateTimestamp;
+    res.id = asset.id;
+    res.supplyTokenAddress = asset.supplyTokenAddress;
+    res.borrowTokenAddress = asset.borrowTokenAddress;
     res.interestRateStrategyAddress = RESERVE_INTEREST_RATE_STRATEGY;
-    res.accruedToTreasury = reserve.accruedToTreasury;
-    res.isolationModeTotalDebt = reserve.isolationModeTotalDebt;
+    res.accruedToTreasury = asset.accruedToTreasury;
   }
 
-  function getConfiguration(address asset) external view virtual override returns (DataTypes.ReserveConfigurationMap memory) {
-    return _reserves[asset].configuration;
+  function getConfiguration(address asset) external view virtual override returns (DataTypes.AssetConfigurationMap memory) {
+    return _poolAssets[asset].configuration;
   }
 
   function getUserConfiguration(address user) external view virtual override returns (DataTypes.UserConfigurationMap memory) {
     return _usersConfig[user];
   }
 
-  function getReserveNormalizedIncome(address asset) external view virtual override returns (uint256) {
-    return _reserves[asset].getNormalizedIncome();
+  function getAssetNormalizedIncome(address asset) external view virtual override returns (uint256) {
+    return _poolAssets[asset].getNormalizedIncome();
   }
 
-  function getReserveNormalizedVariableDebt(address asset) external view virtual override returns (uint256) {
-    return _reserves[asset].getNormalizedDebt();
+  function getAssetNormalizedVariableDebt(address asset) external view virtual override returns (uint256) {
+    return _poolAssets[asset].getNormalizedDebt();
   }
 
-  function getReservesList() external view virtual override returns (address[] memory) {
-    uint256 reservesListCount = _reservesCount;
+  function getAssetsList() external view virtual override returns (address[] memory) {
+    uint256 reservesListCount = _assetsCount;
     uint256 droppedReservesCount = 0;
-    address[] memory reservesList = new address[](reservesListCount);
+    address[] memory assetsList = new address[](reservesListCount);
 
     // Gas optimized loop
     for (uint256 i; i < reservesListCount; ) {
-      if (_reservesList[i] != address(0)) {
-        reservesList[i - droppedReservesCount] = _reservesList[i];
+      if (_assetsList[i] != address(0)) {
+        assetsList[i - droppedReservesCount] = _assetsList[i];
       } else {
         unchecked { droppedReservesCount++; }
       }
@@ -380,130 +373,61 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     }
 
     assembly {
-      mstore(reservesList, sub(reservesListCount, droppedReservesCount))
+      mstore(assetsList, sub(reservesListCount, droppedReservesCount))
     }
-    return reservesList;
+    return assetsList;
   }
 
-  function initReserve(address asset, address dTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
-    if (PoolLogic.executeInitReserve(_reserves, _reservesList, DataTypes.InitReserveParams({
+  function initAsset(address asset, address supplyTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
+    if (PoolLogic.executeInitAsset(_poolAssets, _assetsList, DataTypes.InitPoolAssetParams({
       asset: asset,
-      dTokenAddress: dTokenAddress,
+      supplyTokenAddress: supplyTokenAddress,
       variableDebtAddress: variableDebtAddress,
-      reservesCount: _reservesCount,
-      maxNumberReserves: ReserveConfiguration.MAX_RESERVES_COUNT
+      assetsCount: _assetsCount,
+      maxNumberAssets: AssetConfiguration.MAX_RESERVES_COUNT
     }))) {
-      _reservesCount++;
+      _assetsCount++;
     }
   }
 
-  function setConfiguration(address asset, DataTypes.ReserveConfigurationMap calldata configuration) external virtual override onlyPoolConfigurator {
+  function setConfiguration(address asset, DataTypes.AssetConfigurationMap calldata configuration) external virtual override onlyPoolConfigurator {
     require(asset != address(0), Errors.ZeroAddressNotValid());
-    require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
-    _reserves[asset].configuration = configuration;
+    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+    _poolAssets[asset].configuration = configuration;
   }
 
-  function dropReserve(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeDropReserve(_reserves, _reservesList, asset);
+  function dropAsset(address asset) external virtual override onlyPoolConfigurator {
+    PoolLogic.executeDropAsset(_poolAssets, _assetsList, asset);
   }
 
   function syncIndexesState(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeSyncIndexesState(_reserves[asset]);
+    PoolLogic.executeSyncIndexesState(_poolAssets[asset]);
   }
 
   function syncRatesState(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeSyncRatesState(_reserves[asset], asset, RESERVE_INTEREST_RATE_STRATEGY);
+    PoolLogic.executeSyncRatesState(_poolAssets[asset], asset, RESERVE_INTEREST_RATE_STRATEGY);
   }
 
 
 
   function setLiquidationGracePeriod(address asset, uint40 until) external virtual override onlyPoolConfigurator {
-    require(_reserves[asset].id != 0 || _reservesList[0] == asset, Errors.AssetNotListed());
-    PoolLogic.executeSetLiquidationGracePeriod(_reserves, asset, until);
+    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+    PoolLogic.executeSetLiquidationGracePeriod(_poolAssets, asset, until);
   }
 
   function getLiquidationGracePeriod(address asset) external view virtual override returns (uint40) {
-    return _reserves[asset].liquidationGracePeriodUntil;
-  }
-
-  function resetIsolationModeTotalDebt(address asset) external virtual override onlyPoolConfigurator {
-    PoolLogic.executeResetIsolationModeTotalDebt(_reserves, asset);
+    return _poolAssets[asset].liquidationGracePeriodUntil;
   }
 
   function rescueTokens(address token, address to, uint256 amount) external virtual override onlyPoolAdmin {
     PoolLogic.executeRescueTokens(token, to, amount);
   }
 
-  function configureEModeCategory(uint8 id, DataTypes.EModeCategoryBaseConfiguration calldata category) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].ltv = category.ltv;
-    _eModeCategories[id].liquidationThreshold = category.liquidationThreshold;
-    _eModeCategories[id].liquidationBonus = category.liquidationBonus;
-    _eModeCategories[id].label = category.label;
-  }
-
-  function configureEModeCategoryCollateralBitmap(uint8 id, uint128 collateralBitmap) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].collateralBitmap = collateralBitmap;
-  }
-
-  function configureEModeCategoryBorrowableBitmap(uint8 id, uint128 borrowableBitmap) external virtual override onlyPoolConfigurator {
-    require(id != 0, Errors.EModeCategoryReserved());
-    _eModeCategories[id].borrowableBitmap = borrowableBitmap;
-  }
-
-  function getEModeCategoryData(uint8 id) external view virtual override returns (DataTypes.EModeCategoryLegacy memory) {
-    DataTypes.EModeCategory storage category = _eModeCategories[id];
-    return DataTypes.EModeCategoryLegacy({
-      ltv: category.ltv,
-      liquidationThreshold: category.liquidationThreshold,
-      liquidationBonus: category.liquidationBonus,
-      priceSource: address(0),
-      label: category.label
-    });
-  }
-
-  function getEModeCategoryCollateralConfig(uint8 id) external view returns (DataTypes.CollateralConfig memory res) {
-    res.ltv = _eModeCategories[id].ltv;
-    res.liquidationThreshold = _eModeCategories[id].liquidationThreshold;
-    res.liquidationBonus = _eModeCategories[id].liquidationBonus;
-  }
-
-  function getEModeCategoryLabel(uint8 id) external view returns (string memory) {
-    return _eModeCategories[id].label;
-  }
-
-  function getEModeCategoryCollateralBitmap(uint8 id) external view returns (uint128) {
-    return _eModeCategories[id].collateralBitmap;
-  }
-
-  function getEModeCategoryBorrowableBitmap(uint8 id) external view returns (uint128) {
-    return _eModeCategories[id].borrowableBitmap;
-  }
-
-  function setUserEMode(uint8 categoryId) external virtual override nonReentrant {
-    EModeLogic.executeSetUserEMode(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
-      _usersEModeCategory,
-      _usersConfig[_msgSender()],
-      _msgSender(),
-      ADDRESSES_PROVIDER.getPriceOracle(),
-      categoryId
-    );
-  }
-
-  function getUserEMode(address user) external view virtual override returns (uint256) {
-    return _usersEModeCategory[user];
-  }
-
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
-    require(_msgSender() == _reserves[asset].dTokenAddress, Errors.CallerNotDToken());
+    require(_msgSender() == _poolAssets[asset].supplyTokenAddress, Errors.CallerNotSupplyToken());
     SupplyLogic.executeFinalizeTransfer(
-      _reserves,
-      _reservesList,
-      _eModeCategories,
+      _poolAssets,
+      _assetsList,
       _usersConfig,
       DataTypes.FinalizeTransferParams({
         asset: asset,
@@ -512,40 +436,94 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         scaledAmount: scaledAmount,
         scaledBalanceFromBefore: scaledBalanceFromBefore,
         scaledBalanceToBefore: scaledBalanceToBefore,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        fromEModeCategory: _usersEModeCategory[from]
+        oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
   }
 
-  function getReserveDToken(address asset) external view virtual returns (address) {
-    return _reserves[asset].dTokenAddress;
+  function getAssetSupplyToken(address asset) external view virtual returns (address) {
+    return _poolAssets[asset].supplyTokenAddress;
   }
 
-  function getReserveVariableDebtToken(address asset) external view virtual returns (address) {
-    return _reserves[asset].variableDebtTokenAddress;
+  function getAssetBorrowToken(address asset) external view virtual returns (address) {
+    return _poolAssets[asset].borrowTokenAddress;
   }
 
   function getVirtualUnderlyingBalance(address asset) external view virtual override returns (uint128) {
-    return _reserves[asset].virtualUnderlyingBalance;
+    return _poolAssets[asset].virtualUnderlyingBalance;
   }
 
-  function getReservesCount() external view virtual override returns (uint256) {
-    return _reservesCount;
+  function getAssetsCount() external view virtual override returns (uint256) {
+    return _assetsCount;
   }
 
-  function getReserveAddressById(uint16 id) external view returns (address) {
-    return _reservesList[id];
+  function getAssetAddressById(uint16 id) external view returns (address) {
+    return _assetsList[id];
   }
 
-  function getReserveDeficit(address asset) external view virtual returns (uint256) {
-    return _reserves[asset].deficit;
+  function getAssetDeficit(address asset) external view virtual returns (uint256) {
+    return _poolAssets[asset].deficit;
   }
 
+  /**
+   * @notice Cover bad debt (deficit) for a reserve using protocol treasury funds
+   * @dev Only Pool Admin can call this function to socialize bad debt
+   * @param asset The address of the reserve with deficit
+   * @param amount Amount of deficit to cover
+   */
+  function coverAssetDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
+    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
+    require(asset.deficit > 0, Errors.NoDebtToCover());
+    require(amount <= asset.deficit, Errors.AmountExceedsDeficit());
 
+    uint256 amountToCover = amount;
+    if (amount > asset.deficit) {
+      amountToCover = asset.deficit;
+    }
+
+    // Transfer tokens from treasury to dToken contract via HTS
+    address treasuryAddress = ADDRESSES_PROVIDER.getTreasury();
+    _safeHTSTransfer(asset, treasuryAddress, asset.supplyTokenAddress, amountToCover);
+
+    // Reduce deficit
+    asset.deficit -= uint128(amountToCover);
+
+    emit DeficitCovered(asset, amountToCover, asset.deficit);
+  }
+
+  event DeficitCovered(address indexed asset, uint256 amountCovered, uint256 remainingDeficit);
+
+  /**
+   * @notice Pause the protocol in emergency situations
+   * @dev Only Emergency Admin can pause. Pauses: supply, withdraw, borrow
+   * @dev Does NOT pause: repay, liquidation (needed for protocol recovery)
+   */
+  function pause() external onlyEmergencyAdmin {
+    _paused = true;
+    emit ProtocolPaused(true);
+  }
+
+  /**
+   * @notice Unpause the protocol after emergency is resolved
+   * @dev Only Emergency Admin can unpause
+   */
+  function unpause() external onlyEmergencyAdmin {
+    _paused = false;
+    emit ProtocolPaused(false);
+  }
+
+  /**
+   * @notice Check if protocol is currently paused
+   * @return True if paused, false otherwise
+   */
+  function paused() external view returns (bool) {
+    return _paused;
+  }
+
+  event ProtocolPaused(bool isPaused);
 
   function MAX_NUMBER_RESERVES() public view virtual override returns (uint16) {
-    return ReserveConfiguration.MAX_RESERVES_COUNT;
+    return AssetConfiguration.MAX_RESERVES_COUNT;
   }
 
   function POOL_REVISION() public pure virtual returns (uint256) {

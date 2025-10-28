@@ -1,71 +1,86 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {Errors} from '../helpers/Errors.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
 import {DataTypes} from '../types/DataTypes.sol';
 import {PercentageMath} from '../math/PercentageMath.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
-import {ReserveLogic} from './ReserveLogic.sol';
-import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
+import {AssetLogic} from './AssetLogic.sol';
+import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
+
+// HTS precompile interface for native Hedera token operations
+interface IHTS {
+  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
+}
 
 /**
  * @title SupplyLogic library
  * @author Dera Protocol
- * @notice Implements the base logic for supply/withdraw
+ * @notice Implements the base logic for supply/withdraw using HTS (Hedera Token Service)
  */
 library SupplyLogic {
-  using ReserveLogic for DataTypes.ReserveCache;
-  using ReserveLogic for DataTypes.ReserveData;
+  using AssetLogic for DataTypes.AssetState;
+  using AssetLogic for DataTypes.PoolAssetData;
   using UserConfiguration for DataTypes.UserConfigurationMap;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using TokenMath for uint256;
   using PercentageMath for uint256;
 
+  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
+
+  // Custom errors for HTS operations
+  error HTSTransferFailed(int64 responseCode);
+  error AmountExceedsInt64();
+
   function executeSupply(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteSupplyParams memory params
   ) external {
-    DataTypes.ReserveData storage reserve = reservesData[params.asset];
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    reserve.updateState(reserveCache);
-    uint256 scaledAmount = params.amount.getDTokenMintScaledAmount(reserveCache.nextLiquidityIndex);
+    asset.updateState(assetState);
+    uint256 scaledAmount = params.amount.getSupplyTokenMintScaledAmount(assetState.nextLiquidityIndex);
 
-    ValidationLogic.validateSupply(reserveCache, reserve, scaledAmount, params.onBehalfOf);
+    ValidationLogic.validateSupply(assetState, asset, scaledAmount, params.onBehalfOf);
 
-    reserve.updateInterestRatesAndVirtualBalance(
-      reserveCache,
+    // Transfer underlying asset from user to dToken contract via HTS
+    // CRITICAL: User must be associated with the HTS token before this call
+    _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, params.amount);
+
+    asset.updateInterestRatesAndVirtualBalance(
+      assetState,
       params.asset,
       params.amount,
       0,
       params.interestRateStrategyAddress
     );
 
-    bool isFirstSupply = IDToken(reserveCache.dTokenAddress).mint(
+    bool isFirstSupply = IDeraSupplyToken(assetState.supplyTokenAddress).mint(
       params.user,
       params.onBehalfOf,
       scaledAmount,
-      reserveCache.nextLiquidityIndex
+      assetState.nextLiquidityIndex
     );
 
     if (isFirstSupply) {
       if (
         ValidationLogic.validateAutomaticUseAsCollateral(
           params.user,
-          reservesData,
-          reservesList,
+          poolAssets,
+          assetsList,
           userConfig,
-          reserveCache.reserveConfiguration,
-          reserveCache.dTokenAddress
+          assetState.assetConfiguration,
+          assetState.supplyTokenAddress
         )
       ) {
-        userConfig.setUsingAsCollateral(reserve.id, params.asset, params.onBehalfOf, true);
+        userConfig.setUsingAsCollateral(asset.id, params.asset, params.onBehalfOf, true);
       }
     }
 
@@ -73,63 +88,63 @@ library SupplyLogic {
   }
 
   function executeWithdraw(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
+    
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteWithdrawParams memory params
   ) external returns (uint256) {
-    DataTypes.ReserveData storage reserve = reservesData[params.asset];
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    require(params.to != reserveCache.dTokenAddress, Errors.WithdrawToDToken());
+    require(params.to != assetState.supplyTokenAddress, Errors.WithdrawToSupplyToken());
 
-    reserve.updateState(reserveCache);
+    asset.updateState(assetState);
 
-    uint256 scaledUserBalance = IDToken(reserveCache.dTokenAddress).scaledBalanceOf(params.user);
+    uint256 scaledUserBalance = IDeraSupplyToken(assetState.supplyTokenAddress).scaledBalanceOf(params.user);
 
     uint256 amountToWithdraw;
     uint256 scaledAmountToWithdraw;
     if (params.amount == type(uint256).max) {
       scaledAmountToWithdraw = scaledUserBalance;
-      amountToWithdraw = scaledUserBalance.getDTokenBalance(reserveCache.nextLiquidityIndex);
+      amountToWithdraw = scaledUserBalance.getSupplyTokenBalance(assetState.nextLiquidityIndex);
     } else {
-      scaledAmountToWithdraw = params.amount.getDTokenBurnScaledAmount(reserveCache.nextLiquidityIndex);
+      scaledAmountToWithdraw = params.amount.getSupplyTokenBurnScaledAmount(assetState.nextLiquidityIndex);
       amountToWithdraw = params.amount;
     }
 
-    ValidationLogic.validateWithdraw(reserveCache, scaledAmountToWithdraw, scaledUserBalance);
+    ValidationLogic.validateWithdraw(assetState, scaledAmountToWithdraw, scaledUserBalance);
 
-    reserve.updateInterestRatesAndVirtualBalance(
-      reserveCache,
+    asset.updateInterestRatesAndVirtualBalance(
+      assetState,
       params.asset,
       0,
       amountToWithdraw,
       params.interestRateStrategyAddress
     );
 
-    bool zeroBalanceAfterBurn = IDToken(reserveCache.dTokenAddress).burn({
+    bool zeroBalanceAfterBurn = IDeraSupplyToken(assetState.supplyTokenAddress).burn({
       from: params.user,
       receiverOfUnderlying: params.to,
       amount: amountToWithdraw,
       scaledAmount: scaledAmountToWithdraw,
-      index: reserveCache.nextLiquidityIndex
+      index: assetState.nextLiquidityIndex
     });
 
-    if (userConfig.isUsingAsCollateral(reserve.id)) {
+    if (userConfig.isUsingAsCollateral(asset.id)) {
       if (zeroBalanceAfterBurn) {
-        userConfig.setUsingAsCollateral(reserve.id, params.asset, params.user, false);
+        userConfig.setUsingAsCollateral(asset.id, params.asset, params.user, false);
       }
       if (userConfig.isBorrowingAny()) {
         ValidationLogic.validateHFAndLtvzero(
-          reservesData,
-          reservesList,
-          eModeCategories,
+          poolAssets,
+          assetsList,
+          
           userConfig,
           params.asset,
           params.user,
           params.oracle,
-          params.userEModeCategory
+          
         );
       }
     }
@@ -140,17 +155,17 @@ library SupplyLogic {
   }
 
   function executeFinalizeTransfer(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
+    
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
     DataTypes.FinalizeTransferParams memory params
   ) external {
-    DataTypes.ReserveData storage reserve = reservesData[params.asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
 
-    ValidationLogic.validateTransfer(reserve);
+    ValidationLogic.validateTransfer(asset);
 
-    uint256 reserveId = reserve.id;
+    uint256 reserveId = asset.id;
 
     if (params.from != params.to && params.scaledAmount != 0) {
       DataTypes.UserConfigurationMap storage fromConfig = usersConfig[params.from];
@@ -161,14 +176,14 @@ library SupplyLogic {
         }
         if (fromConfig.isBorrowingAny()) {
           ValidationLogic.validateHFAndLtvzero(
-            reservesData,
-            reservesList,
-            eModeCategories,
+            poolAssets,
+            assetsList,
+            
             usersConfig[params.from],
             params.asset,
             params.from,
             params.oracle,
-            params.fromEModeCategory
+            
           );
         }
       }
@@ -178,11 +193,11 @@ library SupplyLogic {
         if (
           ValidationLogic.validateAutomaticUseAsCollateral(
             params.from,
-            reservesData,
-            reservesList,
+            poolAssets,
+            assetsList,
             toConfig,
-            reserve.configuration,
-            reserve.dTokenAddress
+            asset.configuration,
+            asset.supplyTokenAddress
           )
         ) {
           toConfig.setUsingAsCollateral(reserveId, params.asset, params.to, true);
@@ -191,43 +206,61 @@ library SupplyLogic {
     }
   }
 
-  function executeUseReserveAsCollateral(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+  function executeUseAssetAsCollateral(
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
+    
     DataTypes.UserConfigurationMap storage userConfig,
     address user,
     address asset,
     bool useAsCollateral,
     address priceOracle,
-    uint8 userEModeCategory
+    uint8 
   ) external {
-    DataTypes.ReserveData storage reserve = reservesData[asset];
-    DataTypes.ReserveConfigurationMap memory reserveConfigCached = reserve.configuration;
+    DataTypes.PoolAssetData storage asset = poolAssets[asset];
+    DataTypes.AssetConfigurationMap memory reserveConfigCached = asset.configuration;
 
-    ValidationLogic.validateSetUseReserveAsCollateral(reserveConfigCached);
+    ValidationLogic.validateSetUseAssetAsCollateral(reserveConfigCached);
 
-    if (useAsCollateral == userConfig.isUsingAsCollateral(reserve.id)) return;
+    if (useAsCollateral == userConfig.isUsingAsCollateral(asset.id)) return;
 
     if (useAsCollateral) {
-      require(IDToken(reserve.dTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
+      require(IDeraSupplyToken(asset.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
       require(
-        ValidationLogic.validateUseAsCollateral(reservesData, reservesList, userConfig, reserveConfigCached),
+        ValidationLogic.validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfigCached),
         Errors.UserInIsolationModeOrLtvZero()
       );
-      userConfig.setUsingAsCollateral(reserve.id, asset, user, true);
+      userConfig.setUsingAsCollateral(asset.id, asset, user, true);
     } else {
-      userConfig.setUsingAsCollateral(reserve.id, asset, user, false);
+      userConfig.setUsingAsCollateral(asset.id, asset, user, false);
       ValidationLogic.validateHFAndLtvzero(
-        reservesData,
-        reservesList,
-        eModeCategories,
+        poolAssets,
+        assetsList,
+        
         userConfig,
         asset,
         user,
         priceOracle,
-        userEModeCategory
+        
       );
     }
+  }
+
+  // ============ Internal HTS Helper Functions ============
+
+  /**
+   * @notice Safe HTS token transfer from sender to recipient
+   * @dev Uses Hedera Token Service precompile at 0x167
+   * @param token HTS token address
+   * @param from Sender address (must have approved the Pool contract via HTS)
+   * @param to Recipient address (must be associated with the token)
+   * @param amount Amount to transfer
+   */
+  function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
+    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+
+    int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
+
+    if (responseCode != 0) revert HTSTransferFailed(responseCode);
   }
 }

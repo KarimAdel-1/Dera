@@ -4,31 +4,30 @@ pragma solidity ^0.8.19;
 import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
 import {Address} from '../../../dependencies/openzeppelin/contracts/Address.sol';
 import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
-import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
 import {Errors} from '../helpers/Errors.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
 import {DataTypes} from '../types/DataTypes.sol';
-import {ReserveLogic} from './ReserveLogic.sol';
+import {AssetLogic} from './AssetLogic.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
 
 /**
  * @title PoolLogic library
  * @author Dera Protocol
- * @notice Pool utility functions (reserve init, treasury minting, state sync) on Hedera
- * 
+ * @notice Pool utility functions (asset init, treasury minting, state sync) on Hedera
+ *
  * HEDERA TOOLS USED:
- * - Smart Contract State: Reserve data and configuration stored in contract storage
+ * - Smart Contract State: Pool asset data and configuration stored in contract storage
  * - HTS (Hedera Token Service): Token transfers use HTS precompile (0x167)
- * 
+ *
  * INTEGRATION:
- * - Reserve Init: Initialize new reserve with DToken and VariableDebtToken addresses
+ * - Asset Init: Initialize new pool asset with DeraSupplyToken and DeraBorrowToken addresses
  * - Treasury Minting: Mint accrued fees to treasury (protocol revenue)
- * - State Sync: Update reserve indexes and interest rates
- * - Reserve Management: Drop reserves, reset isolation mode debt
+ * - State Sync: Update asset indexes and interest rates
+ * - Asset Management: Drop assets, reset isolation mode debt
  * 
  * SAFETY:
  * - Validation: Checks reserve not already added, max reserves not exceeded
@@ -41,8 +40,8 @@ interface IHTS {
 library PoolLogic {
   using GPv2SafeERC20 for IERC20;
   using TokenMath for uint256;
-  using ReserveLogic for DataTypes.ReserveData;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetLogic for DataTypes.PoolAssetData;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
   IHTS private constant HTS = IHTS(address(0x167));
   uint256 private constant MAX_GRACE_PERIOD = 7 days;
@@ -51,43 +50,43 @@ library PoolLogic {
   error GracePeriodTooLong();
   error GracePeriodInPast();
 
-  function executeInitReserve(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    DataTypes.InitReserveParams memory params
+  function executeInitAsset(
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
+    DataTypes.InitPoolAssetParams memory params
   ) external returns (bool) {
     require(Address.isContract(params.asset), Errors.NotContract());
-    reservesData[params.asset].init(params.dTokenAddress, params.variableDebtAddress);
+    poolAssets[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
 
-    bool reserveAlreadyAdded = reservesData[params.asset].id != 0 || reservesList[0] == params.asset;
-    require(!reserveAlreadyAdded, Errors.ReserveAlreadyAdded());
+    bool assetAlreadyAdded = poolAssets[params.asset].id != 0 || assetsList[0] == params.asset;
+    require(!assetAlreadyAdded, Errors.AssetAlreadyAdded());
 
-    for (uint16 i = 0; i < params.reservesCount; i++) {
-      if (reservesList[i] == address(0)) {
-        reservesData[params.asset].id = i;
-        reservesList[i] = params.asset;
+    for (uint16 i = 0; i < params.assetsCount; i++) {
+      if (assetsList[i] == address(0)) {
+        poolAssets[params.asset].id = i;
+        assetsList[i] = params.asset;
         return false;
       }
     }
 
-    require(params.reservesCount < params.maxNumberReserves, Errors.NoMoreReservesAllowed());
-    reservesData[params.asset].id = params.reservesCount;
-    reservesList[params.reservesCount] = params.asset;
+    require(params.assetsCount < params.maxNumberAssets, Errors.NoMoreReservesAllowed());
+    poolAssets[params.asset].id = params.assetsCount;
+    assetsList[params.assetsCount] = params.asset;
     return true;
   }
 
-  function executeSyncIndexesState(DataTypes.ReserveData storage reserve) external {
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
-    reserve.updateState(reserveCache);
+  function executeSyncIndexesState(DataTypes.PoolAssetData storage asset) external {
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateState(assetState);
   }
 
   function executeSyncRatesState(
-    DataTypes.ReserveData storage reserve,
+    DataTypes.PoolAssetData storage asset,
     address asset,
     address interestRateStrategyAddress
   ) external {
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
-    reserve.updateInterestRatesAndVirtualBalance(reserveCache, asset, 0, 0, interestRateStrategyAddress);
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateInterestRatesAndVirtualBalance(assetState, asset, 0, 0, interestRateStrategyAddress);
   }
 
   /**
@@ -104,73 +103,64 @@ library PoolLogic {
   }
 
   function executeMintToTreasury(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     address[] calldata assets
   ) external {
     for (uint256 i = 0; i < assets.length; i++) {
       address assetAddress = assets[i];
-      DataTypes.ReserveData storage reserve = reservesData[assetAddress];
+      DataTypes.PoolAssetData storage asset = poolAssets[assetAddress];
 
-      if (!reserve.configuration.getActive()) {
+      if (!asset.configuration.getActive()) {
         continue;
       }
 
-      uint256 accruedToTreasury = reserve.accruedToTreasury;
+      uint256 accruedToTreasury = asset.accruedToTreasury;
 
       if (accruedToTreasury != 0) {
-        reserve.accruedToTreasury = 0;
-        uint256 normalizedIncome = reserve.getNormalizedIncome();
-        uint256 amountToMint = accruedToTreasury.getDTokenBalance(normalizedIncome);
-        IDToken(reserve.dTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
+        asset.accruedToTreasury = 0;
+        uint256 normalizedIncome = asset.getNormalizedIncome();
+        uint256 amountToMint = accruedToTreasury.getSupplyTokenBalance(normalizedIncome);
+        IDeraSupplyToken(asset.supplyTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
 
         emit IPool.MintedToTreasury(assetAddress, amountToMint);
       }
     }
   }
 
-  function executeResetIsolationModeTotalDebt(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    address asset
-  ) external {
-    require(reservesData[asset].configuration.getDebtCeiling() == 0, Errors.DebtCeilingNotZero());
-    IsolationModeLogic.setIsolationModeTotalDebt(reservesData[asset], asset, 0);
-  }
-
   /**
    * @notice Set liquidation grace period for an asset
-   * @param reservesData Reserves data mapping
+   * @param poolAssets Reserves data mapping
    * @param asset Asset address
    * @param until Timestamp until which liquidations are paused
    * @dev SECURITY: Validates grace period is reasonable to prevent manipulation
    * @dev Maximum grace period: 7 days
    */
   function executeSetLiquidationGracePeriod(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     address asset,
     uint40 until
   ) external {
     if (until > block.timestamp + MAX_GRACE_PERIOD) revert GracePeriodTooLong();
     if (until < block.timestamp) revert GracePeriodInPast();
     
-    reservesData[asset].liquidationGracePeriodUntil = until;
+    poolAssets[asset].liquidationGracePeriodUntil = until;
     emit IPool.LiquidationGracePeriodUpdated(asset, until);
   }
 
-  function executeDropReserve(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+  function executeDropAsset(
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     address asset
   ) external {
-    DataTypes.ReserveData storage reserve = reservesData[asset];
-    ValidationLogic.validateDropReserve(reservesList, reserve, asset);
-    reservesList[reservesData[asset].id] = address(0);
-    delete reservesData[asset];
+    DataTypes.PoolAssetData storage asset = poolAssets[asset];
+    ValidationLogic.validateDropAsset(assetsList, asset, asset);
+    assetsList[poolAssets[asset].id] = address(0);
+    delete poolAssets[asset];
   }
 
   function executeGetUserAccountData(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.CalculateUserAccountDataParams memory params
   )
     external
@@ -190,7 +180,7 @@ library PoolLogic {
       ltv,
       currentLiquidationThreshold,
       healthFactor,
-    ) = GenericLogic.calculateUserAccountData(reservesData, reservesList, eModeCategories, params);
+    ) = GenericLogic.calculateUserAccountData(poolAssets, assetsList, params);
 
     availableBorrowsBase = GenericLogic.calculateAvailableBorrows(totalCollateralBase, totalDebtBase, ltv);
   }

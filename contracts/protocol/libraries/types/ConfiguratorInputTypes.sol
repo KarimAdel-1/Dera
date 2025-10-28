@@ -13,15 +13,15 @@ pragma solidity ^0.8.19;
  * - Mirror Nodes: Configuration history queryable via REST API
  * 
  * STRUCTURES:
- * - InitReserveInput: Initialize new lending market for an asset
- *   - dTokenImpl: DToken implementation address (interest-bearing deposit token)
+ * - InitAssetInput: Initialize new lending market for an asset
+ *   - supplyTokenImpl: DToken implementation address (interest-bearing deposit token)
  *   - variableDebtTokenImpl: Debt token implementation address
  *   - underlyingAsset: HTS token address to be listed
  *   - Token names/symbols: Display names for dToken and debt token
  *   - params: Initialization parameters (decimals, etc.)
  *   - interestRateData: Interest rate strategy parameters
  * 
- * - UpdateDTokenInput: Update dToken implementation (upgrades)
+ * - UpdateSupplyTokenInput: Update dToken implementation (upgrades)
  * - UpdateDebtTokenInput: Update debt token implementation (upgrades)
  * 
  * ACCESS CONTROL:
@@ -34,19 +34,19 @@ pragma solidity ^0.8.19;
  * - Update token metadata (name, symbol)
  */
 library ConfiguratorInputTypes {
-  struct InitReserveInput {
-    address dTokenImpl;
+  struct InitAssetInput {
+    address supplyTokenImpl;
     address variableDebtTokenImpl;
     address underlyingAsset;
-    string dTokenName;
-    string dTokenSymbol;
+    string supplyTokenName;
+    string supplyTokenSymbol;
     string variableDebtTokenName;
     string variableDebtTokenSymbol;
     bytes params;
     bytes interestRateData;
   }
 
-  struct UpdateDTokenInput {
+  struct UpdateSupplyTokenInput {
     address asset;
     string name;
     string symbol;

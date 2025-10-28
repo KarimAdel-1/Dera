@@ -9,13 +9,13 @@ interface IHTS {
 }
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
-import {IDToken} from '../../interfaces/IDToken.sol';
-import {IVariableDebtToken} from '../../interfaces/IVariableDebtToken.sol';
-import {IDefaultInterestRateStrategy} from '../../interfaces/IDefaultInterestRateStrategy.sol';
+import {IPriceOracleGetter} from '../../interfaces/IPriceOracleGetter.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
+import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
 
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
-import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
 import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
 
@@ -33,13 +33,13 @@ import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
  * 
  * INTEGRATION:
  * - Mirror Node API: GET /api/v1/contracts/{contractId}/state for cached data
- * - Hedera SDK: ContractCallQuery for getReservesData() and getUserReservesData()
+ * - Hedera SDK: ContractCallQuery for getAssetsData() and getUserAssetsData()
  * - HTS: Token info retrieved via native Hedera token properties
  * - Frontend caching: Use Mirror Nodes for historical data, SDK for real-time updates
  */
 contract UiPoolDataProviderV1 {
   using WadRayMath for uint256;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
 
   struct AggregatedReserveData {
@@ -50,7 +50,7 @@ contract UiPoolDataProviderV1 {
     uint256 baseLTVasCollateral;
     uint256 reserveLiquidationThreshold;
     uint256 reserveLiquidationBonus;
-    uint256 reserveFactor;
+    uint256 assetFactor;
     bool usageAsCollateralEnabled;
     bool borrowingEnabled;
     bool isActive;
@@ -61,8 +61,8 @@ contract UiPoolDataProviderV1 {
     uint128 liquidityRate;
     uint128 variableBorrowRate;
     uint40 lastUpdateTimestamp;
-    address dTokenAddress;
-    address variableDebtTokenAddress;
+    address supplyTokenAddress;
+    address borrowTokenAddress;
     address interestRateStrategyAddress;
     uint256 availableLiquidity;
     uint256 totalScaledVariableDebt;
@@ -82,13 +82,12 @@ contract UiPoolDataProviderV1 {
     uint8 eModeCategoryId;
     uint256 borrowCap;
     uint256 supplyCap;
-    bool flashLoanEnabled;
     uint256 virtualUnderlyingBalance;
   }
 
   struct UserReserveData {
     address underlyingAsset;
-    uint256 scaledDTokenBalance;
+    uint256 scaledSupplyTokenBalance;
     bool usageAsCollateralEnabledOnUser;
     uint256 scaledVariableDebt;
   }
@@ -105,45 +104,45 @@ contract UiPoolDataProviderV1 {
    * @param provider PoolAddressesProvider address
    * @return Array of reserve addresses
    */
-  function getReservesList(
+  function getAssetsList(
     IPoolAddressesProvider provider
   ) external view returns (address[] memory) {
     IPool pool = IPool(provider.getPool());
-    return pool.getReservesList();
+    return pool.getAssetsList();
   }
 
   /**
    * @notice Get aggregated data for all reserves
    * @param provider PoolAddressesProvider address
-   * @return reservesData Array of reserve data
+   * @return poolAssets Array of reserve data
    * @return baseCurrencyInfo Base currency information
    * @dev PERFORMANCE: Single call gets ALL pool data
    * @dev Uses Pyth oracle for prices (decentralized)
    */
-  function getReservesData(
+  function getAssetsData(
     IPoolAddressesProvider provider
   ) external view returns (AggregatedReserveData[] memory, BaseCurrencyInfo memory) {
-    IDeraOracle oracle = IDeraOracle(provider.getPriceOracle());
+    IPriceOracleGetter oracle = IPriceOracleGetter(provider.getPriceOracle());
     IPool pool = IPool(provider.getPool());
     IHTS hts = IHTS(address(0x167)); // HTS precompile address
 
-    address[] memory reserves = pool.getReservesList();
-    AggregatedReserveData[] memory reservesData = new AggregatedReserveData[](reserves.length);
+    address[] memory reserves = pool.getAssetsList();
+    AggregatedReserveData[] memory poolAssets = new AggregatedReserveData[](reserves.length);
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      AggregatedReserveData memory reserveData = reservesData[i];
+      AggregatedReserveData memory reserveData = poolAssets[i];
       reserveData.underlyingAsset = reserves[i];
 
       // Reserve current state
-      DataTypes.ReserveData memory baseData = pool.getReserveData(reserveData.underlyingAsset);
+      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserveData.underlyingAsset);
       
       reserveData.liquidityIndex = baseData.liquidityIndex;
       reserveData.variableBorrowIndex = baseData.variableBorrowIndex;
       reserveData.liquidityRate = baseData.currentLiquidityRate;
       reserveData.variableBorrowRate = baseData.currentVariableBorrowRate;
       reserveData.lastUpdateTimestamp = baseData.lastUpdateTimestamp;
-      reserveData.dTokenAddress = baseData.dTokenAddress;
-      reserveData.variableDebtTokenAddress = baseData.variableDebtTokenAddress;
+      reserveData.supplyTokenAddress = baseData.supplyTokenAddress;
+      reserveData.borrowTokenAddress = baseData.borrowTokenAddress;
       reserveData.interestRateStrategyAddress = baseData.interestRateStrategyAddress;
       
       // Pyth oracle price (decentralized)
@@ -155,10 +154,10 @@ contract UiPoolDataProviderV1 {
       // HTS native token balance
       reserveData.availableLiquidity = hts.balanceOf(
         reserveData.underlyingAsset,
-        reserveData.dTokenAddress
+        reserveData.supplyTokenAddress
       );
-      reserveData.totalScaledVariableDebt = IVariableDebtToken(
-        reserveData.variableDebtTokenAddress
+      reserveData.totalScaledVariableDebt = IDeraBorrowToken(
+        reserveData.borrowTokenAddress
       ).scaledTotalSupply();
 
       // HTS token metadata
@@ -167,14 +166,14 @@ contract UiPoolDataProviderV1 {
       reserveData.decimals = hts.decimals(reserveData.underlyingAsset);
 
       // Configuration
-      DataTypes.ReserveConfigurationMap memory reserveConfigurationMap = baseData.configuration;
+      DataTypes.AssetConfigurationMap memory reserveConfigurationMap = baseData.configuration;
       uint256 tempDecimals;
       (
         reserveData.baseLTVasCollateral,
         reserveData.reserveLiquidationThreshold,
         reserveData.reserveLiquidationBonus,
         tempDecimals,
-        reserveData.reserveFactor
+        reserveData.assetFactor
       ) = reserveConfigurationMap.getParams();
       reserveData.usageAsCollateralEnabled = reserveData.baseLTVasCollateral != 0;
 
@@ -187,21 +186,21 @@ contract UiPoolDataProviderV1 {
 
       // Interest rates
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getVariableRateSlope1()
       returns (uint256 slope1) {
         reserveData.variableRateSlope1 = slope1;
       } catch {}
 
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getVariableRateSlope2()
       returns (uint256 slope2) {
         reserveData.variableRateSlope2 = slope2;
       } catch {}
 
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getBaseVariableBorrowRate()
       returns (uint256 baseRate) {
         reserveData.baseVariableBorrowRate = baseRate;
@@ -211,7 +210,7 @@ contract UiPoolDataProviderV1 {
       (reserveData.borrowCap, reserveData.supplyCap) = reserveConfigurationMap.getCaps();
 
       // Additional fields
-      reserveData.accruedToTreasury = baseData.accruedToTreasury;
+      assetData.accruedToTreasury = baseData.accruedToTreasury;
       reserveData.unbacked = baseData.unbacked;
       reserveData.isolationModeTotalDebt = baseData.isolationModeTotalDebt;
       
@@ -228,7 +227,7 @@ contract UiPoolDataProviderV1 {
     baseCurrencyInfo.networkBaseTokenPriceInUsd = int256(oracle.getAssetPrice(address(0))); // HBAR price
     baseCurrencyInfo.networkBaseTokenPriceDecimals = 8;
 
-    return (reservesData, baseCurrencyInfo);
+    return (poolAssets, baseCurrencyInfo);
   }
 
   /**
@@ -238,12 +237,12 @@ contract UiPoolDataProviderV1 {
    * @return userReservesData Array of user reserve data
    * @return userEmodeCategoryId User's eMode category
    */
-  function getUserReservesData(
+  function getUserAssetsData(
     IPoolAddressesProvider provider,
     address user
   ) external view returns (UserReserveData[] memory, uint8) {
     IPool pool = IPool(provider.getPool());
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     DataTypes.UserConfigurationMap memory userConfig = pool.getUserConfiguration(user);
 
     uint8 userEmodeCategoryId = uint8(pool.getUserEMode(user));
@@ -253,17 +252,17 @@ contract UiPoolDataProviderV1 {
     );
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      DataTypes.ReserveData memory baseData = pool.getReserveData(reserves[i]);
+      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
-      userReservesData[i].scaledDTokenBalance = IDToken(baseData.dTokenAddress).scaledBalanceOf(
+      userReservesData[i].scaledSupplyTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(
         user
       );
       userReservesData[i].usageAsCollateralEnabledOnUser = userConfig.isUsingAsCollateral(i);
 
       if (userConfig.isBorrowing(i)) {
-        userReservesData[i].scaledVariableDebt = IVariableDebtToken(
-          baseData.variableDebtTokenAddress
+        userReservesData[i].scaledVariableDebt = IDeraBorrowToken(
+          baseData.borrowTokenAddress
         ).scaledBalanceOf(user);
       }
     }

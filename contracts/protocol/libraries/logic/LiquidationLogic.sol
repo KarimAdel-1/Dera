@@ -1,40 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
 import {PercentageMath} from '../../libraries/math/PercentageMath.sol';
 import {MathUtils} from '../../libraries/math/MathUtils.sol';
 import {TokenMath} from '../../libraries/helpers/TokenMath.sol';
 import {DataTypes} from '../../libraries/types/DataTypes.sol';
-import {ReserveLogic} from './ReserveLogic.sol';
+import {AssetLogic} from './AssetLogic.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
 import {UserConfiguration} from '../../libraries/configuration/UserConfiguration.sol';
-import {ReserveConfiguration} from '../../libraries/configuration/ReserveConfiguration.sol';
-import {EModeConfiguration} from '../../libraries/configuration/EModeConfiguration.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {AssetConfiguration} from '../../libraries/configuration/AssetConfiguration.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
 import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.sol';
 import {Errors} from '../helpers/Errors.sol';
 
+// HTS precompile interface for native Hedera token operations
+interface IHTS {
+  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
+}
+
 /**
  * @title LiquidationLogic library
  * @author Dera
- * @notice Implements liquidation actions for undercollateralized positions
+ * @notice Implements liquidation actions for undercollateralized positions using HTS
  */
 library LiquidationLogic {
   using TokenMath for uint256;
   using PercentageMath for uint256;
-  using ReserveLogic for DataTypes.ReserveCache;
-  using ReserveLogic for DataTypes.ReserveData;
+  using AssetLogic for DataTypes.AssetState;
+  using AssetLogic for DataTypes.PoolAssetData;
   using UserConfiguration for DataTypes.UserConfigurationMap;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
-  using GPv2SafeERC20 for IERC20;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using SafeCast for uint256;
+
+  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
+
+  // Custom errors for HTS operations
+  error HTSTransferFailed(int64 responseCode);
+  error AmountExceedsInt64();
 
   uint256 internal constant DEFAULT_LIQUIDATION_CLOSE_FACTOR = 0.5e4;
   uint256 public constant CLOSE_FACTOR_HF_THRESHOLD = 0.95e18;
@@ -58,27 +64,27 @@ library LiquidationLogic {
     uint256 debtAssetPrice;
     uint256 collateralAssetUnit;
     uint256 debtAssetUnit;
-    DataTypes.ReserveCache debtReserveCache;
-    DataTypes.ReserveCache collateralReserveCache;
+    DataTypes.AssetState debtReserveCache;
+    DataTypes.AssetState collateralReserveCache;
   }
 
   function executeLiquidationCall(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    
     DataTypes.ExecuteLiquidationCallParams memory params
   ) external {
     LiquidationCallLocalVars memory vars;
 
-    DataTypes.ReserveData storage collateralReserve = reservesData[params.collateralAsset];
-    DataTypes.ReserveData storage debtReserve = reservesData[params.debtAsset];
+    DataTypes.PoolAssetData storage collateralAsset = poolAssets[params.collateralAsset];
+    DataTypes.PoolAssetData storage debtAsset = poolAssets[params.debtAsset];
     DataTypes.UserConfigurationMap storage borrowerConfig = usersConfig[params.borrower];
     
-    vars.debtReserveCache = debtReserve.cache();
-    vars.collateralReserveCache = collateralReserve.cache();
-    debtReserve.updateState(vars.debtReserveCache);
-    collateralReserve.updateState(vars.collateralReserveCache);
+    vars.debtReserveCache = debtAsset.cache();
+    vars.collateralReserveCache = collateralAsset.cache();
+    debtAsset.updateState(vars.debtReserveCache);
+    collateralAsset.updateState(vars.collateralReserveCache);
 
     (
       vars.totalCollateralInBaseCurrency,
@@ -87,29 +93,27 @@ library LiquidationLogic {
       ,
       vars.healthFactor,
     ) = GenericLogic.calculateUserAccountData(
-      reservesData,
-      reservesList,
-      eModeCategories,
+      poolAssets,
+      assetsList,
       DataTypes.CalculateUserAccountDataParams({
         userConfig: borrowerConfig,
         user: params.borrower,
-        oracle: params.priceOracle,
-        userEModeCategory: params.borrowerEModeCategory
+        oracle: params.priceOracle
       })
     );
 
-    vars.borrowerCollateralBalance = IDToken(vars.collateralReserveCache.dTokenAddress)
+    vars.borrowerCollateralBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress)
       .scaledBalanceOf(params.borrower)
-      .getDTokenBalance(vars.collateralReserveCache.nextLiquidityIndex);
+      .getSupplyTokenBalance(vars.collateralReserveCache.nextLiquidityIndex);
     
-    vars.borrowerReserveDebt = IVariableDebtToken(vars.debtReserveCache.variableDebtTokenAddress)
+    vars.borrowerReserveDebt = IDeraBorrowToken(vars.debtReserveCache.borrowTokenAddress)
       .scaledBalanceOf(params.borrower)
-      .getVariableDebtTokenBalance(vars.debtReserveCache.nextVariableBorrowIndex);
+      .getBorrowTokenBalance(vars.debtReserveCache.nextVariableBorrowIndex);
 
     ValidationLogic.validateLiquidationCall(
       borrowerConfig,
-      collateralReserve,
-      debtReserve,
+      collateralAsset,
+      debtAsset,
       DataTypes.ValidateLiquidationCallParams({
         debtReserveCache: vars.debtReserveCache,
         totalDebt: vars.borrowerReserveDebt,
@@ -120,22 +124,13 @@ library LiquidationLogic {
       })
     );
 
-    if (
-      params.borrowerEModeCategory != 0 &&
-      EModeConfiguration.isReserveEnabledOnBitmap(
-        eModeCategories[params.borrowerEModeCategory].collateralBitmap,
-        collateralReserve.id
-      )
-    ) {
-      vars.liquidationBonus = eModeCategories[params.borrowerEModeCategory].liquidationBonus;
-    } else {
-      vars.liquidationBonus = vars.collateralReserveCache.reserveConfiguration.getLiquidationBonus();
-    }
+    // Use standard liquidation bonus from reserve configuration (E-Mode removed for MVP)
+    vars.liquidationBonus = vars.collateralReserveCache.assetConfiguration.getLiquidationBonus();
 
     vars.collateralAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.collateralAsset);
     vars.debtAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.debtAsset);
-    vars.collateralAssetUnit = 10 ** vars.collateralReserveCache.reserveConfiguration.getDecimals();
-    vars.debtAssetUnit = 10 ** vars.debtReserveCache.reserveConfiguration.getDecimals();
+    vars.collateralAssetUnit = 10 ** vars.collateralReserveCache.assetConfiguration.getDecimals();
+    vars.debtAssetUnit = 10 ** vars.debtReserveCache.assetConfiguration.getDecimals();
 
     vars.borrowerReserveDebtInBaseCurrency = MathUtils.mulDivCeil(
       vars.borrowerReserveDebt,
@@ -170,7 +165,7 @@ library LiquidationLogic {
       vars.liquidationProtocolFeeAmount,
       vars.collateralToLiquidateInBaseCurrency
     ) = _calculateAvailableCollateralToLiquidate(
-      vars.collateralReserveCache.reserveConfiguration,
+      vars.collateralReserveCache.assetConfiguration,
       vars.collateralAssetPrice,
       vars.collateralAssetUnit,
       vars.debtAssetPrice,
@@ -198,14 +193,14 @@ library LiquidationLogic {
     }
 
     if (vars.actualCollateralToLiquidate + vars.liquidationProtocolFeeAmount == vars.borrowerCollateralBalance) {
-      borrowerConfig.setUsingAsCollateral(collateralReserve.id, params.collateralAsset, params.borrower, false);
+      borrowerConfig.setUsingAsCollateral(collateralAsset.id, params.collateralAsset, params.borrower, false);
     }
 
     bool hasNoCollateralLeft = vars.totalCollateralInBaseCurrency == vars.collateralToLiquidateInBaseCurrency;
     
     _burnDebtTokens(
       vars.debtReserveCache,
-      debtReserve,
+      debtAsset,
       borrowerConfig,
       params.borrower,
       params.debtAsset,
@@ -215,40 +210,31 @@ library LiquidationLogic {
       params.interestRateStrategyAddress
     );
 
-    if (vars.collateralReserveCache.reserveConfiguration.getDebtCeiling() != 0) {
-      IsolationModeLogic.updateIsolatedDebt(
-        reservesData,
-        vars.debtReserveCache,
-        vars.actualDebtToLiquidate,
-        params.collateralAsset
-      );
-    }
-
-    if (params.receiveDToken) {
-      _liquidateDTokens(reservesData, reservesList, usersConfig, collateralReserve, params, vars);
+    if (params.receiveSupplyToken) {
+      _liquidateSupplyTokens(poolAssets, assetsList, usersConfig, collateralAsset, params, vars);
     } else {
       if (params.collateralAsset == params.debtAsset) {
         vars.collateralReserveCache.nextScaledVariableDebt = vars.debtReserveCache.nextScaledVariableDebt;
       }
-      _burnCollateralDTokens(collateralReserve, params, vars);
+      _burnCollateralSupplyTokens(collateralAsset, params, vars);
     }
 
     if (vars.liquidationProtocolFeeAmount != 0) {
-      uint256 scaledDownLiquidationProtocolFee = vars.liquidationProtocolFeeAmount.getDTokenTransferScaledAmount(
+      uint256 scaledDownLiquidationProtocolFee = vars.liquidationProtocolFeeAmount.getSupplyTokenTransferScaledAmount(
         vars.collateralReserveCache.nextLiquidityIndex
       );
-      uint256 scaledDownBorrowerBalance = IDToken(vars.collateralReserveCache.dTokenAddress).scaledBalanceOf(params.borrower);
+      uint256 scaledDownBorrowerBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).scaledBalanceOf(params.borrower);
       
       if (scaledDownLiquidationProtocolFee > scaledDownBorrowerBalance) {
         scaledDownLiquidationProtocolFee = scaledDownBorrowerBalance;
-        vars.liquidationProtocolFeeAmount = scaledDownBorrowerBalance.getDTokenBalance(
+        vars.liquidationProtocolFeeAmount = scaledDownBorrowerBalance.getSupplyTokenBalance(
           vars.collateralReserveCache.nextLiquidityIndex
         );
       }
       
-      IDToken(vars.collateralReserveCache.dTokenAddress).transferOnLiquidation({
+      IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).transferOnLiquidation({
         from: params.borrower,
-        to: IDToken(vars.collateralReserveCache.dTokenAddress).RESERVE_TREASURY_ADDRESS(),
+        to: IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).RESERVE_TREASURY_ADDRESS(),
         amount: vars.liquidationProtocolFeeAmount,
         scaledAmount: scaledDownLiquidationProtocolFee,
         index: vars.collateralReserveCache.nextLiquidityIndex
@@ -256,12 +242,15 @@ library LiquidationLogic {
     }
 
     if (hasNoCollateralLeft && borrowerConfig.isBorrowingAny()) {
-      _burnBadDebt(reservesData, reservesList, borrowerConfig, params);
+      _burnBadDebt(poolAssets, assetsList, borrowerConfig, params);
     }
 
-    IERC20(params.debtAsset).safeTransferFrom(
+    // Transfer debt asset from liquidator to dToken contract via HTS
+    // CRITICAL: Liquidator must be associated with the HTS token before this call
+    _safeHTSTransferFrom(
+      params.debtAsset,
       params.liquidator,
-      vars.debtReserveCache.dTokenAddress,
+      vars.debtReserveCache.supplyTokenAddress,
       vars.actualDebtToLiquidate
     );
 
@@ -272,16 +261,16 @@ library LiquidationLogic {
       vars.actualDebtToLiquidate,
       vars.actualCollateralToLiquidate,
       params.liquidator,
-      params.receiveDToken
+      params.receiveSupplyToken
     );
   }
 
-  function _burnCollateralDTokens(
-    DataTypes.ReserveData storage collateralReserve,
+  function _burnCollateralSupplyTokens(
+    DataTypes.PoolAssetData storage collateralAsset,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
-    collateralReserve.updateInterestRatesAndVirtualBalance(
+    collateralAsset.updateInterestRatesAndVirtualBalance(
       vars.collateralReserveCache,
       params.collateralAsset,
       0,
@@ -289,57 +278,57 @@ library LiquidationLogic {
       params.interestRateStrategyAddress
     );
 
-    IDToken(vars.collateralReserveCache.dTokenAddress).burn({
+    IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).burn({
       from: params.borrower,
       receiverOfUnderlying: params.liquidator,
       amount: vars.actualCollateralToLiquidate,
-      scaledAmount: vars.actualCollateralToLiquidate.getDTokenBurnScaledAmount(
+      scaledAmount: vars.actualCollateralToLiquidate.getSupplyTokenBurnScaledAmount(
         vars.collateralReserveCache.nextLiquidityIndex
       ),
       index: vars.collateralReserveCache.nextLiquidityIndex
     });
   }
 
-  function _liquidateDTokens(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+  function _liquidateSupplyTokens(
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    DataTypes.ReserveData storage collateralReserve,
+    DataTypes.PoolAssetData storage collateralAsset,
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
-    uint256 liquidatorPreviousDTokenBalance = IDToken(vars.collateralReserveCache.dTokenAddress).scaledBalanceOf(
+    uint256 liquidatorPreviousSupplyTokenBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).scaledBalanceOf(
       params.liquidator
     );
     
-    IDToken(vars.collateralReserveCache.dTokenAddress).transferOnLiquidation(
+    IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).transferOnLiquidation(
       params.borrower,
       params.liquidator,
       vars.actualCollateralToLiquidate,
-      vars.actualCollateralToLiquidate.getDTokenTransferScaledAmount(vars.collateralReserveCache.nextLiquidityIndex),
+      vars.actualCollateralToLiquidate.getSupplyTokenTransferScaledAmount(vars.collateralReserveCache.nextLiquidityIndex),
       vars.collateralReserveCache.nextLiquidityIndex
     );
 
-    if (liquidatorPreviousDTokenBalance == 0) {
+    if (liquidatorPreviousSupplyTokenBalance == 0) {
       DataTypes.UserConfigurationMap storage liquidatorConfig = usersConfig[params.liquidator];
       if (
         ValidationLogic.validateAutomaticUseAsCollateral(
           params.liquidator,
-          reservesData,
-          reservesList,
+          poolAssets,
+          assetsList,
           liquidatorConfig,
-          vars.collateralReserveCache.reserveConfiguration,
-          vars.collateralReserveCache.dTokenAddress
+          vars.collateralReserveCache.assetConfiguration,
+          vars.collateralReserveCache.supplyTokenAddress
         )
       ) {
-        liquidatorConfig.setUsingAsCollateral(collateralReserve.id, params.collateralAsset, params.liquidator, true);
+        liquidatorConfig.setUsingAsCollateral(collateralAsset.id, params.collateralAsset, params.liquidator, true);
       }
     }
   }
 
   function _burnDebtTokens(
-    DataTypes.ReserveCache memory debtReserveCache,
-    DataTypes.ReserveData storage debtReserve,
+    DataTypes.AssetState memory debtReserveCache,
+    DataTypes.PoolAssetData storage debtAsset,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     address borrower,
     address debtAsset,
@@ -353,26 +342,26 @@ library LiquidationLogic {
     if (borrowerReserveDebt != 0) {
       uint256 burnAmount = hasNoCollateralLeft ? borrowerReserveDebt : actualDebtToLiquidate;
 
-      (noMoreDebt, debtReserveCache.nextScaledVariableDebt) = IVariableDebtToken(
-        debtReserveCache.variableDebtTokenAddress
+      (noMoreDebt, debtReserveCache.nextScaledVariableDebt) = IDeraBorrowToken(
+        debtReserveCache.borrowTokenAddress
       ).burn({
         from: borrower,
-        scaledAmount: burnAmount.getVariableDebtTokenBurnScaledAmount(debtReserveCache.nextVariableBorrowIndex),
+        scaledAmount: burnAmount.getBorrowTokenBurnScaledAmount(debtReserveCache.nextVariableBorrowIndex),
         index: debtReserveCache.nextVariableBorrowIndex
       });
     }
 
     uint256 outstandingDebt = borrowerReserveDebt - actualDebtToLiquidate;
     if (hasNoCollateralLeft && outstandingDebt != 0) {
-      debtReserve.deficit += outstandingDebt.toUint128();
+      debtAsset.deficit += outstandingDebt.toUint128();
       emit IPool.DeficitCreated(borrower, debtAsset, outstandingDebt);
     }
 
     if (noMoreDebt) {
-      borrowerConfig.setBorrowing(debtReserve.id, false);
+      borrowerConfig.setBorrowing(debtAsset.id, false);
     }
 
-    debtReserve.updateInterestRatesAndVirtualBalance(
+    debtAsset.updateInterestRatesAndVirtualBalance(
       debtReserveCache,
       debtAsset,
       actualDebtToLiquidate,
@@ -394,7 +383,7 @@ library LiquidationLogic {
   }
 
   function _calculateAvailableCollateralToLiquidate(
-    DataTypes.ReserveConfigurationMap memory collateralReserveConfiguration,
+    DataTypes.AssetConfigurationMap memory collateralReserveConfiguration,
     uint256 collateralAssetPrice,
     uint256 collateralAssetUnit,
     uint256 debtAssetPrice,
@@ -438,8 +427,8 @@ library LiquidationLogic {
   }
 
   function _burnBadDebt(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     DataTypes.ExecuteLiquidationCallParams memory params
   ) internal {
@@ -450,21 +439,21 @@ library LiquidationLogic {
     while (cachedBorrowerConfig != 0) {
       (cachedBorrowerConfig, isBorrowed, ) = UserConfiguration.getNextFlags(cachedBorrowerConfig);
       if (isBorrowed) {
-        address reserveAddress = reservesList[i];
-        if (reserveAddress != address(0)) {
-          DataTypes.ReserveCache memory reserveCache = reservesData[reserveAddress].cache();
-          if (reserveCache.reserveConfiguration.getActive()) {
-            reservesData[reserveAddress].updateState(reserveCache);
+        address assetAddress = assetsList[i];
+        if (assetAddress != address(0)) {
+          DataTypes.AssetState memory assetState = poolAssets[assetAddress].cache();
+          if (assetState.assetConfiguration.getActive()) {
+            poolAssets[assetAddress].updateState(assetState);
 
             _burnDebtTokens(
-              reserveCache,
-              reservesData[reserveAddress],
+              assetState,
+              poolAssets[assetAddress],
               borrowerConfig,
               params.borrower,
-              reserveAddress,
-              IVariableDebtToken(reserveCache.variableDebtTokenAddress)
+              assetAddress,
+              IDeraBorrowToken(assetState.borrowTokenAddress)
                 .scaledBalanceOf(params.borrower)
-                .getVariableDebtTokenBalance(reserveCache.nextVariableBorrowIndex),
+                .getBorrowTokenBalance(assetState.nextVariableBorrowIndex),
               0,
               true,
               params.interestRateStrategyAddress
@@ -476,5 +465,23 @@ library LiquidationLogic {
         ++i;
       }
     }
+  }
+
+  // ============ Internal HTS Helper Functions ============
+
+  /**
+   * @notice Safe HTS token transfer from sender to recipient
+   * @dev Uses Hedera Token Service precompile at 0x167
+   * @param token HTS token address
+   * @param from Sender address (must have approved the Pool contract via HTS)
+   * @param to Recipient address (must be associated with the token)
+   * @param amount Amount to transfer
+   */
+  function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
+    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+
+    int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
+
+    if (responseCode != 0) revert HTSTransferFailed(responseCode);
   }
 }

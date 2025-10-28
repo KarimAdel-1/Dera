@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  hcs-event-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dera-hcs-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./src/abis:/app/src/abis:ro
+    networks:
+      - dera-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  dera-network:
+    driver: bridge

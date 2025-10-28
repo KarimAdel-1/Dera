@@ -1,83 +1,82 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
-import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
 import {DataTypes} from '../types/DataTypes.sol';
 import {ValidationLogic} from './ValidationLogic.sol';
-import {ReserveLogic} from './ReserveLogic.sol';
-import {IsolationModeLogic} from './IsolationModeLogic.sol';
+import {AssetLogic} from './AssetLogic.sol';
+
+// HTS precompile interface for native Hedera token operations
+interface IHTS {
+  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
+}
 
 /**
  * @title BorrowLogic library
  * @author Dera Protocol
- * @notice Implements the base logic for all the actions related to borrowing
+ * @notice Implements the base logic for all the actions related to borrowing using HTS
  */
 library BorrowLogic {
   using TokenMath for uint256;
-  using ReserveLogic for DataTypes.ReserveCache;
-  using ReserveLogic for DataTypes.ReserveData;
+  using AssetLogic for DataTypes.AssetState;
+  using AssetLogic for DataTypes.PoolAssetData;
   using UserConfiguration for DataTypes.UserConfigurationMap;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
+
+  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
+
+  // Custom errors for HTS operations
+  error HTSTransferFailed(int64 responseCode);
+  error AmountExceedsInt64();
 
   function executeBorrow(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ExecuteBorrowParams memory params
   ) external {
-    DataTypes.ReserveData storage reserve = reservesData[params.asset];
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
+    DataTypes.AssetState memory assetState = asset.cache();
 
-    reserve.updateState(reserveCache);
+    asset.updateState(assetState);
 
-    uint256 amountScaled = params.amount.getVariableDebtTokenMintScaledAmount(reserveCache.nextVariableBorrowIndex);
+    uint256 amountScaled = params.amount.getBorrowTokenMintScaledAmount(assetState.nextVariableBorrowIndex);
 
     ValidationLogic.validateBorrow(
-      reservesData,
-      reservesList,
-      eModeCategories,
+      poolAssets,
+      assetsList,
       DataTypes.ValidateBorrowParams({
-        reserveCache: reserveCache,
+        assetState: assetState,
         userConfig: userConfig,
         asset: params.asset,
         userAddress: params.onBehalfOf,
         amountScaled: amountScaled,
         interestRateMode: params.interestRateMode,
         oracle: params.oracle,
-        userEModeCategory: params.userEModeCategory,
         priceOracleSentinel: params.priceOracleSentinel
       })
     );
 
-    reserveCache.nextScaledVariableDebt = IVariableDebtToken(reserveCache.variableDebtTokenAddress).mint(
+    assetState.nextScaledVariableDebt = IDeraBorrowToken(assetState.borrowTokenAddress).mint(
       params.user,
       params.onBehalfOf,
       params.amount,
       amountScaled,
-      reserveCache.nextVariableBorrowIndex
+      assetState.nextVariableBorrowIndex
     );
 
-    uint16 cachedReserveId = reserve.id;
+    uint16 cachedReserveId = asset.id;
     if (!userConfig.isBorrowing(cachedReserveId)) {
       userConfig.setBorrowing(cachedReserveId, true);
     }
 
-    IsolationModeLogic.increaseIsolatedDebtIfIsolated(
-      reservesData,
-      reservesList,
-      userConfig,
-      reserveCache,
-      params.amount
-    );
-
-    reserve.updateInterestRatesAndVirtualBalance(
-      reserveCache,
+    asset.updateInterestRatesAndVirtualBalance(
+      assetState,
       params.asset,
       0,
       params.releaseUnderlying ? params.amount : 0,
@@ -85,16 +84,14 @@ library BorrowLogic {
     );
 
     if (params.releaseUnderlying) {
-      IDToken(reserveCache.dTokenAddress).transferUnderlyingTo(params.user, params.amount);
+      IDeraSupplyToken(assetState.supplyTokenAddress).transferUnderlyingTo(params.user, params.amount);
     }
 
     ValidationLogic.validateHFAndLtv(
-      reservesData,
-      reservesList,
-      eModeCategories,
+      poolAssets,
+      assetsList,
       userConfig,
       params.onBehalfOf,
-      params.userEModeCategory,
       params.oracle
     );
 
@@ -104,91 +101,104 @@ library BorrowLogic {
       params.onBehalfOf,
       params.amount,
       DataTypes.InterestRateMode.VARIABLE,
-      reserve.currentVariableBorrowRate,
+      asset.currentVariableBorrowRate,
       params.referralCode
     );
   }
 
   function executeRepay(
-    mapping(address => DataTypes.ReserveData) storage reservesData,
-    mapping(uint256 => address) storage reservesList,
-    mapping(uint8 => DataTypes.EModeCategory) storage eModeCategories,
+    mapping(address => DataTypes.PoolAssetData) storage poolAssets,
+    mapping(uint256 => address) storage assetsList,
     DataTypes.UserConfigurationMap storage onBehalfOfConfig,
     DataTypes.ExecuteRepayParams memory params
   ) external returns (uint256) {
-    DataTypes.ReserveData storage reserve = reservesData[params.asset];
-    DataTypes.ReserveCache memory reserveCache = reserve.cache();
-    reserve.updateState(reserveCache);
+    DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
+    DataTypes.AssetState memory assetState = asset.cache();
+    asset.updateState(assetState);
 
-    uint256 userDebtScaled = IVariableDebtToken(reserveCache.variableDebtTokenAddress).scaledBalanceOf(params.onBehalfOf);
-    uint256 userDebt = userDebtScaled.getVariableDebtTokenBalance(reserveCache.nextVariableBorrowIndex);
+    uint256 userDebtScaled = IDeraBorrowToken(assetState.borrowTokenAddress).scaledBalanceOf(params.onBehalfOf);
+    uint256 userDebt = userDebtScaled.getBorrowTokenBalance(assetState.nextVariableBorrowIndex);
 
-    ValidationLogic.validateRepay(params.user, reserveCache, params.amount, params.interestRateMode, params.onBehalfOf, userDebtScaled);
+    ValidationLogic.validateRepay(params.user, assetState, params.amount, params.interestRateMode, params.onBehalfOf, userDebtScaled);
 
     uint256 paybackAmount = params.amount;
-    if (params.useDTokens && params.amount == type(uint256).max) {
-      paybackAmount = IDToken(reserveCache.dTokenAddress).scaledBalanceOf(params.user).getDTokenBalance(reserveCache.nextLiquidityIndex);
+    if (params.useSupplyTokens && params.amount == type(uint256).max) {
+      paybackAmount = IDeraSupplyToken(assetState.supplyTokenAddress).scaledBalanceOf(params.user).getSupplyTokenBalance(assetState.nextLiquidityIndex);
     }
 
     if (paybackAmount > userDebt) {
       paybackAmount = userDebt;
     }
 
+    // Transfer tokens from repayer to dToken contract via HTS (if not using dTokens)
+    // CRITICAL: User must be associated with the HTS token before this call
+    if (!params.useSupplyTokens) {
+      _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, paybackAmount);
+    }
+
     bool noMoreDebt;
-    (noMoreDebt, reserveCache.nextScaledVariableDebt) = IVariableDebtToken(reserveCache.variableDebtTokenAddress).burn({
+    (noMoreDebt, assetState.nextScaledVariableDebt) = IDeraBorrowToken(assetState.borrowTokenAddress).burn({
       from: params.onBehalfOf,
-      scaledAmount: paybackAmount.getVariableDebtTokenBurnScaledAmount(reserveCache.nextVariableBorrowIndex),
-      index: reserveCache.nextVariableBorrowIndex
+      scaledAmount: paybackAmount.getBorrowTokenBurnScaledAmount(assetState.nextVariableBorrowIndex),
+      index: assetState.nextVariableBorrowIndex
     });
 
-    reserve.updateInterestRatesAndVirtualBalance(
-      reserveCache,
+    asset.updateInterestRatesAndVirtualBalance(
+      assetState,
       params.asset,
-      params.useDTokens ? 0 : paybackAmount,
+      params.useSupplyTokens ? 0 : paybackAmount,
       0,
       params.interestRateStrategyAddress
     );
 
     if (noMoreDebt) {
-      onBehalfOfConfig.setBorrowing(reserve.id, false);
+      onBehalfOfConfig.setBorrowing(asset.id, false);
     }
 
-    IsolationModeLogic.reduceIsolatedDebtIfIsolated(
-      reservesData,
-      reservesList,
-      onBehalfOfConfig,
-      reserveCache,
-      paybackAmount
-    );
-
-    if (params.useDTokens) {
-      bool zeroBalanceAfterBurn = IDToken(reserveCache.dTokenAddress).burn({
+    if (params.useSupplyTokens) {
+      bool zeroBalanceAfterBurn = IDeraSupplyToken(assetState.supplyTokenAddress).burn({
         from: params.user,
-        receiverOfUnderlying: reserveCache.dTokenAddress,
+        receiverOfUnderlying: assetState.supplyTokenAddress,
         amount: paybackAmount,
-        scaledAmount: paybackAmount.getDTokenBurnScaledAmount(reserveCache.nextLiquidityIndex),
-        index: reserveCache.nextLiquidityIndex
+        scaledAmount: paybackAmount.getSupplyTokenBurnScaledAmount(assetState.nextLiquidityIndex),
+        index: assetState.nextLiquidityIndex
       });
-      if (onBehalfOfConfig.isUsingAsCollateral(reserve.id)) {
+      if (onBehalfOfConfig.isUsingAsCollateral(asset.id)) {
         if (zeroBalanceAfterBurn) {
-          onBehalfOfConfig.setUsingAsCollateral(reserve.id, params.asset, params.user, false);
+          onBehalfOfConfig.setUsingAsCollateral(asset.id, params.asset, params.user, false);
         }
         if (onBehalfOfConfig.isBorrowingAny()) {
           ValidationLogic.validateHealthFactor(
-            reservesData,
-            reservesList,
-            eModeCategories,
+            poolAssets,
+            assetsList,
             onBehalfOfConfig,
             params.user,
-            params.userEModeCategory,
             params.oracle
           );
         }
       }
     }
 
-    emit IPool.Repay(params.asset, params.onBehalfOf, params.user, paybackAmount, params.useDTokens);
+    emit IPool.Repay(params.asset, params.onBehalfOf, params.user, paybackAmount, params.useSupplyTokens);
 
     return paybackAmount;
+  }
+
+  // ============ Internal HTS Helper Functions ============
+
+  /**
+   * @notice Safe HTS token transfer from sender to recipient
+   * @dev Uses Hedera Token Service precompile at 0x167
+   * @param token HTS token address
+   * @param from Sender address (must have approved the Pool contract via HTS)
+   * @param to Recipient address (must be associated with the token)
+   * @param amount Amount to transfer
+   */
+  function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
+    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+
+    int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
+
+    if (responseCode != 0) revert HTSTransferFailed(responseCode);
   }
 }

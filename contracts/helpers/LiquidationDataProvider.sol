@@ -3,11 +3,11 @@ pragma solidity ^0.8.19;
 
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
-import {IDToken} from '../../interfaces/IDToken.sol';
-import {IVariableDebtToken} from '../../interfaces/IVariableDebtToken.sol';
+import {IPriceOracleGetter} from '../../interfaces/IPriceOracleGetter.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
-import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
+import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
 import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
 import {PercentageMath} from '../../protocol/libraries/math/PercentageMath.sol';
@@ -38,7 +38,7 @@ import {PercentageMath} from '../../protocol/libraries/math/PercentageMath.sol';
 contract LiquidationDataProvider {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
-  using ReserveConfiguration for DataTypes.ReserveConfigurationMap;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;
 
   struct LiquidationData {
@@ -64,7 +64,7 @@ contract LiquidationDataProvider {
     address[] calldata users
   ) external view returns (LiquidationData[] memory) {
     IPool pool = IPool(provider.getPool());
-    IDeraOracle oracle = IDeraOracle(provider.getPriceOracle());
+    IPriceOracleGetter oracle = IPriceOracleGetter(provider.getPriceOracle());
     
     // Temporary array (max size = users.length)
     LiquidationData[] memory tempLiquidations = new LiquidationData[](users.length);
@@ -94,7 +94,7 @@ contract LiquidationDataProvider {
         (address debtAsset, uint256 debtAmount) = _getLargestDebt(pool, oracle, user);
 
         if (collateralAsset != address(0) && debtAsset != address(0)) {
-          DataTypes.ReserveConfigurationMap memory config = pool.getConfiguration(collateralAsset);
+          DataTypes.AssetConfigurationMap memory config = pool.getConfiguration(collateralAsset);
           (, , uint256 liquidationBonus, , ) = config.getParams();
 
           tempLiquidations[liquidationCount] = LiquidationData({
@@ -142,24 +142,24 @@ contract LiquidationDataProvider {
    */
   function _getBestCollateral(
     IPool pool,
-    IDeraOracle oracle,
+    IPriceOracleGetter oracle,
     address user
   ) internal view returns (address bestAsset, uint256 bestAmount) {
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     uint256 maxValue = 0;
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      address asset = reserves[i];
-      DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
-      
-      uint256 balance = IDToken(reserve.dTokenAddress).balanceOf(user);
+      address assetAddress = reserves[i];
+      DataTypes.PoolAssetData memory assetData = pool.getAssetData(assetAddress);
+
+      uint256 balance = IDeraSupplyToken(assetData.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
-        uint256 price = oracle.getAssetPrice(asset);
+        uint256 price = oracle.getAssetPrice(assetAddress);
         uint256 value = balance.wadMul(price);
-        
+
         if (value > maxValue) {
           maxValue = value;
-          bestAsset = asset;
+          bestAsset = assetAddress;
           bestAmount = balance;
         }
       }
@@ -172,24 +172,24 @@ contract LiquidationDataProvider {
    */
   function _getLargestDebt(
     IPool pool,
-    IDeraOracle oracle,
+    IPriceOracleGetter oracle,
     address user
   ) internal view returns (address largestAsset, uint256 largestAmount) {
-    address[] memory reserves = pool.getReservesList();
+    address[] memory reserves = pool.getAssetsList();
     uint256 maxValue = 0;
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      address asset = reserves[i];
-      DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
-      
-      uint256 debt = IVariableDebtToken(reserve.variableDebtTokenAddress).balanceOf(user);
+      address assetAddress = reserves[i];
+      DataTypes.PoolAssetData memory assetData = pool.getAssetData(assetAddress);
+
+      uint256 debt = IDeraBorrowToken(assetData.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {
-        uint256 price = oracle.getAssetPrice(asset);
+        uint256 price = oracle.getAssetPrice(assetAddress);
         uint256 value = debt.wadMul(price);
-        
+
         if (value > maxValue) {
           maxValue = value;
-          largestAsset = asset;
+          largestAsset = assetAddress;
           largestAmount = debt;
         }
       }

@@ -25,7 +25,7 @@ pragma solidity ^0.8.19;
  * ERROR CATEGORIES:
  * - Access Control: CallerNotPoolAdmin, CallerNotPoolConfigurator, etc.
  * - Validation: InvalidAmount, InvalidLtv, InvalidReserveParams, etc.
- * - State: ReserveInactive, ReserveFrozen, ReservePaused, etc.
+ * - State: AssetInactive, AssetFrozen, AssetPaused, etc.
  * - Business Logic: HealthFactorLowerThanLiquidationThreshold, etc.
  */
 library Errors {
@@ -37,23 +37,21 @@ library Errors {
   error InvalidAddressesProviderId();
   error NotContract();
   error CallerNotPoolConfigurator();
-  error CallerNotDToken();
+  error CallerNotSupplyToken();
   error InvalidAddressesProvider();
-  error InvalidFlashloanExecutorReturn();
-  error ReserveAlreadyAdded();
+  error AssetAlreadyAdded();
   error NoMoreReservesAllowed();
   error EModeCategoryReserved();
-  error ReserveLiquidityNotZero();
-  error FlashloanPremiumInvalid();
+  error AssetLiquidityNotZero();
   error InvalidReserveParams();
   error InvalidEmodeCategoryParams();
   error CallerMustBePool();
   error InvalidMintAmount();
   error InvalidBurnAmount();
   error InvalidAmount();
-  error ReserveInactive();
-  error ReserveFrozen();
-  error ReservePaused();
+  error AssetInactive();
+  error AssetFrozen();
+  error AssetPaused();
   error BorrowingNotEnabled();
   error NotEnoughAvailableUserBalance();
   error InvalidInterestRateModeSelected();
@@ -65,7 +63,6 @@ library Errors {
   error HealthFactorNotBelowThreshold();
   error CollateralCannotBeLiquidated();
   error SpecifiedCurrencyNotBorrowedByUser();
-  error InconsistentFlashloanParams();
   error BorrowCapExceeded();
   error SupplyCapExceeded();
   error DebtCeilingExceeded();
@@ -75,7 +72,7 @@ library Errors {
   error InconsistentEModeCategory();
   error PriceOracleSentinelCheckFailed();
   error AssetNotBorrowableInIsolation();
-  error ReserveAlreadyInitialized();
+  error AssetAlreadyInitialized();
   error UserInIsolationModeOrLtvZero();
   error InvalidLtv();
   error InvalidLiquidationThreshold();
@@ -100,11 +97,10 @@ library Errors {
   error AddressesProviderAlreadyAdded();
   error PoolAddressesDoNotMatch();
   error SiloedBorrowingViolation();
-  error ReserveDebtNotZero();
-  error FlashloanDisabled();
+  error AssetDebtNotZero();
   error InvalidMaxRate();
-  error WithdrawToDToken();
-  error SupplyToDToken();
+  error WithdrawToSupplyToken();
+  error SupplyToSupplyToken();
   error Slope2MustBeGteSlope1();
   error CallerNotRiskOrPoolOrEmergencyAdmin();
   error LiquidationGraceSentinelCheckFailed();
@@ -112,9 +108,12 @@ library Errors {
   error InvalidFreezeState();
   error NotBorrowableInEMode();
   error CallerNotUmbrella();
-  error ReserveNotInDeficit();
+  error AssetNotInDeficit();
   error MustNotLeaveDust();
   error UserCannotHaveDebt();
   error SelfLiquidation();
   error CallerNotPositionManager();
+  error NoDebtToCover();
+  error AmountExceedsDeficit();
+  error ProtocolPaused();
 }
