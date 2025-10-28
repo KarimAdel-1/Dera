@@ -65,6 +65,14 @@ contract PoolStorage {
   // Treasury (Collector contract) for protocol fee management
   address public treasury;
 
+  // ============ User Registry for Liquidation Monitoring ============
+
+  // Array of all registered users (users who have supplied or borrowed)
+  address[] internal _users;
+
+  // Mapping to check if a user is registered (for gas-efficient lookups)
+  mapping(address => bool) internal _isRegisteredUser;
+
   function getRevision() external pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }
