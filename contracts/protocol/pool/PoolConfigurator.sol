@@ -288,13 +288,13 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function _checkNoSuppliers(address asset) internal view {
     DataTypes.ReserveDataLegacy memory reserveData = _pool.getReserveData(asset);
-    uint256 totalSupplied = IERC20(reserveData.dTokenAddress).totalSupply();
+    uint256 totalSupplied = IERC20(reserveData.supplyTokenAddress).totalSupply();
     require(totalSupplied == 0 && reserveData.accruedToTreasury == 0, Errors.ReserveLiquidityNotZero());
   }
 
   function _checkNoBorrowers(address asset) internal view {
     DataTypes.ReserveDataLegacy memory reserveData = _pool.getReserveData(asset);
-    uint256 totalDebt = IERC20(reserveData.variableDebtTokenAddress).totalSupply();
+    uint256 totalDebt = IERC20(reserveData.borrowTokenAddress).totalSupply();
     require(totalDebt == 0, Errors.ReserveDebtNotZero());
   }
 

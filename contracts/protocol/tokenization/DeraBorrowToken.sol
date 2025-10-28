@@ -6,35 +6,39 @@ import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.so
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {IInitializableDebtToken} from '../../interfaces/IInitializableDebtToken.sol';
-import {IVariableDebtToken} from '../../interfaces/IVariableDebtToken.sol';
+import {IInitializableDeraBorrowToken} from '../../interfaces/IInitializableDeraBorrowToken.sol';
+import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {ScaledBalanceTokenBase} from './base/ScaledBalanceTokenBase.sol';
 import {TokenMath} from '../libraries/helpers/TokenMath.sol';
 
 /**
- * @title VariableDebtToken
- * @author Dera
- * @notice Variable rate debt token (non-transferable) on Hedera
- * 
+ * @title DeraBorrowToken (DBT)
+ * @author Dera Protocol
+ * @notice Debt tracking token (non-transferable) representing borrowed positions with accrued interest
+ *
  * HEDERA TOOLS USED:
  * - HTS (Hedera Token Service): Debt tracking via HTS token (non-transferable)
  * - Smart Contract State: Debt balances stored in contract state, not actual HTS transfers
- * 
+ *
  * INTEGRATION:
  * - HTS: Token created via HTS but marked non-transferable
- * - State-based: Debt tracked in contract storage with scaled balances
+ * - State-based: Debt tracked in contract storage with indexed balances
  * - No transfers: All transfer functions revert (debt cannot be transferred)
- * - Interest accrual: Balance grows automatically via variable borrow index
+ * - Interest accrual: Balance grows automatically via borrow index
+ *
+ * DERA PROTOCOL:
+ * - Unique to Dera: Represents borrow positions in lending pools
+ * - Fully HTS-native implementation (not Aave-inspired)
  */
-abstract contract VariableDebtToken is VersionedInitializable, ScaledBalanceTokenBase, IVariableDebtToken {
+abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenBase, IDeraBorrowToken {
   using TokenMath for uint256;
   using SafeCast for uint256;
 
   address internal _underlyingAsset;
 
-  constructor(IPool pool, address rewardsController) ScaledBalanceTokenBase(pool, 'VARIABLE_DEBT_TOKEN_IMPL', 'VARIABLE_DEBT_TOKEN_IMPL', 0, rewardsController) {}
+  constructor(IPool pool, address rewardsController) ScaledBalanceTokenBase(pool, 'DBT_IMPL', 'DBT_IMPL', 0, rewardsController) {}
 
-  function initialize(IPool initializingPool, address underlyingAsset, uint8 debtTokenDecimals, string memory debtTokenName, string memory debtTokenSymbol, bytes calldata params) external virtual;
+  function initialize(IPool initializingPool, address underlyingAsset, uint8 borrowTokenDecimals, string memory borrowTokenName, string memory borrowTokenSymbol, bytes calldata params) external virtual;
 
   function balanceOf(address user) public view virtual override returns (uint256) {
     return super.balanceOf(user).getVariableDebtTokenBalance(POOL.getReserveNormalizedVariableDebt(_underlyingAsset));

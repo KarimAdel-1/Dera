@@ -2,14 +2,14 @@
 pragma solidity ^0.8.19;
 
 import {IScaledBalanceToken} from './IScaledBalanceToken.sol';
-import {IInitializableDebtToken} from './IInitializableDebtToken.sol';
+import {IInitializableDeraBorrowToken} from './IInitializableDeraBorrowToken.sol';
 
 /**
- * @title IVariableDebtToken
+ * @title IDeraBorrowToken
  * @author Dera Protocol
- * @notice Defines the basic interface for a variable debt token
+ * @notice Defines the interface for DeraBorrowToken (DBT) - debt tracking token
  */
-interface IVariableDebtToken is IScaledBalanceToken, IInitializableDebtToken {
+interface IDeraBorrowToken is IScaledBalanceToken, IInitializableDeraBorrowToken {
   function mint(address user, address onBehalfOf, uint256 amount, uint256 scaledAmount, uint256 index) external returns (uint256);
   function burn(address from, uint256 scaledAmount, uint256 index) external returns (bool, uint256);
   function UNDERLYING_ASSET_ADDRESS() external view returns (address);

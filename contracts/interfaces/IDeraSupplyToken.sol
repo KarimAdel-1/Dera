@@ -3,14 +3,14 @@ pragma solidity ^0.8.19;
 
 import {IERC20} from './IERC20.sol';
 import {IScaledBalanceToken} from './IScaledBalanceToken.sol';
-import {IInitializableDToken} from './IInitializableDToken.sol';
+import {IInitializableDeraSupplyToken} from './IInitializableDeraSupplyToken.sol';
 
 /**
- * @title IDToken
+ * @title IDeraSupplyToken
  * @author Dera Protocol
- * @notice Defines the basic interface for a DToken (interest-bearing deposit token)
+ * @notice Defines the interface for DeraSupplyToken (DST) - yield-bearing supply token
  */
-interface IDToken is IERC20, IScaledBalanceToken, IInitializableDToken {
+interface IDeraSupplyToken is IERC20, IScaledBalanceToken, IInitializableDeraSupplyToken {
   event BalanceTransfer(address indexed from, address indexed to, uint256 value, uint256 index);
 
   function mint(address caller, address onBehalfOf, uint256 scaledAmount, uint256 index) external returns (bool);

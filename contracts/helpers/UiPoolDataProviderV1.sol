@@ -10,8 +10,8 @@ interface IHTS {
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
-import {IDToken} from '../../interfaces/IDToken.sol';
-import {IVariableDebtToken} from '../../interfaces/IVariableDebtToken.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {IDefaultInterestRateStrategy} from '../../interfaces/IDefaultInterestRateStrategy.sol';
 
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
@@ -61,8 +61,8 @@ contract UiPoolDataProviderV1 {
     uint128 liquidityRate;
     uint128 variableBorrowRate;
     uint40 lastUpdateTimestamp;
-    address dTokenAddress;
-    address variableDebtTokenAddress;
+    address supplyTokenAddress;
+    address borrowTokenAddress;
     address interestRateStrategyAddress;
     uint256 availableLiquidity;
     uint256 totalScaledVariableDebt;
@@ -142,8 +142,8 @@ contract UiPoolDataProviderV1 {
       reserveData.liquidityRate = baseData.currentLiquidityRate;
       reserveData.variableBorrowRate = baseData.currentVariableBorrowRate;
       reserveData.lastUpdateTimestamp = baseData.lastUpdateTimestamp;
-      reserveData.dTokenAddress = baseData.dTokenAddress;
-      reserveData.variableDebtTokenAddress = baseData.variableDebtTokenAddress;
+      reserveData.supplyTokenAddress = baseData.supplyTokenAddress;
+      reserveData.borrowTokenAddress = baseData.borrowTokenAddress;
       reserveData.interestRateStrategyAddress = baseData.interestRateStrategyAddress;
       
       // Pyth oracle price (decentralized)
@@ -155,10 +155,10 @@ contract UiPoolDataProviderV1 {
       // HTS native token balance
       reserveData.availableLiquidity = hts.balanceOf(
         reserveData.underlyingAsset,
-        reserveData.dTokenAddress
+        reserveData.supplyTokenAddress
       );
-      reserveData.totalScaledVariableDebt = IVariableDebtToken(
-        reserveData.variableDebtTokenAddress
+      reserveData.totalScaledVariableDebt = IDeraBorrowToken(
+        reserveData.borrowTokenAddress
       ).scaledTotalSupply();
 
       // HTS token metadata
@@ -256,14 +256,14 @@ contract UiPoolDataProviderV1 {
       DataTypes.ReserveData memory baseData = pool.getReserveData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
-      userReservesData[i].scaledDTokenBalance = IDToken(baseData.dTokenAddress).scaledBalanceOf(
+      userReservesData[i].scaledDTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(
         user
       );
       userReservesData[i].usageAsCollateralEnabledOnUser = userConfig.isUsingAsCollateral(i);
 
       if (userConfig.isBorrowing(i)) {
-        userReservesData[i].scaledVariableDebt = IVariableDebtToken(
-          baseData.variableDebtTokenAddress
+        userReservesData[i].scaledVariableDebt = IDeraBorrowToken(
+          baseData.borrowTokenAddress
         ).scaledBalanceOf(user);
       }
     }

@@ -78,23 +78,23 @@ library ConfiguratorLogic {
   }
 
   function executeUpdateDToken(IPool pool, UpdateDTokenInput calldata input) external {
-    address dTokenAddress = pool.getReserveData(input.asset).dTokenAddress;
+    address supplyTokenAddress = pool.getReserveData(input.asset).supplyTokenAddress;
     uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
 
     bytes memory encodedCall = abi.encodeWithSelector(IInitializableDToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
-    _upgradeTokenImplementation(dTokenAddress, input.implementation, encodedCall);
+    _upgradeTokenImplementation(supplyTokenAddress, input.implementation, encodedCall);
 
-    emit DTokenUpgraded(input.asset, dTokenAddress, input.implementation);
+    emit DTokenUpgraded(input.asset, supplyTokenAddress, input.implementation);
   }
 
   function executeUpdateVariableDebtToken(IPool pool, UpdateDebtTokenInput calldata input) external {
-    address variableDebtTokenAddress = pool.getReserveData(input.asset).variableDebtTokenAddress;
+    address borrowTokenAddress = pool.getReserveData(input.asset).borrowTokenAddress;
     uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
 
     bytes memory encodedCall = abi.encodeWithSelector(IInitializableDebtToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
-    _upgradeTokenImplementation(variableDebtTokenAddress, input.implementation, encodedCall);
+    _upgradeTokenImplementation(borrowTokenAddress, input.implementation, encodedCall);
 
-    emit VariableDebtTokenUpgraded(input.asset, variableDebtTokenAddress, input.implementation);
+    emit VariableDebtTokenUpgraded(input.asset, borrowTokenAddress, input.implementation);
   }
 
   function _initTokenWithProxy(address implementation, bytes memory initParams) internal returns (address) {

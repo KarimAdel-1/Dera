@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPriceOracleSentinel} from '../../../interfaces/IPriceOracleSentinel.sol';
 import {IPoolAddressesProvider} from '../../../interfaces/IPoolAddressesProvider.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
@@ -36,11 +36,11 @@ library ValidationLogic {
     require(isActive, Errors.ReserveInactive());
     require(!isPaused, Errors.ReservePaused());
     require(!isFrozen, Errors.ReserveFrozen());
-    require(onBehalfOf != reserveCache.dTokenAddress, Errors.SupplyToDToken());
+    require(onBehalfOf != reserveCache.supplyTokenAddress, Errors.SupplyToDToken());
     uint256 supplyCap = reserveCache.reserveConfiguration.getSupplyCap();
     require(
       supplyCap == 0 ||
-        ((IDToken(reserveCache.dTokenAddress).scaledTotalSupply() + scaledAmount + uint256(reserve.accruedToTreasury)).getDTokenBalance(reserveCache.nextLiquidityIndex)) <=
+        ((IDeraSupplyToken(reserveCache.supplyTokenAddress).scaledTotalSupply() + scaledAmount + uint256(reserve.accruedToTreasury)).getDTokenBalance(reserveCache.nextLiquidityIndex)) <=
         supplyCap * (10 ** reserveCache.reserveConfiguration.getDecimals()),
       Errors.SupplyCapExceeded()
     );
@@ -192,7 +192,7 @@ library ValidationLogic {
     mapping(uint256 => address) storage reservesList,
     DataTypes.UserConfigurationMap storage userConfig,
     DataTypes.ReserveConfigurationMap memory reserveConfig,
-    address dTokenAddress
+    address supplyTokenAddress
   ) internal view returns (bool) {
     return validateUseAsCollateral(reservesData, reservesList, userConfig, reserveConfig);
   }

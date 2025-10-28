@@ -13,13 +13,13 @@ interface IPool {
   event Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode);
   event Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount);
   event Borrow(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, DataTypes.InterestRateMode interestRateMode, uint256 borrowRate, uint16 indexed referralCode);
-  event Repay(address indexed reserve, address indexed user, address indexed repayer, uint256 amount, bool useDTokens);
+  event Repay(address indexed reserve, address indexed user, address indexed repayer, uint256 amount, bool useSupplyTokens);
   event IsolationModeTotalDebtUpdated(address indexed asset, uint256 totalDebt);
   event UserEModeSet(address indexed user, uint8 categoryId);
   event ReserveUsedAsCollateralEnabled(address indexed reserve, address indexed user);
   event ReserveUsedAsCollateralDisabled(address indexed reserve, address indexed user);
 
-  event LiquidationCall(address indexed collateralAsset, address indexed debtAsset, address indexed user, uint256 debtToCover, uint256 liquidatedCollateralAmount, address liquidator, bool receiveDToken);
+  event LiquidationCall(address indexed collateralAsset, address indexed debtAsset, address indexed user, uint256 debtToCover, uint256 liquidatedCollateralAmount, address liquidator, bool receiveSupplyToken);
   event ReserveDataUpdated(address indexed reserve, uint256 liquidityRate, uint256 stableBorrowRate, uint256 variableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex);
   event DeficitCovered(address indexed reserve, address caller, uint256 amountCovered);
   event MintedToTreasury(address indexed reserve, uint256 amountMinted);
@@ -36,10 +36,10 @@ interface IPool {
   function repayWithPermit(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS) external returns (uint256);
   function repayWithDTokens(address asset, uint256 amount, uint256 interestRateMode) external returns (uint256);
   function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external;
-  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveDToken) external;
+  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) external;
 
   function getUserAccountData(address user) external view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor);
-  function initReserve(address asset, address dTokenAddress, address variableDebtAddress) external;
+  function initReserve(address asset, address supplyTokenAddress, address variableDebtAddress) external;
   function dropReserve(address asset) external;
   function syncIndexesState(address asset) external;
   function syncRatesState(address asset) external;

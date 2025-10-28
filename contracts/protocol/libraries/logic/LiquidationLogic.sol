@@ -10,9 +10,9 @@ import {ValidationLogic} from './ValidationLogic.sol';
 import {GenericLogic} from './GenericLogic.sol';
 import {UserConfiguration} from '../../libraries/configuration/UserConfiguration.sol';
 import {ReserveConfiguration} from '../../libraries/configuration/ReserveConfiguration.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
 import {SafeCast} from '../../../dependencies/openzeppelin/contracts/SafeCast.sol';
 import {Errors} from '../helpers/Errors.sol';
@@ -102,11 +102,11 @@ library LiquidationLogic {
       })
     );
 
-    vars.borrowerCollateralBalance = IDToken(vars.collateralReserveCache.dTokenAddress)
+    vars.borrowerCollateralBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress)
       .scaledBalanceOf(params.borrower)
       .getDTokenBalance(vars.collateralReserveCache.nextLiquidityIndex);
     
-    vars.borrowerReserveDebt = IVariableDebtToken(vars.debtReserveCache.variableDebtTokenAddress)
+    vars.borrowerReserveDebt = IDeraBorrowToken(vars.debtReserveCache.borrowTokenAddress)
       .scaledBalanceOf(params.borrower)
       .getVariableDebtTokenBalance(vars.debtReserveCache.nextVariableBorrowIndex);
 
@@ -210,7 +210,7 @@ library LiquidationLogic {
       params.interestRateStrategyAddress
     );
 
-    if (params.receiveDToken) {
+    if (params.receiveSupplyToken) {
       _liquidateDTokens(reservesData, reservesList, usersConfig, collateralReserve, params, vars);
     } else {
       if (params.collateralAsset == params.debtAsset) {
@@ -223,7 +223,7 @@ library LiquidationLogic {
       uint256 scaledDownLiquidationProtocolFee = vars.liquidationProtocolFeeAmount.getDTokenTransferScaledAmount(
         vars.collateralReserveCache.nextLiquidityIndex
       );
-      uint256 scaledDownBorrowerBalance = IDToken(vars.collateralReserveCache.dTokenAddress).scaledBalanceOf(params.borrower);
+      uint256 scaledDownBorrowerBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).scaledBalanceOf(params.borrower);
       
       if (scaledDownLiquidationProtocolFee > scaledDownBorrowerBalance) {
         scaledDownLiquidationProtocolFee = scaledDownBorrowerBalance;
@@ -232,9 +232,9 @@ library LiquidationLogic {
         );
       }
       
-      IDToken(vars.collateralReserveCache.dTokenAddress).transferOnLiquidation({
+      IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).transferOnLiquidation({
         from: params.borrower,
-        to: IDToken(vars.collateralReserveCache.dTokenAddress).RESERVE_TREASURY_ADDRESS(),
+        to: IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).RESERVE_TREASURY_ADDRESS(),
         amount: vars.liquidationProtocolFeeAmount,
         scaledAmount: scaledDownLiquidationProtocolFee,
         index: vars.collateralReserveCache.nextLiquidityIndex
@@ -250,7 +250,7 @@ library LiquidationLogic {
     _safeHTSTransferFrom(
       params.debtAsset,
       params.liquidator,
-      vars.debtReserveCache.dTokenAddress,
+      vars.debtReserveCache.supplyTokenAddress,
       vars.actualDebtToLiquidate
     );
 
@@ -261,7 +261,7 @@ library LiquidationLogic {
       vars.actualDebtToLiquidate,
       vars.actualCollateralToLiquidate,
       params.liquidator,
-      params.receiveDToken
+      params.receiveSupplyToken
     );
   }
 
@@ -278,7 +278,7 @@ library LiquidationLogic {
       params.interestRateStrategyAddress
     );
 
-    IDToken(vars.collateralReserveCache.dTokenAddress).burn({
+    IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).burn({
       from: params.borrower,
       receiverOfUnderlying: params.liquidator,
       amount: vars.actualCollateralToLiquidate,
@@ -297,11 +297,11 @@ library LiquidationLogic {
     DataTypes.ExecuteLiquidationCallParams memory params,
     LiquidationCallLocalVars memory vars
   ) internal {
-    uint256 liquidatorPreviousDTokenBalance = IDToken(vars.collateralReserveCache.dTokenAddress).scaledBalanceOf(
+    uint256 liquidatorPreviousDTokenBalance = IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).scaledBalanceOf(
       params.liquidator
     );
     
-    IDToken(vars.collateralReserveCache.dTokenAddress).transferOnLiquidation(
+    IDeraSupplyToken(vars.collateralReserveCache.supplyTokenAddress).transferOnLiquidation(
       params.borrower,
       params.liquidator,
       vars.actualCollateralToLiquidate,
@@ -318,7 +318,7 @@ library LiquidationLogic {
           reservesList,
           liquidatorConfig,
           vars.collateralReserveCache.reserveConfiguration,
-          vars.collateralReserveCache.dTokenAddress
+          vars.collateralReserveCache.supplyTokenAddress
         )
       ) {
         liquidatorConfig.setUsingAsCollateral(collateralReserve.id, params.collateralAsset, params.liquidator, true);
@@ -342,8 +342,8 @@ library LiquidationLogic {
     if (borrowerReserveDebt != 0) {
       uint256 burnAmount = hasNoCollateralLeft ? borrowerReserveDebt : actualDebtToLiquidate;
 
-      (noMoreDebt, debtReserveCache.nextScaledVariableDebt) = IVariableDebtToken(
-        debtReserveCache.variableDebtTokenAddress
+      (noMoreDebt, debtReserveCache.nextScaledVariableDebt) = IDeraBorrowToken(
+        debtReserveCache.borrowTokenAddress
       ).burn({
         from: borrower,
         scaledAmount: burnAmount.getVariableDebtTokenBurnScaledAmount(debtReserveCache.nextVariableBorrowIndex),
@@ -451,7 +451,7 @@ library LiquidationLogic {
               borrowerConfig,
               params.borrower,
               reserveAddress,
-              IVariableDebtToken(reserveCache.variableDebtTokenAddress)
+              IDeraBorrowToken(reserveCache.borrowTokenAddress)
                 .scaledBalanceOf(params.borrower)
                 .getVariableDebtTokenBalance(reserveCache.nextVariableBorrowIndex),
               0,

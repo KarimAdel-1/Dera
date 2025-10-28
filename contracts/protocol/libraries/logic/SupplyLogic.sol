@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {Errors} from '../helpers/Errors.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
@@ -52,7 +52,7 @@ library SupplyLogic {
 
     // Transfer underlying asset from user to dToken contract via HTS
     // CRITICAL: User must be associated with the HTS token before this call
-    _safeHTSTransferFrom(params.asset, params.user, reserveCache.dTokenAddress, params.amount);
+    _safeHTSTransferFrom(params.asset, params.user, reserveCache.supplyTokenAddress, params.amount);
 
     reserve.updateInterestRatesAndVirtualBalance(
       reserveCache,
@@ -62,7 +62,7 @@ library SupplyLogic {
       params.interestRateStrategyAddress
     );
 
-    bool isFirstSupply = IDToken(reserveCache.dTokenAddress).mint(
+    bool isFirstSupply = IDeraSupplyToken(reserveCache.supplyTokenAddress).mint(
       params.user,
       params.onBehalfOf,
       scaledAmount,
@@ -77,7 +77,7 @@ library SupplyLogic {
           reservesList,
           userConfig,
           reserveCache.reserveConfiguration,
-          reserveCache.dTokenAddress
+          reserveCache.supplyTokenAddress
         )
       ) {
         userConfig.setUsingAsCollateral(reserve.id, params.asset, params.onBehalfOf, true);
@@ -97,11 +97,11 @@ library SupplyLogic {
     DataTypes.ReserveData storage reserve = reservesData[params.asset];
     DataTypes.ReserveCache memory reserveCache = reserve.cache();
 
-    require(params.to != reserveCache.dTokenAddress, Errors.WithdrawToDToken());
+    require(params.to != reserveCache.supplyTokenAddress, Errors.WithdrawToDToken());
 
     reserve.updateState(reserveCache);
 
-    uint256 scaledUserBalance = IDToken(reserveCache.dTokenAddress).scaledBalanceOf(params.user);
+    uint256 scaledUserBalance = IDeraSupplyToken(reserveCache.supplyTokenAddress).scaledBalanceOf(params.user);
 
     uint256 amountToWithdraw;
     uint256 scaledAmountToWithdraw;
@@ -123,7 +123,7 @@ library SupplyLogic {
       params.interestRateStrategyAddress
     );
 
-    bool zeroBalanceAfterBurn = IDToken(reserveCache.dTokenAddress).burn({
+    bool zeroBalanceAfterBurn = IDeraSupplyToken(reserveCache.supplyTokenAddress).burn({
       from: params.user,
       receiverOfUnderlying: params.to,
       amount: amountToWithdraw,
@@ -197,7 +197,7 @@ library SupplyLogic {
             reservesList,
             toConfig,
             reserve.configuration,
-            reserve.dTokenAddress
+            reserve.supplyTokenAddress
           )
         ) {
           toConfig.setUsingAsCollateral(reserveId, params.asset, params.to, true);
@@ -225,7 +225,7 @@ library SupplyLogic {
     if (useAsCollateral == userConfig.isUsingAsCollateral(reserve.id)) return;
 
     if (useAsCollateral) {
-      require(IDToken(reserve.dTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
+      require(IDeraSupplyToken(reserve.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
       require(
         ValidationLogic.validateUseAsCollateral(reservesData, reservesList, userConfig, reserveConfigCached),
         Errors.UserInIsolationModeOrLtvZero()

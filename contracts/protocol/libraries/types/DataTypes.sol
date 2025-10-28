@@ -43,8 +43,8 @@ library DataTypes {
     uint40 lastUpdateTimestamp;
     uint16 id;
     uint40 liquidationGracePeriodUntil;
-    address dTokenAddress;
-    address variableDebtTokenAddress;
+    address supplyTokenAddress;
+    address borrowTokenAddress;
     uint128 accruedToTreasury;
     uint128 virtualUnderlyingBalance;
   }
@@ -79,8 +79,8 @@ library DataTypes {
     uint256 currVariableBorrowRate;
     uint256 reserveFactor;
     ReserveConfigurationMap reserveConfiguration;
-    address dTokenAddress;
-    address variableDebtTokenAddress;
+    address supplyTokenAddress;
+    address borrowTokenAddress;
     uint40 reserveLastUpdateTimestamp;
   }
 
@@ -90,7 +90,7 @@ library DataTypes {
     address collateralAsset;
     address debtAsset;
     address borrower;
-    bool receiveDToken;
+    bool receiveSupplyToken;
     address priceOracle;
     address priceOracleSentinel;
     address interestRateStrategyAddress;
@@ -125,7 +125,7 @@ library DataTypes {
     uint256 amount;
     InterestRateMode interestRateMode;
     address onBehalfOf;
-    bool useDTokens;
+    bool useSupplyTokens;
     address oracle;
   }
 
@@ -194,7 +194,7 @@ library DataTypes {
 
   struct InitReserveParams {
     address asset;
-    address dTokenAddress;
+    address supplyTokenAddress;
     address variableDebtAddress;
     uint16 reservesCount;
     uint16 maxNumberReserves;

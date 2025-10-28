@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {GPv2SafeERC20} from '../../../dependencies/gnosis/contracts/GPv2SafeERC20.sol';
 import {Address} from '../../../dependencies/openzeppelin/contracts/Address.sol';
 import {IERC20} from '../../../dependencies/openzeppelin/contracts/IERC20.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
 import {Errors} from '../helpers/Errors.sol';
@@ -56,7 +56,7 @@ library PoolLogic {
     DataTypes.InitReserveParams memory params
   ) external returns (bool) {
     require(Address.isContract(params.asset), Errors.NotContract());
-    reservesData[params.asset].init(params.dTokenAddress, params.variableDebtAddress);
+    reservesData[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
 
     bool reserveAlreadyAdded = reservesData[params.asset].id != 0 || reservesList[0] == params.asset;
     require(!reserveAlreadyAdded, Errors.ReserveAlreadyAdded());
@@ -120,7 +120,7 @@ library PoolLogic {
         reserve.accruedToTreasury = 0;
         uint256 normalizedIncome = reserve.getNormalizedIncome();
         uint256 amountToMint = accruedToTreasury.getDTokenBalance(normalizedIncome);
-        IDToken(reserve.dTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
+        IDeraSupplyToken(reserve.supplyTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
 
         emit IPool.MintedToTreasury(assetAddress, amountToMint);
       }

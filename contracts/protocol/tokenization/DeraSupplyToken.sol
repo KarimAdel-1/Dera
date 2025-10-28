@@ -12,28 +12,32 @@ interface IHTS {
 import {VersionedInitializable} from '../../misc/dera-upgradeability/VersionedInitializable.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {IDToken} from '../../interfaces/IDToken.sol';
-import {IInitializableDToken} from '../../interfaces/IInitializableDToken.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
+import {IInitializableDeraSupplyToken} from '../../interfaces/IInitializableDeraSupplyToken.sol';
 import {ScaledBalanceTokenBase} from './base/ScaledBalanceTokenBase.sol';
 import {IncentivizedERC20} from './base/IncentivizedERC20.sol';
 import {TokenMath} from '../libraries/helpers/TokenMath.sol';
 
 /**
- * @title DToken
- * @author Dera
- * @notice Interest-bearing deposit token on Hedera (HTS-based)
- * 
+ * @title DeraSupplyToken (DST)
+ * @author Dera Protocol
+ * @notice Yield-bearing supply token on Hedera representing deposited assets with accrued interest
+ *
  * HEDERA TOOLS USED:
  * - HTS (Hedera Token Service): Native HTS token with automatic interest accrual
  * - HCS (Hedera Consensus Service): All mint/burn/transfer events logged to HCS
- * 
+ *
  * INTEGRATION:
  * - HTS: Token created via HTS, transfers use HTS precompile (0x167)
- * - Scaled balances: Balance grows automatically via liquidity index
+ * - Indexed balances: Balance grows automatically via liquidity index
  * - HCS Events: Mint, Burn, Transfer events logged to HCS for transparency
  * - No ERC20 permit on HTS - uses native HTS approval mechanism
+ *
+ * DERA PROTOCOL:
+ * - Unique to Dera: Represents supply positions in lending pools
+ * - Fully HTS-native implementation (not Aave-inspired)
  */
-abstract contract DToken is VersionedInitializable, ScaledBalanceTokenBase, IDToken {
+abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenBase, IDeraSupplyToken {
   using TokenMath for uint256;
   using SafeCast for uint256;
   using GPv2SafeERC20 for IERC20;
@@ -51,14 +55,14 @@ abstract contract DToken is VersionedInitializable, ScaledBalanceTokenBase, IDTo
   address public immutable TREASURY;
   address internal _underlyingAsset;
 
-  constructor(IPool pool, address rewardsController, address treasury) ScaledBalanceTokenBase(pool, 'DTOKEN_IMPL', 'DTOKEN_IMPL', 0, rewardsController) {
+  constructor(IPool pool, address rewardsController, address treasury) ScaledBalanceTokenBase(pool, 'DST_IMPL', 'DST_IMPL', 0, rewardsController) {
     require(treasury != address(0), Errors.ZeroAddressNotValid());
     TREASURY = treasury;
     _chainId = block.chainid;
     _domainSeparator = _calculateDomainSeparator();
   }
 
-  function initialize(IPool initializingPool, address underlyingAsset, uint8 dTokenDecimals, string calldata dTokenName, string calldata dTokenSymbol, bytes calldata params) public virtual;
+  function initialize(IPool initializingPool, address underlyingAsset, uint8 supplyTokenDecimals, string calldata supplyTokenName, string calldata supplyTokenSymbol, bytes calldata params) public virtual;
 
   function mint(address caller, address onBehalfOf, uint256 scaledAmount, uint256 index) external virtual override onlyPool returns (bool) {
     return _mintScaled({
@@ -231,11 +235,11 @@ abstract contract DToken is VersionedInitializable, ScaledBalanceTokenBase, IDTo
     require(result == 0, "HTS transfer failed");
   }
 
-  function DTOKEN_REVISION() public pure virtual returns (uint256) {
+  function SUPPLY_TOKEN_REVISION() public pure virtual returns (uint256) {
     return 1;
   }
 
   function getRevision() external pure virtual returns (uint256) {
-    return DTOKEN_REVISION();
+    return SUPPLY_TOKEN_REVISION();
   }
 }

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from '../../../interfaces/IERC20.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
@@ -174,7 +174,7 @@ library GenericLogic {
     uint256 assetUnit
   ) private view returns (uint256) {
     uint256 normalizedIncome = reserve.getNormalizedIncome();
-    uint256 balance = (IERC20(reserve.dTokenAddress).balanceOf(user).rayMul(normalizedIncome)) *
+    uint256 balance = (IERC20(reserve.supplyTokenAddress).balanceOf(user).rayMul(normalizedIncome)) *
       assetPrice;
     unchecked {
       return balance / assetUnit;
@@ -188,7 +188,7 @@ library GenericLogic {
     uint256 assetUnit
   ) private view returns (uint256) {
     uint256 normalizedDebt = reserve.getNormalizedDebt();
-    uint256 balance = (IERC20(reserve.variableDebtTokenAddress).balanceOf(user).rayMul(normalizedDebt)) *
+    uint256 balance = (IERC20(reserve.borrowTokenAddress).balanceOf(user).rayMul(normalizedDebt)) *
       assetPrice;
     unchecked {
       return balance / assetUnit;

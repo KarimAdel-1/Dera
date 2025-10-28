@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IReserveInterestRateStrategy} from '../../../interfaces/IReserveInterestRateStrategy.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {ReserveConfiguration} from '../configuration/ReserveConfiguration.sol';
@@ -52,12 +52,12 @@ library ReserveLogic {
     reserveCache.reserveLastUpdateTimestamp = uint40(block.timestamp);
   }
 
-  function init(DataTypes.ReserveData storage reserve, address dTokenAddress, address variableDebtTokenAddress) internal {
-    require(reserve.dTokenAddress == address(0), Errors.ReserveAlreadyInitialized());
+  function init(DataTypes.ReserveData storage reserve, address supplyTokenAddress, address borrowTokenAddress) internal {
+    require(reserve.supplyTokenAddress == address(0), Errors.ReserveAlreadyInitialized());
     reserve.liquidityIndex = uint128(WadRayMath.RAY);
     reserve.variableBorrowIndex = uint128(WadRayMath.RAY);
-    reserve.dTokenAddress = dTokenAddress;
-    reserve.variableDebtTokenAddress = variableDebtTokenAddress;
+    reserve.supplyTokenAddress = supplyTokenAddress;
+    reserve.borrowTokenAddress = borrowTokenAddress;
   }
 
   function updateInterestRatesAndVirtualBalance(DataTypes.ReserveData storage reserve, DataTypes.ReserveCache memory reserveCache, address reserveAddress, uint256 liquidityAdded, uint256 liquidityTaken, address interestRateStrategyAddress) internal {
@@ -117,10 +117,10 @@ library ReserveLogic {
     reserveCache.currVariableBorrowIndex = reserveCache.nextVariableBorrowIndex = reserve.variableBorrowIndex;
     reserveCache.currLiquidityRate = reserve.currentLiquidityRate;
     reserveCache.currVariableBorrowRate = reserve.currentVariableBorrowRate;
-    reserveCache.dTokenAddress = reserve.dTokenAddress;
-    reserveCache.variableDebtTokenAddress = reserve.variableDebtTokenAddress;
+    reserveCache.supplyTokenAddress = reserve.supplyTokenAddress;
+    reserveCache.borrowTokenAddress = reserve.borrowTokenAddress;
     reserveCache.reserveLastUpdateTimestamp = reserve.lastUpdateTimestamp;
-    reserveCache.currScaledVariableDebt = reserveCache.nextScaledVariableDebt = IVariableDebtToken(reserveCache.variableDebtTokenAddress).scaledTotalSupply();
+    reserveCache.currScaledVariableDebt = reserveCache.nextScaledVariableDebt = IDeraBorrowToken(reserveCache.borrowTokenAddress).scaledTotalSupply();
     return reserveCache;
   }
 }

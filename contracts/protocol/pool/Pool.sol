@@ -120,7 +120,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   event Withdraw(address indexed user, address indexed asset, uint256 amount, address indexed to, bytes32 hcsTopic);
   event Borrow(address indexed user, address indexed asset, uint256 amount, uint256 interestRateMode, address indexed onBehalfOf, uint16 referralCode, bytes32 hcsTopic);
   event Repay(address indexed user, address indexed asset, uint256 amount, uint256 interestRateMode, address indexed onBehalfOf, bytes32 hcsTopic);
-  event LiquidationCall(address indexed liquidator, address indexed borrower, address collateralAsset, address debtAsset, uint256 debtToCover, bool receiveDToken, bytes32 hcsTopic);
+  event LiquidationCall(address indexed liquidator, address indexed borrower, address collateralAsset, address debtAsset, uint256 debtToCover, bool receiveSupplyToken, bytes32 hcsTopic);
   event HTSErrorHandled(address indexed token, address indexed account, string operation, int64 responseCode);
   event PoolUpgraded(uint256 version);
   event HBARReceived(address indexed sender, uint256 amount);
@@ -246,7 +246,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         amount: amount,
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: onBehalfOf,
-        useDTokens: false,
+        useSupplyTokens: false,
         oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
@@ -268,7 +268,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         amount: amount,
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: _msgSender(),
-        useDTokens: true,
+        useSupplyTokens: true,
         oracle: ADDRESSES_PROVIDER.getPriceOracle()
       })
     );
@@ -286,7 +286,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     );
   }
 
-  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveDToken) public virtual override nonReentrant {
+  function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) public virtual override nonReentrant {
     if (debtToCover == 0) revert InvalidAmount();
 
     LiquidationLogic.executeLiquidationCall(
@@ -299,13 +299,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         collateralAsset: collateralAsset,
         debtAsset: debtAsset,
         borrower: borrower,
-        receiveDToken: receiveDToken,
+        receiveSupplyToken: receiveSupplyToken,
         priceOracle: ADDRESSES_PROVIDER.getPriceOracle(),
         priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel(),
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
       })
     );
-    emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveDToken, HCSTopics.LIQUIDATION_TOPIC());
+    emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
   }
 
 
@@ -335,8 +335,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     res.currentVariableBorrowRate = reserve.currentVariableBorrowRate;
     res.lastUpdateTimestamp = reserve.lastUpdateTimestamp;
     res.id = reserve.id;
-    res.dTokenAddress = reserve.dTokenAddress;
-    res.variableDebtTokenAddress = reserve.variableDebtTokenAddress;
+    res.supplyTokenAddress = reserve.supplyTokenAddress;
+    res.borrowTokenAddress = reserve.borrowTokenAddress;
     res.interestRateStrategyAddress = RESERVE_INTEREST_RATE_STRATEGY;
     res.accruedToTreasury = reserve.accruedToTreasury;
   }
@@ -378,10 +378,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return reservesList;
   }
 
-  function initReserve(address asset, address dTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
+  function initReserve(address asset, address supplyTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
     if (PoolLogic.executeInitReserve(_reserves, _reservesList, DataTypes.InitReserveParams({
       asset: asset,
-      dTokenAddress: dTokenAddress,
+      supplyTokenAddress: supplyTokenAddress,
       variableDebtAddress: variableDebtAddress,
       reservesCount: _reservesCount,
       maxNumberReserves: ReserveConfiguration.MAX_RESERVES_COUNT
@@ -424,7 +424,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
-    require(_msgSender() == _reserves[asset].dTokenAddress, Errors.CallerNotDToken());
+    require(_msgSender() == _reserves[asset].supplyTokenAddress, Errors.CallerNotDToken());
     SupplyLogic.executeFinalizeTransfer(
       _reserves,
       _reservesList,
@@ -442,11 +442,11 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function getReserveDToken(address asset) external view virtual returns (address) {
-    return _reserves[asset].dTokenAddress;
+    return _reserves[asset].supplyTokenAddress;
   }
 
   function getReserveVariableDebtToken(address asset) external view virtual returns (address) {
-    return _reserves[asset].variableDebtTokenAddress;
+    return _reserves[asset].borrowTokenAddress;
   }
 
   function getVirtualUnderlyingBalance(address asset) external view virtual override returns (uint128) {
@@ -483,7 +483,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
     // Transfer tokens from treasury to dToken contract via HTS
     address treasuryAddress = ADDRESSES_PROVIDER.getTreasury();
-    _safeHTSTransfer(asset, treasuryAddress, reserve.dTokenAddress, amountToCover);
+    _safeHTSTransfer(asset, treasuryAddress, reserve.supplyTokenAddress, amountToCover);
 
     // Reduce deficit
     reserve.deficit -= uint128(amountToCover);

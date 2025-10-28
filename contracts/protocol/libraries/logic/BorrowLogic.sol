@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IVariableDebtToken} from '../../../interfaces/IVariableDebtToken.sol';
-import {IDToken} from '../../../interfaces/IDToken.sol';
+import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
+import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
 import {IPool} from '../../../interfaces/IPool.sol';
 import {TokenMath} from '../helpers/TokenMath.sol';
 import {UserConfiguration} from '../configuration/UserConfiguration.sol';
@@ -62,7 +62,7 @@ library BorrowLogic {
       })
     );
 
-    reserveCache.nextScaledVariableDebt = IVariableDebtToken(reserveCache.variableDebtTokenAddress).mint(
+    reserveCache.nextScaledVariableDebt = IDeraBorrowToken(reserveCache.borrowTokenAddress).mint(
       params.user,
       params.onBehalfOf,
       params.amount,
@@ -84,7 +84,7 @@ library BorrowLogic {
     );
 
     if (params.releaseUnderlying) {
-      IDToken(reserveCache.dTokenAddress).transferUnderlyingTo(params.user, params.amount);
+      IDeraSupplyToken(reserveCache.supplyTokenAddress).transferUnderlyingTo(params.user, params.amount);
     }
 
     ValidationLogic.validateHFAndLtv(
@@ -116,14 +116,14 @@ library BorrowLogic {
     DataTypes.ReserveCache memory reserveCache = reserve.cache();
     reserve.updateState(reserveCache);
 
-    uint256 userDebtScaled = IVariableDebtToken(reserveCache.variableDebtTokenAddress).scaledBalanceOf(params.onBehalfOf);
+    uint256 userDebtScaled = IDeraBorrowToken(reserveCache.borrowTokenAddress).scaledBalanceOf(params.onBehalfOf);
     uint256 userDebt = userDebtScaled.getVariableDebtTokenBalance(reserveCache.nextVariableBorrowIndex);
 
     ValidationLogic.validateRepay(params.user, reserveCache, params.amount, params.interestRateMode, params.onBehalfOf, userDebtScaled);
 
     uint256 paybackAmount = params.amount;
-    if (params.useDTokens && params.amount == type(uint256).max) {
-      paybackAmount = IDToken(reserveCache.dTokenAddress).scaledBalanceOf(params.user).getDTokenBalance(reserveCache.nextLiquidityIndex);
+    if (params.useSupplyTokens && params.amount == type(uint256).max) {
+      paybackAmount = IDeraSupplyToken(reserveCache.supplyTokenAddress).scaledBalanceOf(params.user).getDTokenBalance(reserveCache.nextLiquidityIndex);
     }
 
     if (paybackAmount > userDebt) {
@@ -132,12 +132,12 @@ library BorrowLogic {
 
     // Transfer tokens from repayer to dToken contract via HTS (if not using dTokens)
     // CRITICAL: User must be associated with the HTS token before this call
-    if (!params.useDTokens) {
-      _safeHTSTransferFrom(params.asset, params.user, reserveCache.dTokenAddress, paybackAmount);
+    if (!params.useSupplyTokens) {
+      _safeHTSTransferFrom(params.asset, params.user, reserveCache.supplyTokenAddress, paybackAmount);
     }
 
     bool noMoreDebt;
-    (noMoreDebt, reserveCache.nextScaledVariableDebt) = IVariableDebtToken(reserveCache.variableDebtTokenAddress).burn({
+    (noMoreDebt, reserveCache.nextScaledVariableDebt) = IDeraBorrowToken(reserveCache.borrowTokenAddress).burn({
       from: params.onBehalfOf,
       scaledAmount: paybackAmount.getVariableDebtTokenBurnScaledAmount(reserveCache.nextVariableBorrowIndex),
       index: reserveCache.nextVariableBorrowIndex
@@ -146,7 +146,7 @@ library BorrowLogic {
     reserve.updateInterestRatesAndVirtualBalance(
       reserveCache,
       params.asset,
-      params.useDTokens ? 0 : paybackAmount,
+      params.useSupplyTokens ? 0 : paybackAmount,
       0,
       params.interestRateStrategyAddress
     );
@@ -155,10 +155,10 @@ library BorrowLogic {
       onBehalfOfConfig.setBorrowing(reserve.id, false);
     }
 
-    if (params.useDTokens) {
-      bool zeroBalanceAfterBurn = IDToken(reserveCache.dTokenAddress).burn({
+    if (params.useSupplyTokens) {
+      bool zeroBalanceAfterBurn = IDeraSupplyToken(reserveCache.supplyTokenAddress).burn({
         from: params.user,
-        receiverOfUnderlying: reserveCache.dTokenAddress,
+        receiverOfUnderlying: reserveCache.supplyTokenAddress,
         amount: paybackAmount,
         scaledAmount: paybackAmount.getDTokenBurnScaledAmount(reserveCache.nextLiquidityIndex),
         index: reserveCache.nextLiquidityIndex
@@ -179,7 +179,7 @@ library BorrowLogic {
       }
     }
 
-    emit IPool.Repay(params.asset, params.onBehalfOf, params.user, paybackAmount, params.useDTokens);
+    emit IPool.Repay(params.asset, params.onBehalfOf, params.user, paybackAmount, params.useSupplyTokens);
 
     return paybackAmount;
   }

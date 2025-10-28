@@ -4,8 +4,8 @@ pragma solidity ^0.8.19;
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
-import {IDToken} from '../../interfaces/IDToken.sol';
-import {IVariableDebtToken} from '../../interfaces/IVariableDebtToken.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
+import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
 import {DataTypes} from '../../protocol/libraries/types/DataTypes.sol';
 import {ReserveConfiguration} from '../../protocol/libraries/configuration/ReserveConfiguration.sol';
 import {UserConfiguration} from '../../protocol/libraries/configuration/UserConfiguration.sol';
@@ -152,7 +152,7 @@ contract LiquidationDataProvider {
       address asset = reserves[i];
       DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
       
-      uint256 balance = IDToken(reserve.dTokenAddress).balanceOf(user);
+      uint256 balance = IDeraSupplyToken(reserve.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
         uint256 price = oracle.getAssetPrice(asset);
         uint256 value = balance.wadMul(price);
@@ -182,7 +182,7 @@ contract LiquidationDataProvider {
       address asset = reserves[i];
       DataTypes.ReserveData memory reserve = pool.getReserveData(asset);
       
-      uint256 debt = IVariableDebtToken(reserve.variableDebtTokenAddress).balanceOf(user);
+      uint256 debt = IDeraBorrowToken(reserve.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {
         uint256 price = oracle.getAssetPrice(asset);
         uint256 value = debt.wadMul(price);
