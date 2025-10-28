@@ -62,6 +62,9 @@ contract PoolStorage {
   // Dera Interest Rate Model (can be set per-asset or globally)
   address public defaultInterestRateModel;
 
+  // Treasury (Collector contract) for protocol fee management
+  address public treasury;
+
   function getRevision() external pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }
