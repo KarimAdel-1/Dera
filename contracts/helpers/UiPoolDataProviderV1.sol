@@ -9,10 +9,10 @@ interface IHTS {
 }
 import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../../interfaces/IPool.sol';
-import {IDeraOracle} from '../../interfaces/IDeraOracle.sol';
+import {IPriceOracleGetter} from '../../interfaces/IPriceOracleGetter.sol';
 import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
 import {IDeraBorrowToken} from '../../interfaces/IDeraBorrowToken.sol';
-import {IDefaultInterestRateStrategy} from '../../interfaces/IDefaultInterestRateStrategy.sol';
+import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
 
 import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
 import {AssetConfiguration} from '../../protocol/libraries/configuration/AssetConfiguration.sol';
@@ -123,7 +123,7 @@ contract UiPoolDataProviderV1 {
   function getAssetsData(
     IPoolAddressesProvider provider
   ) external view returns (AggregatedReserveData[] memory, BaseCurrencyInfo memory) {
-    IDeraOracle oracle = IDeraOracle(provider.getPriceOracle());
+    IPriceOracleGetter oracle = IPriceOracleGetter(provider.getPriceOracle());
     IPool pool = IPool(provider.getPool());
     IHTS hts = IHTS(address(0x167)); // HTS precompile address
 
@@ -187,21 +187,21 @@ contract UiPoolDataProviderV1 {
 
       // Interest rates
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getVariableRateSlope1()
       returns (uint256 slope1) {
         reserveData.variableRateSlope1 = slope1;
       } catch {}
 
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getVariableRateSlope2()
       returns (uint256 slope2) {
         reserveData.variableRateSlope2 = slope2;
       } catch {}
 
       try
-        IDefaultInterestRateStrategy(reserveData.interestRateStrategyAddress)
+        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
           .getBaseVariableBorrowRate()
       returns (uint256 baseRate) {
         reserveData.baseVariableBorrowRate = baseRate;
