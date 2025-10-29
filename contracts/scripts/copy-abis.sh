@@ -7,8 +7,8 @@ set -e
 
 echo "Copying ABIs to backend services..."
 
-# Define source directory
-ARTIFACTS_DIR="./artifacts/contracts"
+# Define source directory (changed from contracts/ to contracts/contracts/)
+ARTIFACTS_DIR="./artifacts/contracts/contracts"
 BACKEND_DIR="../backend"
 
 # Function to copy ABI
