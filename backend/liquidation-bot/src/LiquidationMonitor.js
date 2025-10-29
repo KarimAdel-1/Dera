@@ -160,17 +160,44 @@ class LiquidationMonitor {
    */
   async getLiquidatablePositions() {
     try {
-      // Get list of all users (in production, you'd track this via events)
-      // For now, we'll use a simplified approach
       const addressesProvider = await this.contracts.pool.ADDRESSES_PROVIDER();
 
-      // Call getLiquidationData for monitored addresses
-      // This is a simplified version - in production, you'd maintain a list of users
-      const monitoredAddresses = config.MONITORED_ADDRESSES || [];
+      // Get all registered users from Pool's user registry
+      // This uses the new getAllUsers() or getUsersPaginated() function
+      let allUsers = [];
 
+      try {
+        // Try to use getUsersPaginated() for efficient iteration (recommended)
+        const PAGE_SIZE = 100;
+        let startIndex = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const [users, nextIndex] = await this.contracts.pool.getUsersPaginated(startIndex, PAGE_SIZE);
+
+          allUsers = allUsers.concat(users);
+
+          // nextIndex = 0 means we've reached the end
+          if (nextIndex === 0 || nextIndex === 0n) {
+            hasMore = false;
+          } else {
+            startIndex = Number(nextIndex);
+          }
+
+          logger.debug(`Fetched ${users.length} users (total: ${allUsers.length})`);
+        }
+      } catch (error) {
+        // Fallback to getAllUsers() if getUsersPaginated() fails
+        logger.warn('getUsersPaginated() failed, falling back to getAllUsers()');
+        allUsers = await this.contracts.pool.getAllUsers();
+      }
+
+      logger.info(`📋 Found ${allUsers.length} registered users to monitor`);
+
+      // Filter for liquidatable positions
       const liquidatablePositions = [];
 
-      for (const userAddress of monitoredAddresses) {
+      for (const userAddress of allUsers) {
         try {
           // Get user account data from Pool
           const userData = await this.contracts.pool.getUserAccountData(userAddress);

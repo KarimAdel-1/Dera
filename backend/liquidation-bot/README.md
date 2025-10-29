@@ -13,12 +13,18 @@ Automated liquidation service for Dera Protocol on Hedera. Monitors user positio
 
 ## How It Works
 
-### 1. Position Monitoring
-The bot queries `LiquidationDataProvider.sol` to check user health factors:
+### 1. User Discovery
+The bot uses Pool's user registry to discover all users:
+- Calls `getUsersPaginated()` for efficient iteration (recommended)
+- Falls back to `getAllUsers()` if pagination fails
+- No need for hardcoded addresses - automatically discovers all users who have supplied or borrowed
+
+### 2. Position Monitoring
+The bot queries each user's health factor from the Pool:
 - Health Factor < 1.0 = Liquidatable
 - Health Factor ≥ 1.0 = Healthy
 
-### 2. Profitability Check
+### 3. Profitability Check
 For each liquidatable position:
 ```
 Expected Profit = (Debt Covered × Liquidation Bonus %) - Gas Costs
@@ -26,7 +32,7 @@ Expected Profit = (Debt Covered × Liquidation Bonus %) - Gas Costs
 
 Only executes if `Expected Profit > MIN_PROFIT_USD`
 
-### 3. Liquidation Execution
+### 4. Liquidation Execution
 Calls `Pool.liquidationCall()`:
 - Repays user's debt
 - Receives collateral + liquidation bonus (e.g., 5%)

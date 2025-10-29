@@ -1,0 +1,41 @@
+{
+  "contractName": "DeraOracle",
+  "abi": [
+    {
+      "inputs": [
+        {"internalType": "address", "name": "asset", "type": "address"}
+      ],
+      "name": "getAssetPrice",
+      "outputs": [
+        {"internalType": "uint256", "name": "", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address[]", "name": "assets", "type": "address[]"}
+      ],
+      "name": "getAssetsPrices",
+      "outputs": [
+        {"internalType": "uint256[]", "name": "", "type": "uint256[]"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "asset", "type": "address"}
+      ],
+      "name": "getPythPriceUnsafe",
+      "outputs": [
+        {"internalType": "int64", "name": "price", "type": "int64"},
+        {"internalType": "uint64", "name": "conf", "type": "uint64"},
+        {"internalType": "int32", "name": "expo", "type": "int32"},
+        {"internalType": "uint256", "name": "publishTime", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}

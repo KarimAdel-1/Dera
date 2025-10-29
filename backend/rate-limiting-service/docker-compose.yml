@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  rate-limiting-service:
+    build: .
+    container_name: dera-rate-limiting
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - dera-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dera-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - dera-network
+
+volumes:
+  redis-data:
+
+networks:
+  dera-network:
+    driver: bridge
