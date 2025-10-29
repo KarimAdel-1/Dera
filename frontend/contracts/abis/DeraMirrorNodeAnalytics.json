@@ -1,0 +1,111 @@
+{
+  "contractName": "DeraMirrorNodeAnalytics",
+  "abi": [
+    {
+      "inputs": [
+        {"internalType": "address", "name": "pool", "type": "address"},
+        {"internalType": "address", "name": "_admin", "type": "address"}
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "getProtocolMetrics",
+      "outputs": [
+        {"internalType": "uint256", "name": "tvl", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalSupplied", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalBorrowed", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalUsers", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalTransactions", "type": "uint256"},
+        {"internalType": "uint256", "name": "lastUpdate", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "asset", "type": "address"}
+      ],
+      "name": "getAssetMetrics",
+      "outputs": [
+        {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalBorrow", "type": "uint256"},
+        {"internalType": "uint256", "name": "supplyAPY", "type": "uint256"},
+        {"internalType": "uint256", "name": "borrowAPY", "type": "uint256"},
+        {"internalType": "uint256", "name": "utilization", "type": "uint256"},
+        {"internalType": "uint256", "name": "supplierCount", "type": "uint256"},
+        {"internalType": "uint256", "name": "borrowerCount", "type": "uint256"},
+        {"internalType": "uint256", "name": "volume24h", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "count", "type": "uint256"}
+      ],
+      "name": "getHistoricalSnapshots",
+      "outputs": [
+        {
+          "components": [
+            {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
+            {"internalType": "uint256", "name": "tvl", "type": "uint256"},
+            {"internalType": "uint256", "name": "totalSupplied", "type": "uint256"},
+            {"internalType": "uint256", "name": "totalBorrowed", "type": "uint256"},
+            {"internalType": "uint256", "name": "utilizationRate", "type": "uint256"}
+          ],
+          "internalType": "struct DeraMirrorNodeAnalytics.HistoricalSnapshot[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "asset", "type": "address"}
+      ],
+      "name": "getUtilizationRate",
+      "outputs": [
+        {"internalType": "uint256", "name": "", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "protocolMetrics",
+      "outputs": [
+        {"internalType": "uint256", "name": "totalValueLocked", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalSupplied", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalBorrowed", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalUsers", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalTransactions", "type": "uint256"},
+        {"internalType": "uint256", "name": "lastUpdateTimestamp", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "", "type": "address"}
+      ],
+      "name": "assetMetrics",
+      "outputs": [
+        {"internalType": "uint256", "name": "totalSupply", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalBorrow", "type": "uint256"},
+        {"internalType": "uint256", "name": "supplyAPY", "type": "uint256"},
+        {"internalType": "uint256", "name": "borrowAPY", "type": "uint256"},
+        {"internalType": "uint256", "name": "utilization", "type": "uint256"},
+        {"internalType": "uint256", "name": "supplierCount", "type": "uint256"},
+        {"internalType": "uint256", "name": "borrowerCount", "type": "uint256"},
+        {"internalType": "uint256", "name": "last24hVolume", "type": "uint256"},
+        {"internalType": "uint256", "name": "lastUpdateTimestamp", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ]
+}
