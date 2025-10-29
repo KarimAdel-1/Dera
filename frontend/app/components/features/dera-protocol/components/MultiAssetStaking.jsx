@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { Lock, TrendingUp, AlertCircle, Clock, Gift, Zap } from 'lucide-react';
+import { Lock, TrendingUp, AlertCircle, Clock, Gift, Zap, ChevronDown } from 'lucide-react';
 import NotificationToast from './NotificationToast';
+import { hederaService } from '../../../../../services/hederaService';
 
 const MultiAssetStaking = () => {
-  const { connectedAccount } = useSelector((state) => state.wallet);
+  // Use default wallet from Redux (same pattern as SidebarSection)
+  const wallets = useSelector((state) => state.wallet.wallets);
+  const defaultWallet = useSelector((state) => state.wallet.defaultWallet);
+  const connectedWallet = wallets.find(w => w.address === defaultWallet) || wallets[0];
+  const connectedAccount = connectedWallet?.address;
+
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
 
   // Staking form state
@@ -14,6 +20,14 @@ const MultiAssetStaking = () => {
   const [serialNumber, setSerialNumber] = useState('');
   const [lockPeriod, setLockPeriod] = useState(7); // Days
   const [isStaking, setIsStaking] = useState(false);
+
+  // Wallet assets
+  const [userTokens, setUserTokens] = useState([]);
+  const [userNFTs, setUserNFTs] = useState([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [selectedNFT, setSelectedNFT] = useState(null);
+  const [showTokenSelector, setShowTokenSelector] = useState(false);
 
   // User stakes state
   const [userStakes, setUserStakes] = useState([]);
@@ -53,6 +67,69 @@ const MultiAssetStaking = () => {
     const rewards = principal * apy * (days / 365);
 
     return rewards.toFixed(2);
+  };
+
+  // Fetch user's tokens and NFTs when wallet connects
+  useEffect(() => {
+    const fetchUserAssets = async () => {
+      if (!connectedAccount) {
+        setUserTokens([]);
+        setUserNFTs([]);
+        return;
+      }
+
+      setIsLoadingAssets(true);
+      try {
+        // Fetch tokens
+        const tokens = await hederaService.getTokenBalances(connectedAccount);
+
+        // Fetch token info for each token to get name/symbol
+        const tokensWithInfo = await Promise.all(
+          tokens.map(async (token) => {
+            const info = await hederaService.getTokenInfo(token.token_id);
+            return {
+              ...token,
+              name: info?.name || 'Unknown Token',
+              symbol: info?.symbol || token.token_id,
+              decimals: info?.decimals || 0,
+              type: info?.type || 'FUNGIBLE_COMMON'
+            };
+          })
+        );
+
+        // Separate fungible tokens and NFTs
+        const fungibleTokens = tokensWithInfo.filter(t => t.type === 'FUNGIBLE_COMMON');
+
+        setUserTokens(fungibleTokens);
+
+        // Fetch NFTs
+        const nftDetails = await hederaService.getAccountNFTs(connectedAccount);
+        setUserNFTs(nftDetails);
+
+        console.log('Staking - User tokens:', fungibleTokens);
+        console.log('Staking - User NFTs:', nftDetails);
+      } catch (error) {
+        console.error('Error fetching user assets for staking:', error);
+        showNotification('Failed to load wallet assets', 'error');
+      } finally {
+        setIsLoadingAssets(false);
+      }
+    };
+
+    fetchUserAssets();
+  }, [connectedAccount]);
+
+  const handleTokenSelect = (token) => {
+    setSelectedToken(token);
+    setTokenAddress(token.token_id);
+    setShowTokenSelector(false);
+  };
+
+  const handleNFTSelect = (nft) => {
+    setSelectedNFT(nft);
+    setTokenAddress(nft.token_id);
+    setSerialNumber(nft.serial_number.toString());
+    setShowTokenSelector(false);
   };
 
   const loadUserStakes = async () => {
@@ -242,19 +319,106 @@ const MultiAssetStaking = () => {
             </div>
           </div>
 
-          {/* Token Address (for HTS tokens, NFTs, RWAs) */}
-          {(assetType === 'HTS_TOKEN' || assetType === 'NFT' || assetType === 'RWA') && (
+          {/* Token Selector (for HTS tokens and RWAs) */}
+          {(assetType === 'HTS_TOKEN' || assetType === 'RWA') && (
             <div>
               <label className="text-[var(--color-text-muted)] text-[12px] font-normal mb-2 block">
-                Token Address
+                Select Token from Your Wallet
               </label>
-              <input
-                type="text"
-                value={tokenAddress}
-                onChange={(e) => setTokenAddress(e.target.value)}
-                placeholder="0.0.1234567"
-                className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
-              />
+              <div className="relative">
+                <button
+                  onClick={() => setShowTokenSelector(!showTokenSelector)}
+                  className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
+                >
+                  <span>
+                    {selectedToken ? `${selectedToken.symbol} (${selectedToken.token_id})` : 'Select a token...'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showTokenSelector && (
+                  <div className="absolute z-10 w-full mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {isLoadingAssets ? (
+                      <div className="px-4 py-4 text-center text-[var(--color-text-muted)] text-[12px]">
+                        Loading tokens...
+                      </div>
+                    ) : userTokens.length === 0 ? (
+                      <div className="px-4 py-4 text-center text-[var(--color-text-muted)] text-[12px]">
+                        No tokens found in wallet
+                      </div>
+                    ) : (
+                      userTokens.map((token) => (
+                        <button
+                          key={token.token_id}
+                          onClick={() => handleTokenSelect(token)}
+                          className="w-full px-4 py-3 text-left text-[13px] hover:bg-[var(--color-bg-hover)] transition-colors border-b border-[var(--color-border-input)] last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-[var(--color-text-primary)] font-medium">{token.symbol}</div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">{token.token_id}</div>
+                            </div>
+                            <div className="text-[var(--color-text-primary)] text-[12px]">
+                              {(token.balance / Math.pow(10, token.decimals)).toFixed(2)}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* NFT Selector */}
+          {assetType === 'NFT' && (
+            <div>
+              <label className="text-[var(--color-text-muted)] text-[12px] font-normal mb-2 block">
+                Select NFT from Your Wallet
+              </label>
+              <div className="relative">
+                <button
+                  onClick={() => setShowTokenSelector(!showTokenSelector)}
+                  className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
+                >
+                  <span>
+                    {selectedNFT ? `${selectedNFT.token_id} #${selectedNFT.serial_number}` : 'Select an NFT...'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showTokenSelector && (
+                  <div className="absolute z-10 w-full mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {isLoadingAssets ? (
+                      <div className="px-4 py-4 text-center text-[var(--color-text-muted)] text-[12px]">
+                        Loading NFTs...
+                      </div>
+                    ) : userNFTs.length === 0 ? (
+                      <div className="px-4 py-4 text-center text-[var(--color-text-muted)] text-[12px]">
+                        No NFTs found in wallet
+                      </div>
+                    ) : (
+                      userNFTs.map((nft) => (
+                        <button
+                          key={`${nft.token_id}-${nft.serial_number}`}
+                          onClick={() => handleNFTSelect(nft)}
+                          className="w-full px-4 py-3 text-left text-[13px] hover:bg-[var(--color-bg-hover)] transition-colors border-b border-[var(--color-border-input)] last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-[var(--color-text-primary)] font-medium">
+                                Serial #{nft.serial_number}
+                              </div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">{nft.token_id}</div>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -269,22 +433,6 @@ const MultiAssetStaking = () => {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
-              />
-            </div>
-          )}
-
-          {/* Serial Number (for NFTs) */}
-          {assetType === 'NFT' && (
-            <div>
-              <label className="text-[var(--color-text-muted)] text-[12px] font-normal mb-2 block">
-                Serial Number
-              </label>
-              <input
-                type="number"
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                placeholder="1"
                 className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
               />
             </div>
