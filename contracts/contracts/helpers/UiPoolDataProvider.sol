@@ -20,7 +20,7 @@ import {UserConfiguration} from '../protocol/libraries/configuration/UserConfigu
 import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
 
 /**
- * @title UiPoolDataProviderV1
+ * @title UiPoolDataProvider
  * @author DERA Protocol
  * @notice Aggregates all pool data in a single call - optimized for Hedera
  * @dev Single contract call instead of 50+ calls - critical for UX
@@ -37,7 +37,7 @@ import {DataTypes} from '../protocol/libraries/types/DataTypes.sol';
  * - HTS: Token info retrieved via native Hedera token properties
  * - Frontend caching: Use Mirror Nodes for historical data, SDK for real-time updates
  */
-contract UiPoolDataProviderV1 {
+contract UiPoolDataProvider {
   using WadRayMath for uint256;
   using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using UserConfiguration for DataTypes.UserConfigurationMap;

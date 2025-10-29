@@ -155,28 +155,13 @@ const MultiAssetStaking = () => {
 
     setIsLoadingStakes(true);
     try {
-      // TODO: Integrate with DeraMultiAssetStaking contract
-      // const stakes = await stakingService.getUserStakes(connectedAccount);
-      // setUserStakes(stakes);
+      // Integrate with DeraMultiAssetStaking contract
+      const { stakingService } = await import('../../../../../services/stakingService');
+      const stakes = await stakingService.getUserStakes(connectedAccount);
+      setUserStakes(stakes);
 
-      // Mock data for now
-      const mockStakes = [
-        {
-          stakeId: 1,
-          assetType: 'HBAR',
-          tokenAddress: '0x0000000000000000000000000000000000000000',
-          amount: '100',
-          serialNumber: 0,
-          startTime: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-          lockPeriod: 30,
-          unlockTime: Date.now() + 25 * 24 * 60 * 60 * 1000, // 25 days from now
-          rewardAPY: 10,
-          accumulatedRewards: '1.37',
-          status: 'ACTIVE',
-        },
-      ];
-
-      setUserStakes(mockStakes);
+      // Remove fallback mock data - use empty array if service fails
+      setUserStakes([]);
     } catch (error) {
       console.error('Error loading stakes:', error);
       showNotification('Failed to load your stakes', 'error');
@@ -221,21 +206,23 @@ const MultiAssetStaking = () => {
 
     setIsStaking(true);
     try {
-      // TODO: Integrate with DeraMultiAssetStaking contract
-      // Example integration:
-      // if (assetType === 'HBAR') {
-      //   await stakingService.stakeFungibleToken(
-      //     '0x0000000000000000000000000000000000000000', // HBAR address
-      //     ethers.utils.parseEther(amount),
-      //     lockPeriod * 24 * 60 * 60 // Convert days to seconds
-      //   );
-      // } else if (assetType === 'NFT') {
-      //   await stakingService.stakeNFT(
-      //     tokenAddress,
-      //     parseInt(serialNumber),
-      //     lockPeriod * 24 * 60 * 60
-      //   );
-      // }
+      // Integrate with DeraMultiAssetStaking contract
+      const { stakingService } = await import('../../../../../services/stakingService');
+      
+      if (assetType === 'HBAR' || assetType === 'HTS_TOKEN' || assetType === 'RWA') {
+        const tokenAddr = assetType === 'HBAR' ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+        await stakingService.stakeFungibleToken(
+          tokenAddr,
+          amount,
+          lockPeriod
+        );
+      } else if (assetType === 'NFT') {
+        await stakingService.stakeNFT(
+          tokenAddress,
+          parseInt(serialNumber),
+          lockPeriod
+        );
+      }
 
       showNotification(
         `Successfully staked ${
@@ -262,8 +249,9 @@ const MultiAssetStaking = () => {
   const handleUnstake = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Integrate with contract
-      // await stakingService.unstake(stakeId);
+      // Integrate with contract
+      const { stakingService } = await import('../../../../../services/stakingService');
+      await stakingService.unstake(stakeId);
 
       showNotification('Successfully unstaked!', 'success');
       await loadUserStakes();
@@ -278,8 +266,9 @@ const MultiAssetStaking = () => {
   const handleClaimRewards = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Integrate with contract
-      // await stakingService.claimRewards(stakeId);
+      // Integrate with contract
+      const { stakingService } = await import('../../../../../services/stakingService');
+      await stakingService.claimRewards(stakeId);
 
       showNotification('Successfully claimed rewards!', 'success');
       await loadUserStakes();

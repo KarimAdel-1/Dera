@@ -45,7 +45,14 @@ class StakingService {
       }
 
       // Import contract ABI
-      const { default: DeraMultiAssetStakingABI } = await import('../contracts/abis/DeraMultiAssetStaking.json');
+      let DeraMultiAssetStakingABI;
+      try {
+        const abiModule = await import('../contracts/abis/DeraMultiAssetStaking.json');
+        DeraMultiAssetStakingABI = abiModule.default || abiModule;
+      } catch (error) {
+        console.warn('⚠️ DeraMultiAssetStaking ABI not found. Run: npm run export-abis');
+        throw new Error('Contract ABI not available. Please compile and export contracts first.');
+      }
 
       // Create contract instance
       this.contract = new ethers.Contract(
@@ -261,8 +268,8 @@ class StakingService {
    */
   async getUserStakes(userAddress) {
     if (!this.isInitialized) {
-      console.warn('⚠️ StakingService not initialized, returning mock data');
-      return this.getMockStakes(userAddress);
+      console.warn('⚠️ StakingService not initialized');
+      return [];
     }
 
     try {
@@ -296,7 +303,7 @@ class StakingService {
       return stakes;
     } catch (error) {
       console.error('❌ Error fetching stakes:', error);
-      return this.getMockStakes(userAddress);
+      return [];
     }
   }
 
@@ -336,27 +343,7 @@ class StakingService {
     return statuses[status] || 'UNKNOWN';
   }
 
-  /**
-   * Get mock stakes for development/testing
-   */
-  getMockStakes(userAddress) {
-    return [
-      {
-        stakeId: '1',
-        assetType: 'HBAR',
-        tokenAddress: '0x0000000000000000000000000000000000000000',
-        amount: '100',
-        serialNumber: '0',
-        startTime: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-        lockPeriod: 30 * 24 * 60 * 60, // 30 days in seconds
-        unlockTime: Date.now() + 25 * 24 * 60 * 60 * 1000, // 25 days from now
-        rewardAPY: 10,
-        accumulatedRewards: '1.37',
-        pendingRewards: '1.37',
-        status: 'ACTIVE'
-      }
-    ];
-  }
+
 
   /**
    * Get contract address
