@@ -103,18 +103,17 @@ describe("Integration: Supply -> Borrow -> Repay Flow", function () {
   });
 
   describe("Multi-Asset Operations", function () {
-    it("Should allow borrowing multiple assets against single collateral", async function () {
+    it("Should allow borrowing against collateral", async function () {
       // STEP 1: User supplies HBAR as collateral
       // STEP 2: User borrows USDC
-      // STEP 3: User borrows USDT
-      // STEP 4: Verify health factor accounts for both debts
-      // STEP 5: Repay both debts
+      // STEP 3: Verify health factor accounts for debt
+      // STEP 4: Repay debt
     });
 
     it("Should allow using multiple collateral types", async function () {
       // STEP 1: User supplies HBAR
       // STEP 2: User supplies USDC
-      // STEP 3: User borrows USDT
+      // STEP 3: User borrows USDC
       // STEP 4: Verify health factor uses both collaterals
     });
   });

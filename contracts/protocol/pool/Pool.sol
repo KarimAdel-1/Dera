@@ -33,6 +33,7 @@ import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.so
 import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRateStrategy.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
+import {IDeraHCSEventStreamer} from '../../interfaces/IDeraHCSEventStreamer.sol';
 import {PoolStorage} from './PoolStorage.sol';
 
 /**
@@ -154,6 +155,107 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function initialize(IPoolAddressesProvider provider) external virtual;
 
   /**
+   * @notice Get HCS Event Streamer contract
+   * @return HCS Event Streamer interface (null if not set)
+   */
+  function _getHCSStreamer() internal view returns (IDeraHCSEventStreamer) {
+    return IDeraHCSEventStreamer(hcsEventStreamer);
+  }
+
+  /**
+   * @notice Set HCS Event Streamer contract address
+   * @dev Only Pool Admin can set this
+   * @param streamer Address of DeraHCSEventStreamer contract
+   */
+  function setHCSEventStreamer(address streamer) external onlyPoolAdmin {
+    require(streamer != address(0), Errors.ZeroAddressNotValid());
+    address oldStreamer = hcsEventStreamer;
+    hcsEventStreamer = streamer;
+    emit HCSEventStreamerUpdated(oldStreamer, streamer);
+  }
+
+  /**
+   * @notice Get HCS Event Streamer address
+   */
+  function getHCSEventStreamer() external view returns (address) {
+    return hcsEventStreamer;
+  }
+
+  event HCSEventStreamerUpdated(address indexed oldStreamer, address indexed newStreamer);
+
+  /**
+   * @notice Set Protocol Integration contract address
+   * @dev Only Pool Admin can set this
+   * @param integration Address of DeraProtocolIntegration contract
+   */
+  function setProtocolIntegration(address integration) external onlyPoolAdmin {
+    require(integration != address(0), Errors.ZeroAddressNotValid());
+    emit ProtocolIntegrationUpdated(integration);
+  }
+
+  /**
+   * @notice Set Node Staking contract address
+   * @dev Only Pool Admin can set this
+   * @param nodeStaking Address of DeraNodeStaking contract
+   */
+  function setNodeStakingContract(address nodeStaking) external onlyPoolAdmin {
+    require(nodeStaking != address(0), Errors.ZeroAddressNotValid());
+    address oldContract = nodeStakingContract;
+    nodeStakingContract = nodeStaking;
+    emit NodeStakingContractUpdated(oldContract, nodeStaking);
+  }
+
+  /**
+   * @notice Get Node Staking contract address
+   */
+  function getNodeStakingContract() external view returns (address) {
+    return nodeStakingContract;
+  }
+
+  /**
+   * @notice Set Analytics contract address
+   * @dev Only Pool Admin can set this
+   * @param analytics Address of DeraMirrorNodeAnalytics contract
+   */
+  function setAnalyticsContract(address analytics) external onlyPoolAdmin {
+    require(analytics != address(0), Errors.ZeroAddressNotValid());
+    address oldContract = analyticsContract;
+    analyticsContract = analytics;
+    emit AnalyticsContractUpdated(oldContract, analytics);
+  }
+
+  /**
+   * @notice Get Analytics contract address
+   */
+  function getAnalyticsContract() external view returns (address) {
+    return analyticsContract;
+  }
+
+  /**
+   * @notice Set Treasury address
+   * @dev Only Pool Admin can set this
+   * @param _treasury Address of Treasury contract
+   */
+  function setTreasury(address _treasury) external onlyPoolAdmin {
+    require(_treasury != address(0), Errors.ZeroAddressNotValid());
+    address oldTreasury = treasury;
+    treasury = _treasury;
+    emit TreasuryUpdated(oldTreasury, _treasury);
+  }
+
+  /**
+   * @notice Get Treasury address
+   */
+  function getTreasury() external view returns (address) {
+    return treasury;
+  }
+
+  event ProtocolIntegrationUpdated(address indexed integration);
+  event NodeStakingContractUpdated(address indexed oldContract, address indexed newContract);
+  event AnalyticsContractUpdated(address indexed oldContract, address indexed newContract);
+  event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+
+  /**
    * @notice Supply assets to the pool
    * @dev HTS requires both sender and receiver to be associated with the token
    * @param asset The HTS token address
@@ -179,6 +281,17 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Supply(_msgSender(), asset, amount, onBehalfOf, referralCode, HCSTopics.SUPPLY_TOPIC());
+
+    // Queue event for HCS submission
+    if (hcsEventStreamer != address(0)) {
+      IDeraHCSEventStreamer(_getHCSStreamer()).queueSupplyEvent(
+        _msgSender(),
+        asset,
+        amount,
+        onBehalfOf,
+        referralCode
+      );
+    }
   }
 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
@@ -198,6 +311,17 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Withdraw(_msgSender(), asset, withdrawn, to, HCSTopics.WITHDRAW_TOPIC());
+
+    // Queue event for HCS submission
+    if (hcsEventStreamer != address(0)) {
+      IDeraHCSEventStreamer(_getHCSStreamer()).queueWithdrawEvent(
+        _msgSender(),
+        asset,
+        withdrawn,
+        to
+      );
+    }
+
     return withdrawn;
   }
 
@@ -232,6 +356,18 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Borrow(_msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode, HCSTopics.BORROW_TOPIC());
+
+    // Queue event for HCS submission
+    if (hcsEventStreamer != address(0)) {
+      IDeraHCSEventStreamer(_getHCSStreamer()).queueBorrowEvent(
+        _msgSender(),
+        asset,
+        amount,
+        interestRateMode,
+        onBehalfOf,
+        referralCode
+      );
+    }
   }
 
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public virtual override nonReentrant returns (uint256) {
@@ -251,6 +387,18 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit Repay(_msgSender(), asset, repaid, interestRateMode, onBehalfOf, HCSTopics.REPAY_TOPIC());
+
+    // Queue event for HCS submission
+    if (hcsEventStreamer != address(0)) {
+      IDeraHCSEventStreamer(_getHCSStreamer()).queueRepayEvent(
+        _msgSender(),
+        asset,
+        repaid,
+        interestRateMode,
+        onBehalfOf
+      );
+    }
+
     return repaid;
   }
 
@@ -306,6 +454,22 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
       })
     );
     emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
+
+    // Queue event for HCS submission
+    // Note: liquidatedCollateral is estimated based on debtToCover
+    // TODO: Modify LiquidationLogic to return actual liquidatedCollateral amount
+    if (hcsEventStreamer != address(0)) {
+      uint256 liquidatedCollateral = debtToCover; // Approximation for now
+      IDeraHCSEventStreamer(_getHCSStreamer()).queueLiquidationEvent(
+        _msgSender(),
+        borrower,
+        collateralAsset,
+        debtAsset,
+        debtToCover,
+        liquidatedCollateral,
+        receiveSupplyToken
+      );
+    }
   }
 
 

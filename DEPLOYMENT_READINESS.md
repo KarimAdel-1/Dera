@@ -192,8 +192,6 @@ Emit AssetDataUpdated event
 **Required:**
 - HBAR token (native)
 - USDC token (HTS)
-- USDT token (HTS)
-- Other supported assets
 
 **Integration:** Uses `GPv2SafeERC20` for safe transfers compatible with HTS
 
@@ -253,7 +251,7 @@ Emit AssetDataUpdated event
 3. **Configure & Initialize**
    - Deploy DeraDeploymentConfig
    - Call initializeProtocol()
-   - Initialize first assets (HBAR, USDC, USDT)
+   - Initialize first assets (HBAR, USDC)
    - Configure interest rate parameters
    - Set asset factors and collateral ratios
 

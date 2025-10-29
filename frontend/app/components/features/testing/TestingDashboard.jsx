@@ -28,9 +28,6 @@ const TestingDashboard = () => {
   const mockAssets = [
     { symbol: 'USDC', name: 'USD Coin', supplyAPY: 3.45, borrowAPY: 5.20, price: 1.00, ltv: 80, liquidationThreshold: 85 },
     { symbol: 'HBAR', name: 'Hedera', supplyAPY: 2.15, borrowAPY: 4.80, price: 0.08, ltv: 75, liquidationThreshold: 80 },
-    { symbol: 'USDT', name: 'Tether USD', supplyAPY: 3.20, borrowAPY: 5.10, price: 1.00, ltv: 80, liquidationThreshold: 85 },
-    { symbol: 'WBTC', name: 'Wrapped Bitcoin', supplyAPY: 1.80, borrowAPY: 3.50, price: 45000, ltv: 70, liquidationThreshold: 75 },
-    { symbol: 'ETH', name: 'Ethereum', supplyAPY: 2.50, borrowAPY: 4.20, price: 2500, ltv: 75, liquidationThreshold: 80 },
   ];
 
   const calculateAccountData = (supplies, borrows) => {

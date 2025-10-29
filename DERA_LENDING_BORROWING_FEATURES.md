@@ -10,7 +10,7 @@
 **Contract**: `Pool.sol` → `supply()`
 
 **What it does:**
-- Users deposit assets (HBAR, USDC, USDT, etc.) into the pool
+- Users deposit assets (HBAR, USDC) into the pool
 - Receive interest-bearing dTokens (e.g., deposit USDC → get dUSDC)
 - dTokens automatically accrue interest over time
 - Can supply on behalf of another address
@@ -256,23 +256,23 @@ If HF > 1.0 → Safe
 
 **E-Mode Categories:**
 ```
-Category 1: Stablecoins (USDC, USDT, DAI)
+Category 1: Stablecoins (USDC)
 - LTV: 97%
 - Liquidation Threshold: 98%
 - Liquidation Bonus: 2%
 
-Category 2: ETH-correlated (ETH, WETH, stETH)
-- LTV: 90%
-- Liquidation Threshold: 93%
+Category 2: Native (HBAR)
+- LTV: 80%
+- Liquidation Threshold: 85%
 - Liquidation Bonus: 5%
 ```
 
 **User Flow:**
 ```
-1. User supplies USDC and wants to borrow USDT
+1. User supplies USDC as collateral
 2. User calls setUserEMode(1) // Stablecoin category
 3. User can now borrow up to 97% LTV instead of 80%
-4. User borrows $970 USDT against $1000 USDC
+4. User borrows $970 USDC against $1000 USDC
 ```
 
 ---

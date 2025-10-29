@@ -275,8 +275,11 @@ class LiquidationMonitor {
     try {
       const { user, liquidationData, totalDebtBase } = position;
 
-      // Get user's collateral and debt assets
-      const userAssetData = await this.contracts.pool.getUserAssetData(user);
+      // Get user configuration to determine active assets
+      const userConfig = await this.contracts.pool.getUserConfiguration(user);
+
+      // Get list of all assets
+      const allAssets = await this.contracts.pool.getAssetsList();
 
       // Find most valuable collateral asset
       let maxCollateralValue = 0n;
@@ -287,6 +290,7 @@ class LiquidationMonitor {
       let debtAsset = null;
 
       // In a real implementation, you'd iterate through user's positions
+      // using userConfig bitmap to determine which assets are active
       // For this template, we'll use configuration
       collateralAsset = config.DEFAULT_COLLATERAL_ASSET;
       debtAsset = config.DEFAULT_DEBT_ASSET;
