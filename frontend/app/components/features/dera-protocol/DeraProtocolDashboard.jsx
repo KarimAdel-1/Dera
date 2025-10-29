@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { ethers } from 'ethers';
-import AccountOverview from '../../testing/components/AccountOverview';
-import SupplyTab from '../../testing/components/SupplyTab';
-import BorrowTab from '../../testing/components/BorrowTab';
-import TestingTab from '../../testing/components/TestingTab';
-import InfoCards from '../../testing/components/InfoCards';
-import ActionModal from '../../testing/components/ActionModal';
-import NotificationToast from '../../testing/components/NotificationToast';
-import TransactionHistory from '../../testing/components/TransactionHistory';
+import AccountOverview from './components/AccountOverview';
+import SupplyTab from './components/SupplyTab';
+import BorrowTab from './components/BorrowTab';
+import TestingTab from './components/TestingTab';
+import ActionModal from './components/ActionModal';
+import NotificationToast from './components/NotificationToast';
+import TransactionHistory from './components/TransactionHistory';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
@@ -29,6 +28,7 @@ const DeraProtocolDashboard = () => {
     healthFactor: Infinity
   });
   const [modalState, setModalState] = useState({ isOpen: false, type: '', asset: null });
+  const [dualYieldModalOpen, setDualYieldModalOpen] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
@@ -395,13 +395,22 @@ const DeraProtocolDashboard = () => {
   return (
     <div className="space-y-6 p-0 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-[var(--color-text-primary)] text-[18px] sm:text-[20px] font-normal mb-1">
-          Dera Protocol
-        </h2>
-        <p className="text-[var(--color-text-muted)] text-[13px] sm:text-[14px]">
-          Hedera-native lending with dual yield from staking rewards
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-[var(--color-text-primary)] text-[18px] sm:text-[20px] font-normal mb-1">
+            Dera Protocol
+          </h2>
+          <p className="text-[var(--color-text-muted)] text-[13px] sm:text-[14px]">
+            Hedera-native lending with dual yield from staking rewards
+          </p>
+        </div>
+        <button
+          onClick={() => setDualYieldModalOpen(true)}
+          className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-md font-medium hover:bg-[var(--color-primary)]/90 transition-all shadow-xs flex items-center gap-2"
+        >
+          <span>💎</span>
+          Dual Yield
+        </button>
       </div>
 
       <AccountOverview
@@ -418,7 +427,6 @@ const DeraProtocolDashboard = () => {
             {key: 'supply', label: 'Supply'},
             {key: 'borrow', label: 'Borrow'},
             {key: 'positions', label: 'Your Positions'},
-            {key: 'dual-yield', label: 'Dual Yield'},
             {key: 'events', label: 'HCS Events'},
             {key: 'analytics', label: 'Analytics'}
           ].map(tab => (
@@ -453,20 +461,22 @@ const DeraProtocolDashboard = () => {
             />
           )}
           {activeTab === 'positions' && (
-            <TestingTab
-              supplies={userAccount.supplies}
-              borrows={userAccount.borrows}
-              assets={mockAssets}
-              onWithdraw={(asset) => openModal('withdraw', asset)}
-              onRepay={(asset) => openModal('repay', asset)}
-              onSupplyMore={(asset) => openModal('supply', asset)}
-              onBorrowMore={(asset) => openModal('borrow', asset)}
-              onToggleCollateral={toggleCollateral}
-              disabled={isProcessingTransaction}
-            />
-          )}
-          {activeTab === 'dual-yield' && (
-            <DualYieldDisplay userAddress={activeWallet?.address} />
+            <>
+              <TestingTab
+                supplies={userAccount.supplies}
+                borrows={userAccount.borrows}
+                assets={mockAssets}
+                onWithdraw={(asset) => openModal('withdraw', asset)}
+                onRepay={(asset) => openModal('repay', asset)}
+                onSupplyMore={(asset) => openModal('supply', asset)}
+                onBorrowMore={(asset) => openModal('borrow', asset)}
+                onToggleCollateral={toggleCollateral}
+                disabled={isProcessingTransaction}
+              />
+              <div className="mt-6">
+                <TransactionHistory transactions={transactionHistory} />
+              </div>
+            </>
           )}
           {activeTab === 'events' && (
             <HCSEventHistory />
@@ -476,10 +486,6 @@ const DeraProtocolDashboard = () => {
           )}
         </div>
       </div>
-
-      <InfoCards />
-
-      <TransactionHistory transactions={transactionHistory} />
 
       {modalState.isOpen && (
         <ActionModal
@@ -495,6 +501,25 @@ const DeraProtocolDashboard = () => {
 
       {notification.show && (
         <NotificationToast message={notification.message} type={notification.type} />
+      )}
+
+      {dualYieldModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDualYieldModalOpen(false)}>
+          <div className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] max-w-5xl w-full max-h-[70vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-500" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border-primary)] p-3 flex items-center justify-between">
+              <h3 className="text-[var(--color-text-primary)] text-[16px] font-medium">Dual Yield Mechanism</h3>
+              <button
+                onClick={() => setDualYieldModalOpen(false)}
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-3">
+              <DualYieldDisplay userAddress={activeWallet?.address} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

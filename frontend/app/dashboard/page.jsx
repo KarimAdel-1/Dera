@@ -10,7 +10,7 @@ import YourWalletsTab from '../components/features/wallets/YourWalletsTab';
 import TransactionsTab from '../components/features/transactions/TransactionsTab';
 import SettingsTab from '../components/features/settings/SettingsTab';
 import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
-import TestingDashboard from '../components/features/testing/TestingDashboard';
+
 import DeraProtocolTab from '../components/features/dera-protocol/DeraProtocolTab';
 
 export default function Dashboard() {
@@ -42,8 +42,7 @@ export default function Dashboard() {
         return <DeraProtocolTab />;
       case 'wallets':
         return <YourWalletsTab />;
-      case 'testing':
-        return <TestingDashboard />;
+
       case 'transactions':
         return <TransactionsTab />;
       case 'hedera-stats':
@@ -63,8 +62,7 @@ export default function Dashboard() {
         return 'Dera Protocol';
       case 'wallets':
         return 'Your Wallets';
-      case 'testing':
-        return 'Testing';
+
       case 'transactions':
         return 'Transactions';
       case 'hedera-stats':
