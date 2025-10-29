@@ -5,7 +5,7 @@ import { addContact } from '../../../store/contactsSlice';
 import { gsap } from 'gsap';
 import { hashpackService } from '../../../../services/hashpackService';
 import { hederaService } from '../../../../services/hederaService';
-import NotificationToast from '../dera-protocol/components/NotificationToast';
+import NotificationToast from '../../common/NotificationToast';
 
 const SidebarSection = () => {
   const dispatch = useDispatch();
@@ -39,25 +39,33 @@ const SidebarSection = () => {
   const [contactName, setContactName] = useState('');
   const [contactAddress, setContactAddress] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
 
   const barRef = useRef(null);
   const inputRef = useRef(null);
   const addContactRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const senderWallet = wallets.find(w => w.address === defaultWallet) || wallets[0];
+  const senderWallet =
+    wallets.find((w) => w.address === defaultWallet) || wallets[0];
 
   const assetTypes = [
     { value: 'HBAR', label: 'HBAR', icon: '⚡' },
     { value: 'HTS_TOKEN', label: 'HTS Token', icon: '🪙' },
     { value: 'NFT', label: 'NFT', icon: '🎨' },
-    { value: 'RWA', label: 'RWA Token', icon: '🏛️' }
+    { value: 'RWA', label: 'RWA Token', icon: '🏛️' },
   ];
 
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000);
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      3000
+    );
   };
 
   // Fetch user's tokens and NFTs when wallet connects
@@ -72,7 +80,9 @@ const SidebarSection = () => {
       setIsLoadingAssets(true);
       try {
         // Fetch tokens
-        const tokens = await hederaService.getTokenBalances(senderWallet.address);
+        const tokens = await hederaService.getTokenBalances(
+          senderWallet.address
+        );
 
         // Fetch token info for each token to get name/symbol
         const tokensWithInfo = await Promise.all(
@@ -83,20 +93,26 @@ const SidebarSection = () => {
               name: info?.name || 'Unknown Token',
               symbol: info?.symbol || token.token_id,
               decimals: info?.decimals || 0,
-              type: info?.type || 'FUNGIBLE_COMMON'
+              type: info?.type || 'FUNGIBLE_COMMON',
             };
           })
         );
 
         // Separate fungible tokens and NFTs
-        const fungibleTokens = tokensWithInfo.filter(t => t.type === 'FUNGIBLE_COMMON');
-        const nfts = tokensWithInfo.filter(t => t.type === 'NON_FUNGIBLE_UNIQUE');
+        const fungibleTokens = tokensWithInfo.filter(
+          (t) => t.type === 'FUNGIBLE_COMMON'
+        );
+        const nfts = tokensWithInfo.filter(
+          (t) => t.type === 'NON_FUNGIBLE_UNIQUE'
+        );
 
         setUserTokens(fungibleTokens);
 
         // If there are NFTs, fetch their details
         if (nfts.length > 0) {
-          const nftDetails = await hederaService.getAccountNFTs(senderWallet.address);
+          const nftDetails = await hederaService.getAccountNFTs(
+            senderWallet.address
+          );
           setUserNFTs(nftDetails);
         } else {
           setUserNFTs([]);
@@ -250,8 +266,11 @@ const SidebarSection = () => {
 
     setIsSending(true);
     try {
-      const { TransferTransaction, Hbar, AccountId, TokenId, NftId } = await import('@hashgraph/sdk');
-      const { hederaService } = await import('../../../../services/hederaService');
+      const { TransferTransaction, Hbar, AccountId, TokenId, NftId } =
+        await import('@hashgraph/sdk');
+      const { hederaService } = await import(
+        '../../../../services/hederaService'
+      );
       const { setWalletData } = await import('../../../store/walletSlice');
 
       const senderAccountId = senderWallet.address;
@@ -262,7 +281,10 @@ const SidebarSection = () => {
         case 'HBAR':
           transaction = transaction
             .addHbarTransfer(senderAccountId, Hbar.fromString(`-${amount}`))
-            .addHbarTransfer(AccountId.fromString(recipient), Hbar.fromString(amount));
+            .addHbarTransfer(
+              AccountId.fromString(recipient),
+              Hbar.fromString(amount)
+            );
           break;
 
         case 'HTS_TOKEN':
@@ -271,21 +293,32 @@ const SidebarSection = () => {
           const tokenAmount = Math.floor(parseFloat(amount) * 100); // Assuming 2 decimals
           transaction = transaction
             .addTokenTransfer(tokenId, senderAccountId, -tokenAmount)
-            .addTokenTransfer(tokenId, AccountId.fromString(recipient), tokenAmount);
+            .addTokenTransfer(
+              tokenId,
+              AccountId.fromString(recipient),
+              tokenAmount
+            );
           break;
 
         case 'NFT':
           const nftTokenId = TokenId.fromString(tokenAddress);
           const serial = parseInt(serialNumber);
-          transaction = transaction
-            .addNftTransfer(nftTokenId, serial, AccountId.fromString(senderAccountId), AccountId.fromString(recipient));
+          transaction = transaction.addNftTransfer(
+            nftTokenId,
+            serial,
+            AccountId.fromString(senderAccountId),
+            AccountId.fromString(recipient)
+          );
           break;
 
         default:
           throw new Error('Invalid asset type');
       }
 
-      const result = await hashpackService.sendTransaction(senderAccountId, transaction);
+      const result = await hashpackService.sendTransaction(
+        senderAccountId,
+        transaction
+      );
 
       // Success message based on asset type
       let successMessage = '';
@@ -314,19 +347,29 @@ const SidebarSection = () => {
 
       // Refresh transactions after successful send
       setTimeout(async () => {
-        const transactions = await hederaService.getAccountTransactions(senderAccountId, 10);
-        const balanceData = await hederaService.getAccountBalance(senderAccountId);
-        dispatch(setWalletData({
-          accountId: senderAccountId,
-          data: {
-            hbarBalance: balanceData.hbarBalance,
-            transactions,
-          },
-        }));
+        const transactions = await hederaService.getAccountTransactions(
+          senderAccountId,
+          10
+        );
+        const balanceData = await hederaService.getAccountBalance(
+          senderAccountId
+        );
+        dispatch(
+          setWalletData({
+            accountId: senderAccountId,
+            data: {
+              hbarBalance: balanceData.hbarBalance,
+              transactions,
+            },
+          })
+        );
       }, 2000);
     } catch (error) {
       console.error(`Error sending ${assetType}:`, error);
-      showNotification(`Failed to send ${assetType}: ${error.message}`, 'error');
+      showNotification(
+        `Failed to send ${assetType}: ${error.message}`,
+        'error'
+      );
     } finally {
       setIsSending(false);
     }
@@ -375,7 +418,7 @@ const SidebarSection = () => {
               style={{ opacity: 0 }}
             />
           </div>
-          
+
           <div className="flex flex-wrap gap-3">
             {visibleContacts.map((contact) => (
               <div
@@ -451,10 +494,18 @@ const SidebarSection = () => {
                 className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <span>{assetTypes.find(a => a.value === assetType)?.icon}</span>
-                  <span>{assetTypes.find(a => a.value === assetType)?.label}</span>
+                  <span>
+                    {assetTypes.find((a) => a.value === assetType)?.icon}
+                  </span>
+                  <span>
+                    {assetTypes.find((a) => a.value === assetType)?.label}
+                  </span>
                 </span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showAssetDropdown ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    showAssetDropdown ? 'rotate-180' : ''
+                  }`}
+                />
               </button>
 
               {showAssetDropdown && (
@@ -511,9 +562,15 @@ const SidebarSection = () => {
                   className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
                 >
                   <span>
-                    {selectedToken ? `${selectedToken.symbol} (${selectedToken.token_id})` : 'Select a token...'}
+                    {selectedToken
+                      ? `${selectedToken.symbol} (${selectedToken.token_id})`
+                      : 'Select a token...'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showTokenSelector ? 'rotate-180' : ''
+                    }`}
+                  />
                 </button>
 
                 {showTokenSelector && (
@@ -535,11 +592,17 @@ const SidebarSection = () => {
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-[var(--color-text-primary)] font-medium">{token.symbol}</div>
-                              <div className="text-[var(--color-text-muted)] text-[11px]">{token.token_id}</div>
+                              <div className="text-[var(--color-text-primary)] font-medium">
+                                {token.symbol}
+                              </div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">
+                                {token.token_id}
+                              </div>
                             </div>
                             <div className="text-[var(--color-text-primary)] text-[12px]">
-                              {(token.balance / Math.pow(10, token.decimals)).toFixed(2)}
+                              {(
+                                token.balance / Math.pow(10, token.decimals)
+                              ).toFixed(2)}
                             </div>
                           </div>
                         </button>
@@ -563,9 +626,15 @@ const SidebarSection = () => {
                   className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
                 >
                   <span>
-                    {selectedNFT ? `${selectedNFT.token_id} #${selectedNFT.serial_number}` : 'Select an NFT...'}
+                    {selectedNFT
+                      ? `${selectedNFT.token_id} #${selectedNFT.serial_number}`
+                      : 'Select an NFT...'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showTokenSelector ? 'rotate-180' : ''
+                    }`}
+                  />
                 </button>
 
                 {showTokenSelector && (
@@ -590,7 +659,9 @@ const SidebarSection = () => {
                               <div className="text-[var(--color-text-primary)] font-medium">
                                 Serial #{nft.serial_number}
                               </div>
-                              <div className="text-[var(--color-text-muted)] text-[11px]">{nft.token_id}</div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">
+                                {nft.token_id}
+                              </div>
                             </div>
                           </div>
                         </button>
@@ -606,7 +677,13 @@ const SidebarSection = () => {
           {assetType !== 'NFT' && (
             <div>
               <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
-                Amount ({assetType === 'HBAR' ? 'HBAR' : assetType === 'HTS_TOKEN' ? 'Tokens' : 'RWA Tokens'})
+                Amount (
+                {assetType === 'HBAR'
+                  ? 'HBAR'
+                  : assetType === 'HTS_TOKEN'
+                  ? 'Tokens'
+                  : 'RWA Tokens'}
+                )
               </label>
               <input
                 type="number"
@@ -620,17 +697,29 @@ const SidebarSection = () => {
 
           <button
             onClick={handleSend}
-            disabled={isSending || !recipient || (assetType === 'HBAR' && !amount) || ((assetType === 'HTS_TOKEN' || assetType === 'RWA') && (!tokenAddress || !amount)) || (assetType === 'NFT' && (!tokenAddress || !serialNumber))}
+            disabled={
+              isSending ||
+              !recipient ||
+              (assetType === 'HBAR' && !amount) ||
+              ((assetType === 'HTS_TOKEN' || assetType === 'RWA') &&
+                (!tokenAddress || !amount)) ||
+              (assetType === 'NFT' && (!tokenAddress || !serialNumber))
+            }
             className="inline-flex items-center justify-center gap-2 w-full bg-[var(--color-primary)] text-white rounded-lg px-4 py-3 font-medium text-[13px] sm:text-[14px] hover:bg-[var(--color-primary)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
-            {isSending ? 'Sending...' : `Send ${assetTypes.find(a => a.value === assetType)?.label}`}
+            {isSending
+              ? 'Sending...'
+              : `Send ${assetTypes.find((a) => a.value === assetType)?.label}`}
           </button>
         </div>
       </div>
-      
+
       {notification.show && (
-        <NotificationToast message={notification.message} type={notification.type} />
+        <NotificationToast
+          message={notification.message}
+          type={notification.type}
+        />
       )}
     </div>
   );

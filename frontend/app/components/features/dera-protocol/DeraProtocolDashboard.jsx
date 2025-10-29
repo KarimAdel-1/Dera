@@ -8,7 +8,7 @@ import SupplyTab from './components/SupplyTab';
 import BorrowTab from './components/BorrowTab';
 import TestingTab from './components/TestingTab';
 import ActionModal from './components/ActionModal';
-import NotificationToast from './components/NotificationToast';
+import NotificationToast from '../../common/NotificationToast';
 import TransactionHistory from './components/TransactionHistory';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
@@ -458,12 +458,12 @@ const DeraProtocolDashboard = () => {
       <div className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] overflow-hidden mb-6">
         <div className="flex border-b border-[var(--color-border-primary)] overflow-x-auto">
           {[
-            {key: 'supply', label: 'Supply'},
-            {key: 'borrow', label: 'Borrow'},
-            {key: 'positions', label: 'Your Positions'},
-            {key: 'events', label: 'HCS Events'},
-            {key: 'analytics', label: 'Analytics'}
-          ].map(tab => (
+            { key: 'supply', label: 'Supply' },
+            { key: 'borrow', label: 'Borrow' },
+            { key: 'positions', label: 'Your Positions' },
+            { key: 'events', label: 'HCS Events' },
+            { key: 'analytics', label: 'Analytics' },
+          ].map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
