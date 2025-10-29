@@ -9,7 +9,7 @@ interface IHTS {
   function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
 }
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * @title Collector
