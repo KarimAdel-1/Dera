@@ -64,18 +64,7 @@ const DeraProtocolDashboard = () => {
       liquidationThreshold: 80,
       address: process.env.NEXT_PUBLIC_HBAR_ADDRESS || '0.0.123457',
       decimals: 8
-    },
-    {
-      symbol: 'USDT',
-      name: 'Tether USD',
-      supplyAPY: 3.20,
-      borrowAPY: 5.10,
-      price: 1.00,
-      ltv: 80,
-      liquidationThreshold: 85,
-      address: process.env.NEXT_PUBLIC_USDT_ADDRESS || '0.0.123458',
-      decimals: 6
-    },
+    }
   ];
 
   // Initialize deraProtocolServiceV2 on mount

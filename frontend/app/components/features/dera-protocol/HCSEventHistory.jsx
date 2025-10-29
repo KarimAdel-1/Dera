@@ -264,7 +264,17 @@ export default function HCSEventHistory() {
                   {/* View on Mirror Node */}
                   <button
                     onClick={() => {
-                      const mirrorNodeUrl = `https://hashscan.io/testnet/topic/${deraProtocolService.topics.SUPPLY}/message/${event.sequenceNumber}`;
+                      // Map event type to correct topic
+                      const topicMap = {
+                        'SUPPLY': deraProtocolService.topics.SUPPLY,
+                        'WITHDRAW': deraProtocolService.topics.WITHDRAW,
+                        'BORROW': deraProtocolService.topics.BORROW,
+                        'REPAY': deraProtocolService.topics.REPAY,
+                        'LIQUIDATION': deraProtocolService.topics.LIQUIDATION,
+                      };
+                      const topicId = topicMap[event.type] || deraProtocolService.topics.SUPPLY;
+                      const network = process.env.NEXT_PUBLIC_HEDERA_NETWORK || 'testnet';
+                      const mirrorNodeUrl = `https://hashscan.io/${network}/topic/${topicId}/message/${event.sequenceNumber}`;
                       window.open(mirrorNodeUrl, '_blank');
                     }}
                     className="flex-shrink-0 px-3 py-1 text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded hover:bg-[var(--color-primary)]/20 transition-colors"
