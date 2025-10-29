@@ -25,18 +25,26 @@ const DeraProtocolDashboard = () => {
     totalSupplied: 0,
     totalBorrowed: 0,
     availableToBorrow: 0,
-    healthFactor: Infinity
+    healthFactor: Infinity,
   });
-  const [modalState, setModalState] = useState({ isOpen: false, type: '', asset: null });
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    type: '',
+    asset: null,
+  });
   const [dualYieldModalOpen, setDualYieldModalOpen] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [isProcessingTransaction, setIsProcessingTransaction] = useState(false);
 
   // Get wallet state from Redux
   const { wallets, activeWalletId } = useSelector((state) => state.wallet);
-  const activeWallet = wallets.find(w => w.id === activeWalletId);
+  const activeWallet = wallets.find((w) => w.id === activeWalletId);
 
   // Use wallet management hook
   const { connectToHashPack, isConnecting } = useWalletManagement();
@@ -47,24 +55,24 @@ const DeraProtocolDashboard = () => {
       symbol: 'USDC',
       name: 'USD Coin',
       supplyAPY: 3.45,
-      borrowAPY: 5.20,
-      price: 1.00,
+      borrowAPY: 5.2,
+      price: 1.0,
       ltv: 80,
       liquidationThreshold: 85,
       address: process.env.NEXT_PUBLIC_USDC_ADDRESS || '0.0.123456',
-      decimals: 6
+      decimals: 6,
     },
     {
       symbol: 'HBAR',
       name: 'Hedera',
       supplyAPY: 2.15,
-      borrowAPY: 4.80,
+      borrowAPY: 4.8,
       price: 0.08,
       ltv: 75,
       liquidationThreshold: 80,
       address: process.env.NEXT_PUBLIC_HBAR_ADDRESS || '0.0.123457',
-      decimals: 8
-    }
+      decimals: 8,
+    },
   ];
 
   // Initialize deraProtocolServiceV2 on mount
@@ -89,7 +97,7 @@ const DeraProtocolDashboard = () => {
         totalSupplied: 0,
         totalBorrowed: 0,
         availableToBorrow: 0,
-        healthFactor: Infinity
+        healthFactor: Infinity,
       });
     }
   }, [activeWallet?.address]);
@@ -103,7 +111,9 @@ const DeraProtocolDashboard = () => {
       console.log('📊 Loading user positions for:', userAddress);
 
       // Get user account data from Pool contract
-      const accountData = await deraProtocolServiceV2.getUserAccountData(userAddress);
+      const accountData = await deraProtocolServiceV2.getUserAccountData(
+        userAddress
+      );
 
       console.log('Account data:', accountData);
 
@@ -120,33 +130,41 @@ const DeraProtocolDashboard = () => {
           );
 
           if (supplyBalance && BigInt(supplyBalance) > 0n) {
-            const amount = Number(ethers.formatUnits(supplyBalance, asset.decimals));
+            const amount = Number(
+              ethers.formatUnits(supplyBalance, asset.decimals)
+            );
             supplies.push({
               asset: asset.symbol,
               amount,
               apy: asset.supplyAPY,
               collateralEnabled: true, // Will be fetched from contract in production
-              address: asset.address
+              address: asset.address,
             });
           }
 
           // Get borrow balance
-          const borrowBalance = await deraProtocolServiceV2.getUserBorrowBalance(
-            asset.address,
-            userAddress
-          );
+          const borrowBalance =
+            await deraProtocolServiceV2.getUserBorrowBalance(
+              asset.address,
+              userAddress
+            );
 
           if (borrowBalance && BigInt(borrowBalance) > 0n) {
-            const amount = Number(ethers.formatUnits(borrowBalance, asset.decimals));
+            const amount = Number(
+              ethers.formatUnits(borrowBalance, asset.decimals)
+            );
             borrows.push({
               asset: asset.symbol,
               amount,
               apy: asset.borrowAPY,
-              address: asset.address
+              address: asset.address,
             });
           }
         } catch (error) {
-          console.warn(`Error loading balances for ${asset.symbol}:`, error.message);
+          console.warn(
+            `Error loading balances for ${asset.symbol}:`,
+            error.message
+          );
         }
       }
 
@@ -157,10 +175,14 @@ const DeraProtocolDashboard = () => {
         totalSupplied: accountData.totalSuppliedUSD,
         totalBorrowed: accountData.totalBorrowedUSD,
         availableToBorrow: accountData.availableToBorrowUSD,
-        healthFactor: accountData.healthFactor
+        healthFactor: accountData.healthFactor,
       });
 
-      console.log('✅ User positions loaded:', { supplies, borrows, accountData });
+      console.log('✅ User positions loaded:', {
+        supplies,
+        borrows,
+        accountData,
+      });
     } catch (error) {
       console.error('❌ Error loading user positions:', error);
       showNotification('Failed to load positions', 'error');
@@ -185,12 +207,18 @@ const DeraProtocolDashboard = () => {
 
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000);
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      3000
+    );
   };
 
   const openModal = (type, asset) => {
     if (type === 'borrow' && userAccount.availableToBorrow <= 0) {
-      showNotification('Please supply assets and enable collateral first', 'warning');
+      showNotification(
+        'Please supply assets and enable collateral first',
+        'warning'
+      );
       return;
     }
     setModalState({ isOpen: true, type, asset });
@@ -208,19 +236,22 @@ const DeraProtocolDashboard = () => {
       setIsProcessingTransaction(true);
 
       // Find asset config
-      const assetData = mockAssets.find(a => a.symbol === assetSymbol);
+      const assetData = mockAssets.find((a) => a.symbol === assetSymbol);
       if (!assetData) {
         throw new Error(`Asset ${assetSymbol} not found`);
       }
 
       // Convert amount to proper units with decimals
-      const amountInUnits = ethers.parseUnits(amount.toString(), assetData.decimals);
+      const amountInUnits = ethers.parseUnits(
+        amount.toString(),
+        assetData.decimals
+      );
 
       console.log(`🚀 Executing ${type} transaction:`, {
         asset: assetSymbol,
         amount,
         amountInUnits: amountInUnits.toString(),
-        userAddress: activeWallet.address
+        userAddress: activeWallet.address,
       });
 
       let result;
@@ -237,9 +268,8 @@ const DeraProtocolDashboard = () => {
 
         case 'withdraw':
           // For max withdrawal, use type(uint256).max
-          const withdrawAmount = amount === 'max'
-            ? ethers.MaxUint256
-            : amountInUnits;
+          const withdrawAmount =
+            amount === 'max' ? ethers.MaxUint256 : amountInUnits;
           result = await deraProtocolServiceV2.withdraw(
             assetData.address,
             withdrawAmount,
@@ -258,9 +288,8 @@ const DeraProtocolDashboard = () => {
 
         case 'repay':
           // For max repayment, use type(uint256).max
-          const repayAmount = amount === 'max'
-            ? ethers.MaxUint256
-            : amountInUnits;
+          const repayAmount =
+            amount === 'max' ? ethers.MaxUint256 : amountInUnits;
           result = await deraProtocolServiceV2.repay(
             assetData.address,
             repayAmount,
@@ -275,22 +304,28 @@ const DeraProtocolDashboard = () => {
       console.log('✅ Transaction successful:', result);
 
       // Add to transaction history
-      setTransactionHistory(prev => [{
-        id: Date.now(),
-        type,
-        asset: assetSymbol,
-        amount,
-        timestamp: new Date(),
-        status: result.status,
-        hash: result.transactionHash || 'N/A',
-        gasUsed: result.receipt?.gasUsed?.toString() || 'N/A'
-      }, ...prev]);
+      setTransactionHistory((prev) => [
+        {
+          id: Date.now(),
+          type,
+          asset: assetSymbol,
+          amount,
+          timestamp: new Date(),
+          status: result.status,
+          hash: result.transactionHash || 'N/A',
+          gasUsed: result.receipt?.gasUsed?.toString() || 'N/A',
+        },
+        ...prev,
+      ]);
 
       // Reload user positions after transaction
       await loadUserPositions(activeWallet.address);
 
       closeModal();
-      showNotification(`Successfully ${type}ed ${amount} ${assetSymbol}!`, 'success');
+      showNotification(
+        `Successfully ${type}ed ${amount} ${assetSymbol}!`,
+        'success'
+      );
     } catch (error) {
       console.error('❌ Transaction error:', error);
 
@@ -305,17 +340,20 @@ const DeraProtocolDashboard = () => {
       showNotification(errorMessage, 'error');
 
       // Add failed transaction to history
-      setTransactionHistory(prev => [{
-        id: Date.now(),
-        type,
-        asset: assetSymbol,
-        amount,
-        timestamp: new Date(),
-        status: 'failed',
-        hash: 'N/A',
-        gasUsed: 'N/A',
-        error: errorMessage
-      }, ...prev]);
+      setTransactionHistory((prev) => [
+        {
+          id: Date.now(),
+          type,
+          asset: assetSymbol,
+          amount,
+          timestamp: new Date(),
+          status: 'failed',
+          hash: 'N/A',
+          gasUsed: 'N/A',
+          error: errorMessage,
+        },
+        ...prev,
+      ]);
     } finally {
       setIsProcessingTransaction(false);
     }
@@ -326,8 +364,8 @@ const DeraProtocolDashboard = () => {
    */
   const toggleCollateral = async (assetSymbol) => {
     try {
-      const supply = userAccount.supplies.find(s => s.asset === assetSymbol);
-      const assetData = mockAssets.find(a => a.symbol === assetSymbol);
+      const supply = userAccount.supplies.find((s) => s.asset === assetSymbol);
+      const assetData = mockAssets.find((a) => a.symbol === assetSymbol);
 
       if (!supply || !assetData) {
         showNotification('Asset not found', 'error');
@@ -348,13 +386,18 @@ const DeraProtocolDashboard = () => {
       const poolAddress = deraProtocolServiceV2.getContractAddress('POOL');
 
       // Create contract instance with signer
-      const PoolABI = (await import('../../../../contracts/abis/Pool.json')).default;
-      const poolContract = new ethers.Contract(poolAddress, PoolABI.abi, signer);
+      const PoolABI = (await import('../../../../contracts/abis/Pool.json'))
+        .default;
+      const poolContract = new ethers.Contract(
+        poolAddress,
+        PoolABI.abi,
+        signer
+      );
 
       console.log('🔄 Toggling collateral for:', {
         asset: assetSymbol,
         address: assetData.address,
-        newState: !supply.collateralEnabled
+        newState: !supply.collateralEnabled,
       });
 
       const tx = await poolContract.setUserUseAssetAsCollateral(
@@ -370,7 +413,9 @@ const DeraProtocolDashboard = () => {
       await loadUserPositions(activeWallet.address);
 
       showNotification(
-        `Collateral ${supply.collateralEnabled ? 'disabled' : 'enabled'} for ${assetSymbol}`,
+        `Collateral ${
+          supply.collateralEnabled ? 'disabled' : 'enabled'
+        } for ${assetSymbol}`,
         'success'
       );
     } catch (error) {
@@ -382,7 +427,7 @@ const DeraProtocolDashboard = () => {
   };
 
   return (
-    <div className="space-y-6 p-0 sm:p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -413,12 +458,12 @@ const DeraProtocolDashboard = () => {
       <div className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] overflow-hidden mb-6">
         <div className="flex border-b border-[var(--color-border-primary)] overflow-x-auto">
           {[
-            {key: 'supply', label: 'Supply'},
-            {key: 'borrow', label: 'Borrow'},
-            {key: 'positions', label: 'Your Positions'},
-            {key: 'events', label: 'HCS Events'},
-            {key: 'analytics', label: 'Analytics'}
-          ].map(tab => (
+            { key: 'supply', label: 'Supply' },
+            { key: 'borrow', label: 'Borrow' },
+            { key: 'positions', label: 'Your Positions' },
+            { key: 'events', label: 'HCS Events' },
+            { key: 'analytics', label: 'Analytics' },
+          ].map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -467,12 +512,8 @@ const DeraProtocolDashboard = () => {
               </div>
             </>
           )}
-          {activeTab === 'events' && (
-            <HCSEventHistory />
-          )}
-          {activeTab === 'analytics' && (
-            <ProtocolAnalytics />
-          )}
+          {activeTab === 'events' && <HCSEventHistory />}
+          {activeTab === 'analytics' && <ProtocolAnalytics />}
         </div>
       </div>
 
@@ -489,14 +530,25 @@ const DeraProtocolDashboard = () => {
       )}
 
       {notification.show && (
-        <NotificationToast message={notification.message} type={notification.type} />
+        <NotificationToast
+          message={notification.message}
+          type={notification.type}
+        />
       )}
 
       {dualYieldModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDualYieldModalOpen(false)}>
-          <div className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] max-w-5xl w-full max-h-[70vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-500" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setDualYieldModalOpen(false)}
+        >
+          <div
+            className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] max-w-5xl w-full max-h-[70vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-500"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sticky top-0 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border-primary)] p-3 flex items-center justify-between">
-              <h3 className="text-[var(--color-text-primary)] text-[16px] font-medium">Dual Yield Mechanism</h3>
+              <h3 className="text-[var(--color-text-primary)] text-[16px] font-medium">
+                Dual Yield Mechanism
+              </h3>
               <button
                 onClick={() => setDualYieldModalOpen(false)}
                 className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-xl"

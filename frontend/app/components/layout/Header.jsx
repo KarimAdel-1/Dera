@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Globe, Monitor, Search, RefreshCw } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import NotificationPanel from '../common/NotificationPanel';
 
@@ -29,42 +29,6 @@ const Header = ({ title = 'Dashboard' }) => {
       </div>
 
       <div className="flex justify-end items-center gap-0.5 sm:gap-1">
-        <div className="hidden sm:block">
-          <button
-            className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-            aria-label="Switch language"
-          >
-            <Globe className="w-4.5 h-4.5" />
-          </button>
-        </div>
-
-        <button
-          className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-          aria-label="Toggle theme"
-        >
-          <Monitor className="w-4.5 h-4.5" />
-        </button>
-
-        <div className="border-l border-[var(--color-border-primary)] h-4 sm:h-6 mx-2 sm:mx-3 hidden sm:block"></div>
-
-        <div className="hidden sm:block">
-          <button
-            className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-            aria-label="Search"
-          >
-            <Search className="w-4.5 h-4.5" />
-          </button>
-        </div>
-
-        <div className="hidden sm:block">
-          <button
-            className="w-9 h-9 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-            aria-label="Refresh"
-          >
-            <RefreshCw className="w-4.5 h-4.5" />
-          </button>
-        </div>
-
         <NotificationPanel />
 
         <div className="border-l border-[var(--color-border-primary)] h-4 sm:h-6 mx-2 sm:mx-4 me-2 sm:me-3"></div>
