@@ -12,6 +12,7 @@ import {
   TrendingDown,
   HandCoins,
   Landmark,
+  Lock,
 } from 'lucide-react';
 
 const HederaIcon = () => (
@@ -41,6 +42,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
   const menuItems = [
     { icon: House, label: 'Dashboard', id: 'dashboard' },
     { icon: Landmark, label: 'Dera Protocol', id: 'dera-protocol' },
+    { icon: Lock, label: 'Staking', id: 'staking' },
     { icon: CreditCard, label: 'Your Wallets', id: 'wallets' },
     { icon: ArrowRightLeft, label: 'Transactions', id: 'transactions' },
     { icon: HederaIcon, label: 'Hedera Stats', id: 'hedera-stats' },
