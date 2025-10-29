@@ -61,6 +61,19 @@ class DeraProtocolServiceV2 {
    */
   async initialize() {
     try {
+      // Validate critical contract addresses are configured
+      const defaultAddresses = ['0.0.123456', '0.0.123457', '0.0.123458', '0.0.123459', '0.0.123460'];
+
+      if (defaultAddresses.includes(this.contracts.POOL)) {
+        console.error('❌ NEXT_PUBLIC_POOL_ADDRESS not configured! Using default test address.');
+        console.error('Please set environment variables in .env.local');
+        // Don't throw - allow development with mock data
+      }
+
+      if (defaultAddresses.includes(this.contracts.ORACLE)) {
+        console.warn('⚠️ NEXT_PUBLIC_ORACLE_ADDRESS not configured! Using default test address.');
+      }
+
       // Create JSON-RPC provider for Hedera
       this.provider = new ethers.JsonRpcProvider(this.rpcUrl);
 
@@ -77,10 +90,12 @@ class DeraProtocolServiceV2 {
         this.provider
       );
 
-      console.log('Dera Protocol Service V2 initialized');
+      console.log('✅ Dera Protocol Service V2 initialized');
+      console.log('📍 Pool Address:', this.contracts.POOL);
+      console.log('📍 Oracle Address:', this.contracts.ORACLE);
       return true;
     } catch (error) {
-      console.error('Error initializing Dera Protocol Service:', error);
+      console.error('❌ Error initializing Dera Protocol Service:', error);
       return false;
     }
   }
