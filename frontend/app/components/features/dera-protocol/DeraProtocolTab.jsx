@@ -6,7 +6,7 @@ import LendingInterface from './LendingInterface';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
-import deraProtocolService from '../../../services/deraProtocolService';
+import deraProtocolService from '../../../../services/deraProtocolService';
 
 export default function DeraProtocolTab() {
   const { accountId } = useSelector((state) => state.wallet);

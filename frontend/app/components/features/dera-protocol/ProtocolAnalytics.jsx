@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import deraProtocolService from '../../../services/deraProtocolService';
+import deraProtocolService from '../../../../services/deraProtocolService';
 
 export default function ProtocolAnalytics() {
   const [metrics, setMetrics] = useState(null);
