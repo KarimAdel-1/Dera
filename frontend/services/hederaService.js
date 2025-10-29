@@ -221,6 +221,68 @@ class HederaService {
       return [];
     }
   }
+
+  /**
+   * Get NFTs owned by an account
+   * @param {string} accountId - The Hedera account ID
+   * @returns {Promise<Array>} Array of NFT objects
+   */
+  async getAccountNFTs(accountId) {
+    try {
+      console.log(`Fetching NFTs for: ${accountId}`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/accounts/${accountId}/nfts`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch NFTs: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('NFTs:', data);
+
+      return data.nfts || [];
+    } catch (error) {
+      console.error(`Error fetching NFTs for ${accountId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get token information
+   * @param {string} tokenId - The token ID (e.g., "0.0.123456")
+   * @returns {Promise<Object>} Token information including name, symbol, decimals
+   */
+  async getTokenInfo(tokenId) {
+    try {
+      console.log(`Fetching token info for: ${tokenId}`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/tokens/${tokenId}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch token info: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Token Info:', data);
+
+      return {
+        tokenId: data.token_id,
+        name: data.name,
+        symbol: data.symbol,
+        decimals: data.decimals,
+        type: data.type, // FUNGIBLE_COMMON or NON_FUNGIBLE_UNIQUE
+        totalSupply: data.total_supply,
+        treasury_account_id: data.treasury_account_id
+      };
+    } catch (error) {
+      console.error(`Error fetching token info for ${tokenId}:`, error);
+      return null;
+    }
+  }
 }
 
 export const hederaService = new HederaService();
