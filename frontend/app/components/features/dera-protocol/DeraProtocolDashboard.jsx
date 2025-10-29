@@ -13,6 +13,7 @@ import TransactionHistory from './components/TransactionHistory';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
+import MultiAssetStaking from './components/MultiAssetStaking';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import deraProtocolServiceV2 from '../../../../services/deraProtocolServiceV2';
 
@@ -458,12 +459,13 @@ const DeraProtocolDashboard = () => {
       <div className="bg-[var(--color-bg-secondary)] rounded-[20px] border border-[var(--color-border-primary)] overflow-hidden mb-6">
         <div className="flex border-b border-[var(--color-border-primary)] overflow-x-auto">
           {[
-            { key: 'supply', label: 'Supply' },
-            { key: 'borrow', label: 'Borrow' },
-            { key: 'positions', label: 'Your Positions' },
-            { key: 'events', label: 'HCS Events' },
-            { key: 'analytics', label: 'Analytics' },
-          ].map((tab) => (
+            {key: 'supply', label: 'Supply'},
+            {key: 'borrow', label: 'Borrow'},
+            {key: 'staking', label: 'Staking'},
+            {key: 'positions', label: 'Your Positions'},
+            {key: 'events', label: 'HCS Events'},
+            {key: 'analytics', label: 'Analytics'}
+          ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
@@ -493,6 +495,9 @@ const DeraProtocolDashboard = () => {
               onBorrow={(asset) => openModal('borrow', asset)}
               disabled={!activeWallet || isProcessingTransaction}
             />
+          )}
+          {activeTab === 'staking' && (
+            <MultiAssetStaking />
           )}
           {activeTab === 'positions' && (
             <>
