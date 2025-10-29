@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Send, Search } from 'lucide-react';
+import { Send, Search, ChevronDown } from 'lucide-react';
 import { addContact } from '../../../store/contactsSlice';
 import { gsap } from 'gsap';
 import { hashpackService } from '../../../../services/hashpackService';
@@ -11,23 +11,53 @@ const SidebarSection = () => {
   const contacts = useSelector((state) => state.contacts.contacts);
   const wallets = useSelector((state) => state.wallet.wallets);
   const defaultWallet = useSelector((state) => state.wallet.defaultWallet);
+
+  // Asset type state
+  const [assetType, setAssetType] = useState('HBAR'); // HBAR, HTS_TOKEN, NFT, RWA
+  const [showAssetDropdown, setShowAssetDropdown] = useState(false);
+
+  // Common fields
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
+
+  // Token-specific fields
+  const [tokenAddress, setTokenAddress] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+
+  // UI state
   const [showAddContact, setShowAddContact] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactAddress, setContactAddress] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+
   const barRef = useRef(null);
   const inputRef = useRef(null);
   const addContactRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const senderWallet = wallets.find(w => w.address === defaultWallet) || wallets[0];
+
+  const assetTypes = [
+    { value: 'HBAR', label: 'HBAR', icon: '⚡' },
+    { value: 'HTS_TOKEN', label: 'HTS Token', icon: '🪙' },
+    { value: 'NFT', label: 'NFT', icon: '🎨' },
+    { value: 'RWA', label: 'RWA Token', icon: '🏛️' }
+  ];
 
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000);
+  };
+
+  const handleAssetTypeChange = (type) => {
+    setAssetType(type);
+    setShowAssetDropdown(false);
+    // Reset fields when changing asset type
+    setAmount('');
+    setTokenAddress('');
+    setSerialNumber('');
   };
 
   const toggleAddContact = () => {
@@ -101,9 +131,10 @@ const SidebarSection = () => {
     );
   };
 
-  const handleSendHbar = async () => {
-    if (!recipient || !amount || parseFloat(amount) <= 0) {
-      showNotification('Please enter a valid recipient address and amount', 'warning');
+  const handleSend = async () => {
+    // Validation based on asset type
+    if (!recipient) {
+      showNotification('Please enter a recipient address', 'warning');
       return;
     }
 
@@ -112,23 +143,96 @@ const SidebarSection = () => {
       return;
     }
 
+    // Asset-specific validation
+    if (assetType === 'HBAR') {
+      if (!amount || parseFloat(amount) <= 0) {
+        showNotification('Please enter a valid amount', 'warning');
+        return;
+      }
+    } else if (assetType === 'HTS_TOKEN' || assetType === 'RWA') {
+      if (!tokenAddress) {
+        showNotification('Please enter a token address', 'warning');
+        return;
+      }
+      if (!amount || parseFloat(amount) <= 0) {
+        showNotification('Please enter a valid amount', 'warning');
+        return;
+      }
+    } else if (assetType === 'NFT') {
+      if (!tokenAddress) {
+        showNotification('Please enter a token address', 'warning');
+        return;
+      }
+      if (!serialNumber) {
+        showNotification('Please enter a serial number', 'warning');
+        return;
+      }
+    }
+
     setIsSending(true);
     try {
-      const { TransferTransaction, Hbar, AccountId } = await import('@hashgraph/sdk');
+      const { TransferTransaction, Hbar, AccountId, TokenId, NftId } = await import('@hashgraph/sdk');
       const { hederaService } = await import('../../../../services/hederaService');
       const { setWalletData } = await import('../../../store/walletSlice');
-      
+
       const senderAccountId = senderWallet.address;
-      const transaction = new TransferTransaction()
-        .addHbarTransfer(senderAccountId, Hbar.fromString(`-${amount}`))
-        .addHbarTransfer(AccountId.fromString(recipient), Hbar.fromString(amount));
+      let transaction = new TransferTransaction();
+
+      // Build transaction based on asset type
+      switch (assetType) {
+        case 'HBAR':
+          transaction = transaction
+            .addHbarTransfer(senderAccountId, Hbar.fromString(`-${amount}`))
+            .addHbarTransfer(AccountId.fromString(recipient), Hbar.fromString(amount));
+          break;
+
+        case 'HTS_TOKEN':
+        case 'RWA':
+          const tokenId = TokenId.fromString(tokenAddress);
+          const tokenAmount = Math.floor(parseFloat(amount) * 100); // Assuming 2 decimals
+          transaction = transaction
+            .addTokenTransfer(tokenId, senderAccountId, -tokenAmount)
+            .addTokenTransfer(tokenId, AccountId.fromString(recipient), tokenAmount);
+          break;
+
+        case 'NFT':
+          const nftTokenId = TokenId.fromString(tokenAddress);
+          const serial = parseInt(serialNumber);
+          transaction = transaction
+            .addNftTransfer(nftTokenId, serial, AccountId.fromString(senderAccountId), AccountId.fromString(recipient));
+          break;
+
+        default:
+          throw new Error('Invalid asset type');
+      }
 
       const result = await hashpackService.sendTransaction(senderAccountId, transaction);
-      
-      showNotification(`Successfully sent ${amount} HBAR!`, 'success');
+
+      // Success message based on asset type
+      let successMessage = '';
+      switch (assetType) {
+        case 'HBAR':
+          successMessage = `Successfully sent ${amount} HBAR!`;
+          break;
+        case 'HTS_TOKEN':
+          successMessage = `Successfully sent ${amount} HTS tokens!`;
+          break;
+        case 'NFT':
+          successMessage = `Successfully sent NFT #${serialNumber}!`;
+          break;
+        case 'RWA':
+          successMessage = `Successfully sent ${amount} RWA tokens!`;
+          break;
+      }
+
+      showNotification(successMessage, 'success');
+
+      // Reset form
       setAmount('');
       setRecipient('');
-      
+      setTokenAddress('');
+      setSerialNumber('');
+
       // Refresh transactions after successful send
       setTimeout(async () => {
         const transactions = await hederaService.getAccountTransactions(senderAccountId, 10);
@@ -142,8 +246,8 @@ const SidebarSection = () => {
         }));
       }, 2000);
     } catch (error) {
-      console.error('Error sending HBAR:', error);
-      showNotification(`Failed to send HBAR: ${error.message}`, 'error');
+      console.error(`Error sending ${assetType}:`, error);
+      showNotification(`Failed to send ${assetType}: ${error.message}`, 'error');
     } finally {
       setIsSending(false);
     }
@@ -257,6 +361,40 @@ const SidebarSection = () => {
         )}
 
         <div className="space-y-4">
+          {/* Asset Type Selector */}
+          <div>
+            <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
+              Asset Type
+            </label>
+            <div className="relative">
+              <button
+                onClick={() => setShowAssetDropdown(!showAssetDropdown)}
+                className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <span>{assetTypes.find(a => a.value === assetType)?.icon}</span>
+                  <span>{assetTypes.find(a => a.value === assetType)?.label}</span>
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showAssetDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showAssetDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] rounded-lg shadow-lg overflow-hidden">
+                  {assetTypes.map((type) => (
+                    <button
+                      key={type.value}
+                      onClick={() => handleAssetTypeChange(type.value)}
+                      className="w-full px-3 py-2 text-left text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] flex items-center gap-2 transition-colors"
+                    >
+                      <span>{type.icon}</span>
+                      <span>{type.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
               From (Sender)
@@ -282,26 +420,61 @@ const SidebarSection = () => {
             />
           </div>
 
-          <div>
-            <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
-              Amount (HBAR)
-            </label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
-            />
-          </div>
+          {/* Token Address field (for HTS tokens, NFTs, and RWAs) */}
+          {(assetType === 'HTS_TOKEN' || assetType === 'NFT' || assetType === 'RWA') && (
+            <div>
+              <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
+                Token Address
+              </label>
+              <input
+                type="text"
+                value={tokenAddress}
+                onChange={(e) => setTokenAddress(e.target.value)}
+                placeholder="0.0.1234567"
+                className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
+              />
+            </div>
+          )}
 
-          <button 
-            onClick={handleSendHbar}
-            disabled={isSending || !recipient || !amount}
+          {/* Serial Number field (for NFTs only) */}
+          {assetType === 'NFT' && (
+            <div>
+              <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
+                Serial Number
+              </label>
+              <input
+                type="number"
+                value={serialNumber}
+                onChange={(e) => setSerialNumber(e.target.value)}
+                placeholder="1"
+                className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
+              />
+            </div>
+          )}
+
+          {/* Amount field (not for NFTs) */}
+          {assetType !== 'NFT' && (
+            <div>
+              <label className="text-[var(--color-text-muted)] text-[11px] sm:text-[12px] font-normal mb-2 block">
+                Amount ({assetType === 'HBAR' ? 'HBAR' : assetType === 'HTS_TOKEN' ? 'Tokens' : 'RWA Tokens'})
+              </label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-3 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] outline-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={handleSend}
+            disabled={isSending || !recipient || (assetType === 'HBAR' && !amount) || ((assetType === 'HTS_TOKEN' || assetType === 'RWA') && (!tokenAddress || !amount)) || (assetType === 'NFT' && (!tokenAddress || !serialNumber))}
             className="inline-flex items-center justify-center gap-2 w-full bg-[var(--color-primary)] text-white rounded-lg px-4 py-3 font-medium text-[13px] sm:text-[14px] hover:bg-[var(--color-primary)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
-            {isSending ? 'Sending...' : 'Send HBAR'}
+            {isSending ? 'Sending...' : `Send ${assetTypes.find(a => a.value === assetType)?.label}`}
           </button>
         </div>
       </div>
