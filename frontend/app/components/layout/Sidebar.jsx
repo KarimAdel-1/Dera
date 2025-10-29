@@ -11,7 +11,6 @@ import {
   TrendingUp,
   TrendingDown,
   HandCoins,
-  FlaskConical,
   Landmark,
 } from 'lucide-react';
 
@@ -43,7 +42,6 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     { icon: House, label: 'Dashboard', id: 'dashboard' },
     { icon: Landmark, label: 'Dera Protocol', id: 'dera-protocol' },
     { icon: CreditCard, label: 'Your Wallets', id: 'wallets' },
-    { icon: FlaskConical, label: 'Testing', id: 'testing' },
     { icon: ArrowRightLeft, label: 'Transactions', id: 'transactions' },
     { icon: HederaIcon, label: 'Hedera Stats', id: 'hedera-stats' },
   ];

@@ -4,7 +4,7 @@ import { Send, Search } from 'lucide-react';
 import { addContact } from '../../../store/contactsSlice';
 import { gsap } from 'gsap';
 import { hashpackService } from '../../../../services/hashpackService';
-import NotificationToast from '../testing/components/NotificationToast';
+import NotificationToast from '../dera-protocol/components/NotificationToast';
 
 const SidebarSection = () => {
   const dispatch = useDispatch();
