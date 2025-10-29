@@ -12,6 +12,7 @@ import SettingsTab from '../components/features/settings/SettingsTab';
 import HederaStatsTab from '../components/features/hedera-stats/HederaStatsTab';
 
 import DeraProtocolTab from '../components/features/dera-protocol/DeraProtocolTab';
+import StakingDashboard from '../components/features/staking/StakingDashboard';
 
 export default function Dashboard() {
   const { isConnected } = useSelector((state) => state.wallet);
@@ -40,9 +41,10 @@ export default function Dashboard() {
         return <DashboardTab />;
       case 'dera-protocol':
         return <DeraProtocolTab />;
+      case 'staking':
+        return <StakingDashboard />;
       case 'wallets':
         return <YourWalletsTab />;
-
       case 'transactions':
         return <TransactionsTab />;
       case 'hedera-stats':
@@ -60,9 +62,10 @@ export default function Dashboard() {
         return 'Dashboard';
       case 'dera-protocol':
         return 'Dera Protocol';
+      case 'staking':
+        return 'Multi-Asset Staking';
       case 'wallets':
         return 'Your Wallets';
-
       case 'transactions':
         return 'Transactions';
       case 'hedera-stats':
