@@ -53,6 +53,9 @@ contract PoolStorage {
   // HCS Event Streamer for immutable event logging
   address public hcsEventStreamer;
 
+  // Protocol Integration for unified Hedera integration layer
+  address public protocolIntegration;
+
   // Node Staking contract for protocol revenue staking
   address public nodeStakingContract;
 

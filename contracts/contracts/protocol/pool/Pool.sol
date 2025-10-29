@@ -405,6 +405,20 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     if (address(streamer) != address(0)) {
       streamer.queueBorrowEvent(_msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode);
     }
+
+    // Protocol Integration hook
+    if (address(protocolIntegration) != address(0)) {
+      try IDeraProtocolIntegration(protocolIntegration).handleBorrow(
+        _msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode
+      ) {} catch {}
+    }
+
+    // Analytics update
+    if (address(analyticsContract) != address(0)) {
+      try IDeraMirrorNodeAnalytics(analyticsContract).recordBorrow(
+        asset, amount, _msgSender()
+      ) {} catch {}
+    }
   }
 
   function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public virtual override nonReentrant returns (uint256) {
@@ -429,6 +443,20 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     IDeraHCSEventStreamer streamer = _getHCSStreamer();
     if (address(streamer) != address(0)) {
       streamer.queueRepayEvent(_msgSender(), asset, repaid, interestRateMode, onBehalfOf);
+    }
+
+    // Protocol Integration hook
+    if (address(protocolIntegration) != address(0)) {
+      try IDeraProtocolIntegration(protocolIntegration).handleRepay(
+        _msgSender(), asset, repaid, interestRateMode, onBehalfOf
+      ) {} catch {}
+    }
+
+    // Analytics update
+    if (address(analyticsContract) != address(0)) {
+      try IDeraMirrorNodeAnalytics(analyticsContract).recordRepay(
+        asset, repaid, _msgSender()
+      ) {} catch {}
     }
 
     return repaid;
@@ -488,9 +516,26 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
 
     // Queue event to HCS for Hedera-native indexing
+    // Note: liquidatedCollateral approximated as debtToCover for now
+    // TODO: Modify LiquidationLogic to return actual liquidatedCollateral
+    uint256 liquidatedCollateral = debtToCover; // Approximation
     IDeraHCSEventStreamer streamer = _getHCSStreamer();
     if (address(streamer) != address(0)) {
-      streamer.queueLiquidationEvent(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken);
+      streamer.queueLiquidationEvent(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, liquidatedCollateral, receiveSupplyToken);
+    }
+
+    // Protocol Integration hook
+    if (address(protocolIntegration) != address(0)) {
+      try IDeraProtocolIntegration(protocolIntegration).handleLiquidation(
+        _msgSender(), borrower, collateralAsset, debtAsset, debtToCover, liquidatedCollateral
+      ) {} catch {}
+    }
+
+    // Analytics update
+    if (address(analyticsContract) != address(0)) {
+      try IDeraMirrorNodeAnalytics(analyticsContract).recordLiquidation(
+        collateralAsset, debtAsset, debtToCover, liquidatedCollateral, _msgSender(), borrower
+      ) {} catch {}
     }
   }
 
