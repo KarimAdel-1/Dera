@@ -241,12 +241,6 @@ class DeraProtocolService {
           name: 'USD Coin',
           decimals: 6,
         },
-        {
-          address: '0.0.111113',
-          symbol: 'USDT',
-          name: 'Tether USD',
-          decimals: 6,
-        },
       ];
     } catch (error) {
       console.error('Get assets list error:', error);

@@ -139,6 +139,98 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return IDeraHCSEventStreamer(address(0));
   }
 
+  /**
+   * @notice Set HCS Event Streamer contract address
+   * @dev Only Pool Admin can set this
+   * @param streamer Address of DeraHCSEventStreamer contract
+   */
+  function setHCSEventStreamer(address streamer) external onlyPoolAdmin {
+    require(streamer != address(0), Errors.ZeroAddressNotValid());
+    address oldStreamer = hcsEventStreamer;
+    hcsEventStreamer = streamer;
+    emit HCSEventStreamerUpdated(oldStreamer, streamer);
+  }
+
+  /**
+   * @notice Get HCS Event Streamer address
+   */
+  function getHCSEventStreamer() external view returns (address) {
+    return hcsEventStreamer;
+  }
+
+  /**
+   * @notice Set Protocol Integration contract address
+   * @dev Only Pool Admin can set this
+   * @param integration Address of DeraProtocolIntegration contract
+   */
+  function setProtocolIntegration(address integration) external onlyPoolAdmin {
+    require(integration != address(0), Errors.ZeroAddressNotValid());
+    emit ProtocolIntegrationUpdated(integration);
+  }
+
+  /**
+   * @notice Set Node Staking contract address
+   * @dev Only Pool Admin can set this
+   * @param nodeStaking Address of DeraNodeStaking contract
+   */
+  function setNodeStakingContract(address nodeStaking) external onlyPoolAdmin {
+    require(nodeStaking != address(0), Errors.ZeroAddressNotValid());
+    address oldContract = nodeStakingContract;
+    nodeStakingContract = nodeStaking;
+    emit NodeStakingContractUpdated(oldContract, nodeStaking);
+  }
+
+  /**
+   * @notice Get Node Staking contract address
+   */
+  function getNodeStakingContract() external view returns (address) {
+    return nodeStakingContract;
+  }
+
+  /**
+   * @notice Set Analytics contract address
+   * @dev Only Pool Admin can set this
+   * @param analytics Address of DeraMirrorNodeAnalytics contract
+   */
+  function setAnalyticsContract(address analytics) external onlyPoolAdmin {
+    require(analytics != address(0), Errors.ZeroAddressNotValid());
+    address oldContract = analyticsContract;
+    analyticsContract = analytics;
+    emit AnalyticsContractUpdated(oldContract, analytics);
+  }
+
+  /**
+   * @notice Get Analytics contract address
+   */
+  function getAnalyticsContract() external view returns (address) {
+    return analyticsContract;
+  }
+
+  /**
+   * @notice Set Treasury address
+   * @dev Only Pool Admin can set this
+   * @param _treasury Address of Treasury contract
+   */
+  function setTreasury(address _treasury) external onlyPoolAdmin {
+    require(_treasury != address(0), Errors.ZeroAddressNotValid());
+    address oldTreasury = treasury;
+    treasury = _treasury;
+    emit TreasuryUpdated(oldTreasury, _treasury);
+  }
+
+  /**
+   * @notice Get Treasury address
+   */
+  function getTreasury() external view returns (address) {
+    return treasury;
+  }
+
+  event HCSEventStreamerUpdated(address indexed oldStreamer, address indexed newStreamer);
+  event ProtocolIntegrationUpdated(address indexed integration);
+  event NodeStakingContractUpdated(address indexed oldContract, address indexed newContract);
+  event AnalyticsContractUpdated(address indexed oldContract, address indexed newContract);
+  event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+
   // Events for HCS relay and Mirror Node indexing
   event Supply(address indexed user, address indexed asset, uint256 amount, address indexed onBehalfOf, uint16 referralCode, bytes32 hcsTopic);
   event Withdraw(address indexed user, address indexed asset, uint256 amount, address indexed to, bytes32 hcsTopic);

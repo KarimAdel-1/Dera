@@ -185,6 +185,68 @@ contract DeraHCSEventStreamer {
   }
 
   /**
+   * @notice Queue withdraw event for HCS submission
+   */
+  function queueWithdrawEvent(
+    address user,
+    address asset,
+    uint256 amount,
+    address to
+  ) external onlyPool {
+    bytes memory eventData = abi.encode(
+      block.timestamp,
+      block.number,
+      user,
+      asset,
+      amount,
+      to
+    );
+
+    bytes32 eventHash = keccak256(eventData);
+
+    eventSubmissions[eventHash] = EventMetadata({
+      topicId: withdrawTopicId,
+      timestamp: block.timestamp,
+      eventHash: eventHash,
+      submitted: false
+    });
+
+    emit HCSEventQueued(withdrawTopicId, eventHash, "WITHDRAW", eventData);
+  }
+
+  /**
+   * @notice Queue repay event for HCS submission
+   */
+  function queueRepayEvent(
+    address user,
+    address asset,
+    uint256 amount,
+    uint256 interestRateMode,
+    address onBehalfOf
+  ) external onlyPool {
+    bytes memory eventData = abi.encode(
+      block.timestamp,
+      block.number,
+      user,
+      asset,
+      amount,
+      interestRateMode,
+      onBehalfOf
+    );
+
+    bytes32 eventHash = keccak256(eventData);
+
+    eventSubmissions[eventHash] = EventMetadata({
+      topicId: repayTopicId,
+      timestamp: block.timestamp,
+      eventHash: eventHash,
+      submitted: false
+    });
+
+    emit HCSEventQueued(repayTopicId, eventHash, "REPAY", eventData);
+  }
+
+  /**
    * @notice Queue liquidation event for HCS submission
    */
   function queueLiquidationEvent(

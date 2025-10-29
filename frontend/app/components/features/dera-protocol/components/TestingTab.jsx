@@ -4,9 +4,6 @@ import { Wallet, CreditCard, Inbox, CheckCircle, XCircle, DollarSign, Coins } fr
 const assetIcons = {
   'USDC': <DollarSign className="w-8 h-8 text-green-600" />,
   'HBAR': <span className="text-3xl">ℏ</span>,
-  'USDT': <DollarSign className="w-8 h-8 text-green-600" />,
-  'WBTC': <Coins className="w-8 h-8 text-orange-500" />,
-  'ETH': <Coins className="w-8 h-8 text-blue-600" />,
 };
 
 const TestingTab = ({ supplies, borrows, assets, onWithdraw, onRepay, onSupplyMore, onToggleCollateral }) => {
