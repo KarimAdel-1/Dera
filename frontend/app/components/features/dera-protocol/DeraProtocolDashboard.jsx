@@ -13,7 +13,6 @@ import TransactionHistory from './components/TransactionHistory';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
-import MultiAssetStaking from './components/MultiAssetStaking';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import deraProtocolServiceV2 from '../../../../services/deraProtocolServiceV2';
 
@@ -461,7 +460,6 @@ const DeraProtocolDashboard = () => {
           {[
             {key: 'supply', label: 'Supply'},
             {key: 'borrow', label: 'Borrow'},
-            {key: 'staking', label: 'Staking'},
             {key: 'positions', label: 'Your Positions'},
             {key: 'events', label: 'HCS Events'},
             {key: 'analytics', label: 'Analytics'}
@@ -495,9 +493,6 @@ const DeraProtocolDashboard = () => {
               onBorrow={(asset) => openModal('borrow', asset)}
               disabled={!activeWallet || isProcessingTransaction}
             />
-          )}
-          {activeTab === 'staking' && (
-            <MultiAssetStaking />
           )}
           {activeTab === 'positions' && (
             <>
