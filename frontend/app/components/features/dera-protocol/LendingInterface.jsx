@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import deraProtocolService from '../../../../services/deraProtocolService';
+import deraProtocolService from '../../../../services/deraProtocolServiceV2';
 import toast from 'react-hot-toast';
 
 export default function LendingInterface({ userAddress }) {

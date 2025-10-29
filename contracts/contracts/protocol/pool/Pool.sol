@@ -34,6 +34,9 @@ import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRat
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
 import {IDeraHCSEventStreamer} from '../../interfaces/IDeraHCSEventStreamer.sol';
+import {IDeraProtocolIntegration} from '../../interfaces/IDeraProtocolIntegration.sol';
+import {IDeraMirrorNodeAnalytics} from '../../interfaces/IDeraMirrorNodeAnalytics.sol';
+import {IDeraNodeStaking} from '../../interfaces/IDeraNodeStaking.sol';
 import {PoolStorage} from './PoolStorage.sol';
 
 /**
@@ -305,6 +308,20 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     if (address(streamer) != address(0)) {
       streamer.queueSupplyEvent(_msgSender(), asset, amount, onBehalfOf, referralCode);
     }
+
+    // Protocol Integration hook
+    if (address(protocolIntegration) != address(0)) {
+      try IDeraProtocolIntegration(protocolIntegration).handleSupply(
+        _msgSender(), asset, amount, onBehalfOf, referralCode
+      ) {} catch {}
+    }
+
+    // Analytics update
+    if (address(analyticsContract) != address(0)) {
+      try IDeraMirrorNodeAnalytics(analyticsContract).recordSupply(
+        asset, amount, _msgSender()
+      ) {} catch {}
+    }
   }
 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
@@ -329,6 +346,20 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     IDeraHCSEventStreamer streamer = _getHCSStreamer();
     if (address(streamer) != address(0)) {
       streamer.queueWithdrawEvent(_msgSender(), asset, withdrawn, to);
+    }
+
+    // Protocol Integration hook
+    if (address(protocolIntegration) != address(0)) {
+      try IDeraProtocolIntegration(protocolIntegration).handleWithdraw(
+        _msgSender(), asset, withdrawn, to
+      ) {} catch {}
+    }
+
+    // Analytics update
+    if (address(analyticsContract) != address(0)) {
+      try IDeraMirrorNodeAnalytics(analyticsContract).recordWithdraw(
+        asset, withdrawn, _msgSender()
+      ) {} catch {}
     }
 
     return withdrawn;

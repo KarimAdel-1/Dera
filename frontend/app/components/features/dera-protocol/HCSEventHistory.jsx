@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import deraProtocolService from '../../../../services/deraProtocolService';
+import deraProtocolService from '../../../../services/deraProtocolServiceV2';
 
 export default function HCSEventHistory() {
   const [events, setEvents] = useState([]);

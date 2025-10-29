@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import deraProtocolService from '../../../../services/deraProtocolService';
+import deraProtocolService from '../../../../services/deraProtocolServiceV2';
 
 export default function DualYieldDisplay({ userAddress }) {
   const [assets, setAssets] = useState([]);
