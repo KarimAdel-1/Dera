@@ -20,6 +20,7 @@ import { walletProvider } from './walletProvider';
 import PoolABI from '../contracts/abis/Pool.json';
 import ERC20ABI from '../contracts/abis/ERC20.json';
 import OracleABI from '../contracts/abis/DeraOracle.json';
+import AnalyticsABI from '../contracts/abis/DeraMirrorNodeAnalytics.json';
 
 // Contract addresses (these should be configured per environment)
 const CONTRACTS = {
@@ -54,6 +55,7 @@ class DeraProtocolServiceV2 {
     this.provider = null;
     this.poolContract = null;
     this.oracleContract = null;
+    this.analyticsContract = null;
   }
 
   /**
@@ -90,9 +92,16 @@ class DeraProtocolServiceV2 {
         this.provider
       );
 
+      this.analyticsContract = new ethers.Contract(
+        this.contracts.ANALYTICS,
+        AnalyticsABI.abi,
+        this.provider
+      );
+
       console.log('✅ Dera Protocol Service V2 initialized');
       console.log('📍 Pool Address:', this.contracts.POOL);
       console.log('📍 Oracle Address:', this.contracts.ORACLE);
+      console.log('📍 Analytics Address:', this.contracts.ANALYTICS);
       return true;
     } catch (error) {
       console.error('❌ Error initializing Dera Protocol Service:', error);
@@ -535,6 +544,135 @@ class DeraProtocolServiceV2 {
    */
   getContractAddress(contractName) {
     return this.contracts[contractName] || null;
+  }
+
+  /**
+   * ======================
+   * ANALYTICS METHODS
+   * ======================
+   */
+
+  /**
+   * Get protocol-level metrics
+   * @returns {Promise<object>} Protocol metrics (TVL, total supplied, etc.)
+   */
+  async getProtocolMetrics() {
+    try {
+      // Call the analytics contract
+      const metrics = await this.analyticsContract.getProtocolMetrics();
+
+      return {
+        totalValueLocked: metrics[0].toString(), // tvl
+        totalSupplied: metrics[1].toString(),    // totalSupplied
+        totalBorrowed: metrics[2].toString(),    // totalBorrowed
+        totalUsers: Number(metrics[3]),          // totalUsers
+        totalTransactions: Number(metrics[4]),   // totalTransactions
+        lastUpdateTimestamp: Number(metrics[5])  // lastUpdate
+      };
+    } catch (error) {
+      console.error('Get protocol metrics error:', error);
+
+      // Return mock data if analytics contract not deployed or fails
+      console.warn('⚠️ Analytics contract not available, returning mock data');
+      return {
+        totalValueLocked: '0',
+        totalSupplied: '0',
+        totalBorrowed: '0',
+        totalUsers: 0,
+        totalTransactions: 0,
+        lastUpdateTimestamp: Date.now()
+      };
+    }
+  }
+
+  /**
+   * Get asset-specific metrics
+   * @param {string} assetAddress - Asset address
+   * @returns {Promise<object>} Asset metrics (supply, borrow, APY, etc.)
+   */
+  async getAssetMetrics(assetAddress) {
+    try {
+      // Call the analytics contract
+      const metrics = await this.analyticsContract.getAssetMetrics(assetAddress);
+
+      // Convert APY from scaled format (1e4) to percentage
+      const supplyAPY = Number(metrics[2]) / 100; // scaled by 1e4, so divide by 100 for %
+      const borrowAPY = Number(metrics[3]) / 100;
+      const utilization = Number(metrics[4]) / 100; // scaled by 1e4
+
+      return {
+        totalSupply: metrics[0].toString(),      // totalSupply
+        totalBorrow: metrics[1].toString(),      // totalBorrow
+        supplyAPY: supplyAPY.toFixed(2),         // supplyAPY as percentage
+        borrowAPY: borrowAPY.toFixed(2),         // borrowAPY as percentage
+        utilization: utilization.toFixed(2),     // utilization as percentage
+        supplierCount: Number(metrics[5]),       // supplierCount
+        borrowerCount: Number(metrics[6]),       // borrowerCount
+        volume24h: metrics[7].toString()         // volume24h
+      };
+    } catch (error) {
+      console.error('Get asset metrics error:', error);
+
+      // Return mock data if analytics contract not deployed or fails
+      console.warn('⚠️ Analytics contract not available, returning mock data for asset:', assetAddress);
+      return {
+        totalSupply: '0',
+        totalBorrow: '0',
+        supplyAPY: '0.00',
+        borrowAPY: '0.00',
+        utilization: '0.00',
+        supplierCount: 0,
+        borrowerCount: 0,
+        volume24h: '0'
+      };
+    }
+  }
+
+  /**
+   * Get historical snapshots for time-series charts
+   * @param {number} days - Number of days to fetch (will fetch hourly snapshots)
+   * @returns {Promise<array>} Array of historical snapshots
+   */
+  async getHistoricalSnapshots(days) {
+    try {
+      // Request snapshots (contract stores them, we'll get the most recent ones)
+      // Assuming hourly snapshots, request days * 24 snapshots
+      const count = Math.min(days * 24, 168); // Cap at 1 week of hourly data
+
+      const snapshots = await this.analyticsContract.getHistoricalSnapshots(count);
+
+      // Convert snapshots to format expected by frontend
+      return snapshots.map(snapshot => ({
+        timestamp: Number(snapshot.timestamp) * 1000, // Convert to milliseconds
+        tvl: snapshot.tvl.toString(),
+        totalSupplied: snapshot.totalSupplied.toString(),
+        totalBorrowed: snapshot.totalBorrowed.toString(),
+        utilizationRate: Number(snapshot.utilizationRate) / 100 // scaled by 1e4
+      }));
+    } catch (error) {
+      console.error('Get historical snapshots error:', error);
+
+      // Return mock data if analytics contract not deployed or fails
+      console.warn('⚠️ Analytics contract not available, returning mock historical data');
+
+      // Generate mock data for the requested number of days
+      const now = Date.now();
+      const mockSnapshots = [];
+      const hoursToGenerate = Math.min(days * 24, 168);
+
+      for (let i = hoursToGenerate; i >= 0; i--) {
+        const timestamp = now - (i * 60 * 60 * 1000); // i hours ago
+        mockSnapshots.push({
+          timestamp,
+          tvl: (Math.random() * 1000000 + 500000).toString(), // Random TVL between 500k-1.5M
+          totalSupplied: (Math.random() * 800000 + 400000).toString(),
+          totalBorrowed: (Math.random() * 400000 + 200000).toString(),
+          utilizationRate: Math.random() * 80 + 20 // 20-100%
+        });
+      }
+
+      return mockSnapshots;
+    }
   }
 }
 
