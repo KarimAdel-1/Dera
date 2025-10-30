@@ -11,6 +11,8 @@ import {ConfiguratorInputTypes} from '../libraries/types/ConfiguratorInputTypes.
 import {IPoolConfigurator} from '../../interfaces/IPoolConfigurator.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
+import {ConfiguratorLogic} from '../libraries/logic/ConfiguratorLogic.sol';
+import {IERC20} from '../../interfaces/IERC20.sol';
 
 /**
  * @title PoolConfigurator
@@ -259,7 +261,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   function _checkNoSuppliers(address asset) internal view {
     DataTypes.AssetDataLegacy memory reserveData = _pool.getAssetData(asset);
     uint256 totalSupplied = IERC20(reserveData.supplyTokenAddress).totalSupply();
-    require(totalSupplied == 0 && assetData.accruedToTreasury == 0, Errors.AssetLiquidityNotZero());
+    require(totalSupplied == 0, Errors.AssetLiquidityNotZero());
   }
 
   function _checkNoBorrowers(address asset) internal view {
