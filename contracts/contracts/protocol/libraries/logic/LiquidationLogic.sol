@@ -91,7 +91,7 @@ library LiquidationLogic {
       vars.totalDebtInBaseCurrency,
       ,
       ,
-      vars.healthFactor,
+      vars.healthFactor
     ) = GenericLogic.calculateUserAccountData(
       poolAssets,
       assetsList,
