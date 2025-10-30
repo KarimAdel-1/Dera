@@ -179,7 +179,7 @@ library PoolLogic {
       totalDebtBase,
       ltv,
       currentLiquidationThreshold,
-      healthFactor,
+      healthFactor
     ) = GenericLogic.calculateUserAccountData(poolAssets, assetsList, params);
 
     availableBorrowsBase = GenericLogic.calculateAvailableBorrows(totalCollateralBase, totalDebtBase, ltv);
