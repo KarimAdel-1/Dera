@@ -1,7 +1,6 @@
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import { HeroSection } from './components/landing/HeroSection';
-import DeraFeatureOneSection from './components/landing/DeraFeatureOneSection';
 
 export default function Home() {
   return (

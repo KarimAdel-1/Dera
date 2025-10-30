@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
+import { Bell } from 'lucide-react'
 import { markAsRead, markAllAsRead, removeNotification, clearAllNotifications } from '../../store/notificationSlice'
 
 export default function NotificationPanel() {
@@ -68,9 +69,7 @@ export default function NotificationPanel() {
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM9 7h6m0 0V3m0 4l4-4M9 7L5 3m4 4v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2m0 0V3a2 2 0 012-2h2a2 2 0 012 2v2" />
-        </svg>
+        <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
             {unreadCount > 99 ? '99+' : unreadCount}

@@ -43,7 +43,7 @@ class HashPackService {
     };
     this.state = 'Disconnected';
     this.pairingData = null;
-    this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo-project-id';
+    this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'c4f79cc821944d9680842e34466bfbd';
     this.eventListenersSetup = false;
   }
 

@@ -1,18 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { Lock, TrendingUp, AlertCircle, Clock, Gift, Zap, ChevronDown } from 'lucide-react';
-import NotificationToast from './NotificationToast';
+import {
+  Lock,
+  TrendingUp,
+  AlertCircle,
+  Clock,
+  Gift,
+  Zap,
+  ChevronDown,
+} from 'lucide-react';
+import NotificationToast from '../../../common/NotificationToast';
 import { hederaService } from '../../../../../services/hederaService';
-import { stakingService } from '../../../../../services/stakingService';
 
 const MultiAssetStaking = () => {
   // Use default wallet from Redux (same pattern as SidebarSection)
   const wallets = useSelector((state) => state.wallet.wallets);
   const defaultWallet = useSelector((state) => state.wallet.defaultWallet);
-  const connectedWallet = wallets.find(w => w.address === defaultWallet) || wallets[0];
+  const connectedWallet =
+    wallets.find((w) => w.address === defaultWallet) || wallets[0];
   const connectedAccount = connectedWallet?.address;
 
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
 
   // Staking form state
   const [assetType, setAssetType] = useState('HBAR'); // HBAR, HTS_TOKEN, NFT, RWA
@@ -47,12 +59,15 @@ const MultiAssetStaking = () => {
     { value: 'HBAR', label: 'HBAR', icon: '⚡' },
     { value: 'HTS_TOKEN', label: 'HTS Token', icon: '🪙' },
     { value: 'NFT', label: 'NFT', icon: '🎨' },
-    { value: 'RWA', label: 'RWA Token', icon: '🏛️' }
+    { value: 'RWA', label: 'RWA Token', icon: '🏛️' },
   ];
 
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 5000);
+    setTimeout(
+      () => setNotification({ show: false, message: '', type: '' }),
+      5000
+    );
   };
 
   const selectedPeriod = lockPeriods.find((p) => p.days === lockPeriod);
@@ -93,13 +108,15 @@ const MultiAssetStaking = () => {
               name: info?.name || 'Unknown Token',
               symbol: info?.symbol || token.token_id,
               decimals: info?.decimals || 0,
-              type: info?.type || 'FUNGIBLE_COMMON'
+              type: info?.type || 'FUNGIBLE_COMMON',
             };
           })
         );
 
         // Separate fungible tokens and NFTs
-        const fungibleTokens = tokensWithInfo.filter(t => t.type === 'FUNGIBLE_COMMON');
+        const fungibleTokens = tokensWithInfo.filter(
+          (t) => t.type === 'FUNGIBLE_COMMON'
+        );
 
         setUserTokens(fungibleTokens);
 
@@ -138,15 +155,13 @@ const MultiAssetStaking = () => {
 
     setIsLoadingStakes(true);
     try {
-      // Initialize staking service if not already initialized
-      if (!stakingService.isInitialized) {
-        const contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
-        await stakingService.initialize(contractAddress);
-      }
-
-      // Fetch stakes from contract (or mock data if not deployed)
+      // Integrate with DeraMultiAssetStaking contract
+      const { stakingService } = await import('../../../../../services/stakingService');
       const stakes = await stakingService.getUserStakes(connectedAccount);
       setUserStakes(stakes);
+
+      // Remove fallback mock data - use empty array if service fails
+      setUserStakes([]);
     } catch (error) {
       console.error('Error loading stakes:', error);
       showNotification('Failed to load your stakes', 'error');
@@ -166,7 +181,11 @@ const MultiAssetStaking = () => {
     }
 
     // Validation
-    if (assetType === 'HBAR' || assetType === 'HTS_TOKEN' || assetType === 'RWA') {
+    if (
+      assetType === 'HBAR' ||
+      assetType === 'HTS_TOKEN' ||
+      assetType === 'RWA'
+    ) {
       if (!amount || parseFloat(amount) <= 0) {
         showNotification('Please enter a valid amount', 'warning');
         return;
@@ -177,43 +196,38 @@ const MultiAssetStaking = () => {
       }
     } else if (assetType === 'NFT') {
       if (!tokenAddress || !serialNumber) {
-        showNotification('Please enter token address and serial number', 'warning');
+        showNotification(
+          'Please enter token address and serial number',
+          'warning'
+        );
         return;
       }
     }
 
     setIsStaking(true);
     try {
-      // Initialize staking service if needed
-      if (!stakingService.isInitialized) {
-        const contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
-        await stakingService.initialize(contractAddress);
-      }
-
-      let result;
-
-      // Call appropriate staking method based on asset type
-      if (assetType === 'NFT') {
-        result = await stakingService.stakeNFT(
-          tokenAddress,
-          parseInt(serialNumber),
-          lockPeriod
-        );
-      } else {
-        // HBAR, HTS_TOKEN, or RWA (all use stakeFungibleToken)
-        const tokenAddr = assetType === 'HBAR'
-          ? '0x0000000000000000000000000000000000000000'
-          : tokenAddress;
-
-        result = await stakingService.stakeFungibleToken(
+      // Integrate with DeraMultiAssetStaking contract
+      const { stakingService } = await import('../../../../../services/stakingService');
+      
+      if (assetType === 'HBAR' || assetType === 'HTS_TOKEN' || assetType === 'RWA') {
+        const tokenAddr = assetType === 'HBAR' ? '0x0000000000000000000000000000000000000000' : tokenAddress;
+        await stakingService.stakeFungibleToken(
           tokenAddr,
           amount,
+          lockPeriod
+        );
+      } else if (assetType === 'NFT') {
+        await stakingService.stakeNFT(
+          tokenAddress,
+          parseInt(serialNumber),
           lockPeriod
         );
       }
 
       showNotification(
-        `Successfully staked ${assetType === 'NFT' ? 'NFT' : amount + ' ' + assetType} for ${lockPeriod} days!`,
+        `Successfully staked ${
+          assetType === 'NFT' ? 'NFT' : amount + ' ' + assetType
+        } for ${lockPeriod} days!`,
         'success'
       );
 
@@ -221,8 +235,6 @@ const MultiAssetStaking = () => {
       setAmount('');
       setTokenAddress('');
       setSerialNumber('');
-      setSelectedToken(null);
-      setSelectedNFT(null);
 
       // Reload stakes
       await loadUserStakes();
@@ -237,7 +249,10 @@ const MultiAssetStaking = () => {
   const handleUnstake = async (stakeId) => {
     setIsStaking(true);
     try {
+      // Integrate with contract
+      const { stakingService } = await import('../../../../../services/stakingService');
       await stakingService.unstake(stakeId);
+
       showNotification('Successfully unstaked!', 'success');
       await loadUserStakes();
     } catch (error) {
@@ -251,7 +266,10 @@ const MultiAssetStaking = () => {
   const handleClaimRewards = async (stakeId) => {
     setIsStaking(true);
     try {
+      // Integrate with contract
+      const { stakingService } = await import('../../../../../services/stakingService');
       await stakingService.claimRewards(stakeId);
+
       showNotification('Successfully claimed rewards!', 'success');
       await loadUserStakes();
     } catch (error) {
@@ -269,23 +287,15 @@ const MultiAssetStaking = () => {
     if (remaining <= 0) return 'Unlocked';
 
     const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
-    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    const hours = Math.floor(
+      (remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)
+    );
 
     return `${days}d ${hours}h`;
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[var(--color-text-primary)] text-[20px] font-semibold">Multi-Asset Staking</h2>
-          <p className="text-[var(--color-text-muted)] text-[13px] mt-1">
-            Stake HBAR, HTS tokens, NFTs, and RWAs to earn rewards
-          </p>
-        </div>
-      </div>
-
       {/* Staking Form */}
       <div className="bg-[var(--color-bg-card)] rounded-lg border border-[var(--color-border-primary)] p-6">
         <h3 className="text-[var(--color-text-primary)] text-[16px] font-medium mb-4 flex items-center gap-2">
@@ -329,9 +339,15 @@ const MultiAssetStaking = () => {
                   className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
                 >
                   <span>
-                    {selectedToken ? `${selectedToken.symbol} (${selectedToken.token_id})` : 'Select a token...'}
+                    {selectedToken
+                      ? `${selectedToken.symbol} (${selectedToken.token_id})`
+                      : 'Select a token...'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showTokenSelector ? 'rotate-180' : ''
+                    }`}
+                  />
                 </button>
 
                 {showTokenSelector && (
@@ -353,11 +369,17 @@ const MultiAssetStaking = () => {
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-[var(--color-text-primary)] font-medium">{token.symbol}</div>
-                              <div className="text-[var(--color-text-muted)] text-[11px]">{token.token_id}</div>
+                              <div className="text-[var(--color-text-primary)] font-medium">
+                                {token.symbol}
+                              </div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">
+                                {token.token_id}
+                              </div>
                             </div>
                             <div className="text-[var(--color-text-primary)] text-[12px]">
-                              {(token.balance / Math.pow(10, token.decimals)).toFixed(2)}
+                              {(
+                                token.balance / Math.pow(10, token.decimals)
+                              ).toFixed(2)}
                             </div>
                           </div>
                         </button>
@@ -381,9 +403,15 @@ const MultiAssetStaking = () => {
                   className="w-full px-4 py-3 bg-[var(--color-bg-input)] border border-[var(--color-border-input)] rounded-lg text-[var(--color-text-primary)] text-[13px] flex items-center justify-between hover:border-[var(--color-primary)]/50 transition-colors"
                 >
                   <span>
-                    {selectedNFT ? `${selectedNFT.token_id} #${selectedNFT.serial_number}` : 'Select an NFT...'}
+                    {selectedNFT
+                      ? `${selectedNFT.token_id} #${selectedNFT.serial_number}`
+                      : 'Select an NFT...'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showTokenSelector ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showTokenSelector ? 'rotate-180' : ''
+                    }`}
+                  />
                 </button>
 
                 {showTokenSelector && (
@@ -408,7 +436,9 @@ const MultiAssetStaking = () => {
                               <div className="text-[var(--color-text-primary)] font-medium">
                                 Serial #{nft.serial_number}
                               </div>
-                              <div className="text-[var(--color-text-muted)] text-[11px]">{nft.token_id}</div>
+                              <div className="text-[var(--color-text-muted)] text-[11px]">
+                                {nft.token_id}
+                              </div>
                             </div>
                           </div>
                         </button>
@@ -454,7 +484,9 @@ const MultiAssetStaking = () => {
                 >
                   <div className="flex flex-col items-center">
                     <span>{period.label}</span>
-                    <span className="text-[10px] opacity-80">{period.apy}% APY</span>
+                    <span className="text-[10px] opacity-80">
+                      {period.apy}% APY
+                    </span>
                   </div>
                 </button>
               ))}
@@ -465,7 +497,9 @@ const MultiAssetStaking = () => {
           {assetType !== 'NFT' && amount && (
             <div className="bg-[var(--color-bg-hover)]/30 rounded-lg p-4 border border-[var(--color-border-input)]">
               <div className="flex items-center justify-between">
-                <span className="text-[var(--color-text-muted)] text-[12px]">Projected Rewards</span>
+                <span className="text-[var(--color-text-muted)] text-[12px]">
+                  Projected Rewards
+                </span>
                 <div className="text-right">
                   <div className="text-[var(--color-primary)] text-[16px] font-semibold">
                     {calculateProjectedRewards()} {assetType}
@@ -545,23 +579,30 @@ const MultiAssetStaking = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-[var(--color-primary)] text-[14px] font-semibold">
-                      {stake.accumulatedRewards} {stake.assetType === 'NFT' ? 'HBAR' : stake.assetType}
+                      {stake.accumulatedRewards}{' '}
+                      {stake.assetType === 'NFT' ? 'HBAR' : stake.assetType}
                     </div>
-                    <div className="text-[var(--color-text-muted)] text-[10px]">Rewards</div>
+                    <div className="text-[var(--color-text-muted)] text-[10px]">
+                      Rewards
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 mb-3 text-[11px] text-[var(--color-text-muted)]">
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    <span>Unlocks in: {formatTimeRemaining(stake.unlockTime)}</span>
+                    <span>
+                      Unlocks in: {formatTimeRemaining(stake.unlockTime)}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleClaimRewards(stake.stakeId)}
-                    disabled={isStaking || parseFloat(stake.accumulatedRewards) === 0}
+                    disabled={
+                      isStaking || parseFloat(stake.accumulatedRewards) === 0
+                    }
                     className="flex-1 bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border border-[var(--color-border-input)] rounded-lg px-3 py-2 text-[12px] font-medium hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Claim Rewards
@@ -581,7 +622,10 @@ const MultiAssetStaking = () => {
       </div>
 
       {notification.show && (
-        <NotificationToast message={notification.message} type={notification.type} />
+        <NotificationToast
+          message={notification.message}
+          type={notification.type}
+        />
       )}
     </div>
   );

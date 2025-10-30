@@ -1,6 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownLeft, Copy } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ArrowUpRight, ArrowDownLeft, ExternalLink } from 'lucide-react';
 
 /**
  * Modal to display transaction details
@@ -16,9 +15,10 @@ const TransactionModal = ({
   const formatAmount = (amount) => (amount / 100000000).toFixed(4);
   const formatDateTime = (timestamp) => new Date(timestamp * 1000).toLocaleString();
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Transaction ID copied to clipboard!');
+  const openInHashScan = (transactionId) => {
+    const network = process.env.NEXT_PUBLIC_HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet';
+    const url = `https://hashscan.io/${network}/transaction/${transactionId}`;
+    window.open(url, '_blank');
   };
 
   const txType = getTransactionType(transaction, transaction.walletAddress);
@@ -106,10 +106,11 @@ const TransactionModal = ({
                 {transaction.transaction_id}
               </span>
               <button
-                onClick={() => copyToClipboard(transaction.transaction_id)}
+                onClick={() => openInHashScan(transaction.transaction_id)}
                 className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] p-1"
+                title="View on HashScan"
               >
-                <Copy className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4" />
               </button>
             </div>
           </div>

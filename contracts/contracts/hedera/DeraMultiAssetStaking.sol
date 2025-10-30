@@ -1,621 +1,315 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/**
- * @title DeraMultiAssetStaking
- * @author Dera Protocol
- * @notice Multi-asset staking contract supporting HTS tokens, NFTs, and RWAs on Hedera
- *
- * UNIQUE TO HEDERA:
- * - Stake native HTS tokens (no ERC20 wrappers needed)
- * - Stake Hedera NFTs (native L1 NFTs)
- * - Stake Real World Assets (RWAs) tokenized as HTS
- * - Earn rewards in multiple tokens
- * - Leverages HTS precompile for all operations
- *
- * HEDERA TOOLS USED:
- * - HTS Precompile (0x167): All token/NFT operations
- * - Mirror Node: Query staking history and analytics
- * - HCS: Log all staking/unstaking events
- *
- * SUPPORTED ASSET TYPES:
- * 1. HBAR (native)
- * 2. Fungible HTS Tokens (USDC, wrapped tokens, etc.)
- * 3. Non-Fungible HTS Tokens (NFTs)
- * 4. Real World Assets (RWAs tokenized as HTS)
- *
- * FEATURES:
- * - Flexible staking periods (7, 30, 90, 180, 365 days)
- * - Higher APY for longer lock periods
- * - Compound rewards automatically
- * - Emergency withdraw (with penalty)
- * - NFT yield farming
- */
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
-// HTS precompile interface
-interface IHTS {
-  function transferToken(address token, address sender, address recipient, int64 amount) external returns (int64);
-  function transferNFT(address token, address sender, address recipient, int64 serialNumber) external returns (int64);
-  function approve(address token, address spender, uint256 amount) external returns (int64);
-  function approveNFT(address token, address approved, int64 serialNumber) external returns (int64);
-  function balanceOf(address token, address account) external view returns (uint256);
-  function ownerOf(address token, int64 serialNumber) external view returns (address);
-  function isApprovedForAll(address token, address owner, address operator) external view returns (bool);
-}
-
-contract DeraMultiAssetStaking {
-  // ============ Constants ============
-
-  IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile
-
-  // Staking periods (in seconds)
-  uint256 public constant PERIOD_7_DAYS = 7 days;
-  uint256 public constant PERIOD_30_DAYS = 30 days;
-  uint256 public constant PERIOD_90_DAYS = 90 days;
-  uint256 public constant PERIOD_180_DAYS = 180 days;
-  uint256 public constant PERIOD_365_DAYS = 365 days;
-
-  // APY multipliers (basis points, 10000 = 100%)
-  uint256 public constant APY_7_DAYS = 500;      // 5%
-  uint256 public constant APY_30_DAYS = 1000;    // 10%
-  uint256 public constant APY_90_DAYS = 2000;    // 20%
-  uint256 public constant APY_180_DAYS = 3500;   // 35%
-  uint256 public constant APY_365_DAYS = 5000;   // 50%
-
-  // Early unstake penalty (basis points)
-  uint256 public constant EARLY_UNSTAKE_PENALTY = 2000; // 20%
-
-  // ============ Enums ============
-
-  enum AssetType { HBAR, FUNGIBLE_TOKEN, NFT, RWA }
-  enum StakeStatus { ACTIVE, UNSTAKED, EMERGENCY_WITHDRAWN }
-
-  // ============ Structs ============
-
-  struct Asset {
-    AssetType assetType;
-    address tokenAddress;  // 0x0 for HBAR, HTS token address otherwise
-    int64 serialNumber;    // For NFTs only
-    bool isActive;
-    uint256 rewardAPY;     // Custom APY for this asset (basis points)
-    uint256 minStakeAmount; // Minimum stake amount (0 for NFTs)
-    string metadata;       // IPFS hash or description (for RWAs)
-  }
-
-  struct Stake {
-    address user;
-    AssetType assetType;
-    address tokenAddress;
-    uint256 amount;        // Amount for fungible tokens, 0 for NFTs
-    int64 serialNumber;    // NFT serial number, 0 for fungible tokens
-    uint256 startTime;
-    uint256 lockPeriod;    // Lock duration in seconds
-    uint256 unlockTime;
-    uint256 rewardAPY;     // APY at stake time (basis points)
-    uint256 accumulatedRewards;
-    uint256 lastRewardCalculation;
-    StakeStatus status;
-  }
-
-  struct UserStakingSummary {
-    uint256 totalStakes;
-    uint256 totalValueLocked; // In USD (scaled by 1e8)
-    uint256 totalRewardsEarned;
-    uint256 activeStakesCount;
-  }
-
-  // ============ State Variables ============
-
-  address public admin;
-  address public rewardsTreasury;
-  address public hcsEventStreamer; // For logging events to HCS
-
-  // Asset registry
-  mapping(address => Asset) public assets; // tokenAddress => Asset
-  address[] public supportedAssets;
-
-  // User stakes
-  mapping(address => Stake[]) public userStakes;
-  mapping(address => UserStakingSummary) public userSummaries;
-
-  // Global statistics
-  uint256 public totalValueLocked;
-  uint256 public totalStakers;
-  uint256 public totalRewardsPaid;
-
-  // Reward token (default: HBAR)
-  address public rewardToken;
-
-  // ============ Events ============
-
-  event AssetAdded(address indexed tokenAddress, AssetType assetType, uint256 rewardAPY);
-  event AssetRemoved(address indexed tokenAddress);
-  event Staked(
-    address indexed user,
-    address indexed tokenAddress,
-    AssetType assetType,
-    uint256 amount,
-    int64 serialNumber,
-    uint256 lockPeriod,
-    uint256 unlockTime,
-    uint256 stakeId
-  );
-  event Unstaked(
-    address indexed user,
-    uint256 indexed stakeId,
-    uint256 principal,
-    uint256 rewards
-  );
-  event RewardsClaimed(address indexed user, uint256 amount);
-  event EmergencyWithdraw(
-    address indexed user,
-    uint256 indexed stakeId,
-    uint256 amount,
-    uint256 penalty
-  );
-
-  // ============ Errors ============
-
-  error OnlyAdmin();
-  error AssetNotSupported();
-  error AssetAlreadyExists();
-  error InvalidAmount();
-  error InvalidLockPeriod();
-  error StakeNotFound();
-  error StakeLocked();
-  error StakeAlreadyUnstaked();
-  error InsufficientRewards();
-  error HTSTransferFailed(int64 responseCode);
-  error InvalidAssetType();
-
-  // ============ Modifiers ============
-
-  modifier onlyAdmin() {
-    if (msg.sender != admin) revert OnlyAdmin();
-    _;
-  }
-
-  // ============ Constructor ============
-
-  constructor(address _admin, address _rewardsTreasury) {
-    admin = _admin;
-    rewardsTreasury = _rewardsTreasury;
-    rewardToken = address(0); // Default to HBAR rewards
-  }
-
-  // ============ Admin Functions ============
-
-  /**
-   * @notice Add a new asset to the staking pool
-   * @param tokenAddress Token address (0x0 for HBAR)
-   * @param assetType Type of asset (HBAR, FUNGIBLE_TOKEN, NFT, RWA)
-   * @param rewardAPY Annual percentage yield in basis points
-   * @param minStakeAmount Minimum amount to stake (0 for NFTs)
-   * @param metadata IPFS hash or description for RWAs
-   */
-  function addAsset(
-    address tokenAddress,
-    AssetType assetType,
-    uint256 rewardAPY,
-    uint256 minStakeAmount,
-    string calldata metadata
-  ) external onlyAdmin {
-    if (assets[tokenAddress].isActive) revert AssetAlreadyExists();
-
-    assets[tokenAddress] = Asset({
-      assetType: assetType,
-      tokenAddress: tokenAddress,
-      serialNumber: 0,
-      isActive: true,
-      rewardAPY: rewardAPY,
-      minStakeAmount: minStakeAmount,
-      metadata: metadata
-    });
-
-    supportedAssets.push(tokenAddress);
-
-    emit AssetAdded(tokenAddress, assetType, rewardAPY);
-  }
-
-  /**
-   * @notice Remove an asset from staking
-   */
-  function removeAsset(address tokenAddress) external onlyAdmin {
-    assets[tokenAddress].isActive = false;
-    emit AssetRemoved(tokenAddress);
-  }
-
-  /**
-   * @notice Set HCS event streamer for logging
-   */
-  function setHCSEventStreamer(address streamer) external onlyAdmin {
-    hcsEventStreamer = streamer;
-  }
-
-  /**
-   * @notice Set reward token address
-   */
-  function setRewardToken(address token) external onlyAdmin {
-    rewardToken = token;
-  }
-
-  // ============ Staking Functions ============
-
-  /**
-   * @notice Stake fungible HTS tokens or HBAR
-   * @param tokenAddress Token address (0x0 for HBAR)
-   * @param amount Amount to stake
-   * @param lockPeriod Lock period (must be one of the predefined periods)
-   */
-  function stakeFungibleToken(
-    address tokenAddress,
-    uint256 amount,
-    uint256 lockPeriod
-  ) external payable returns (uint256 stakeId) {
-    Asset memory asset = assets[tokenAddress];
-    if (!asset.isActive) revert AssetNotSupported();
-    if (asset.assetType == AssetType.NFT) revert InvalidAssetType();
-    if (amount < asset.minStakeAmount) revert InvalidAmount();
-
-    uint256 apy = _getAPYForLockPeriod(lockPeriod);
-    if (apy == 0) revert InvalidLockPeriod();
-
-    // Handle HBAR staking
-    if (tokenAddress == address(0)) {
-      if (msg.value != amount) revert InvalidAmount();
-    } else {
-      // Transfer HTS tokens using precompile
-      int64 result = HTS.transferToken(
-        tokenAddress,
-        msg.sender,
-        address(this),
-        int64(uint64(amount))
-      );
-      if (result != 22) revert HTSTransferFailed(result); // 22 = SUCCESS
+contract DeraMultiAssetStaking is ReentrancyGuard, Ownable, Pausable {
+    
+    struct StakeInfo {
+        uint256 amount;
+        uint256 lockPeriod; // in days
+        uint256 startTime;
+        uint256 lastClaimTime;
+        address asset;
+        bool isNFT;
+        uint256 nftSerialNumber;
+        bool active;
     }
 
-    // Create stake
-    stakeId = userStakes[msg.sender].length;
-    userStakes[msg.sender].push(Stake({
-      user: msg.sender,
-      assetType: asset.assetType,
-      tokenAddress: tokenAddress,
-      amount: amount,
-      serialNumber: 0,
-      startTime: block.timestamp,
-      lockPeriod: lockPeriod,
-      unlockTime: block.timestamp + lockPeriod,
-      rewardAPY: apy,
-      accumulatedRewards: 0,
-      lastRewardCalculation: block.timestamp,
-      status: StakeStatus.ACTIVE
-    }));
-
-    // Update statistics
-    if (userStakes[msg.sender].length == 1) {
-      totalStakers++;
-    }
-    userSummaries[msg.sender].totalStakes++;
-    userSummaries[msg.sender].activeStakesCount++;
-    totalValueLocked += amount;
-
-    emit Staked(
-      msg.sender,
-      tokenAddress,
-      asset.assetType,
-      amount,
-      0,
-      lockPeriod,
-      block.timestamp + lockPeriod,
-      stakeId
-    );
-  }
-
-  /**
-   * @notice Stake an NFT
-   * @param tokenAddress NFT token address
-   * @param serialNumber NFT serial number
-   * @param lockPeriod Lock period
-   */
-  function stakeNFT(
-    address tokenAddress,
-    int64 serialNumber,
-    uint256 lockPeriod
-  ) external returns (uint256 stakeId) {
-    Asset memory asset = assets[tokenAddress];
-    if (!asset.isActive) revert AssetNotSupported();
-    if (asset.assetType != AssetType.NFT) revert InvalidAssetType();
-
-    uint256 apy = _getAPYForLockPeriod(lockPeriod);
-    if (apy == 0) revert InvalidLockPeriod();
-
-    // Transfer NFT using HTS precompile
-    int64 result = HTS.transferNFT(
-      tokenAddress,
-      msg.sender,
-      address(this),
-      serialNumber
-    );
-    if (result != 22) revert HTSTransferFailed(result);
-
-    // Create stake
-    stakeId = userStakes[msg.sender].length;
-    userStakes[msg.sender].push(Stake({
-      user: msg.sender,
-      assetType: AssetType.NFT,
-      tokenAddress: tokenAddress,
-      amount: 0,
-      serialNumber: serialNumber,
-      startTime: block.timestamp,
-      lockPeriod: lockPeriod,
-      unlockTime: block.timestamp + lockPeriod,
-      rewardAPY: apy,
-      accumulatedRewards: 0,
-      lastRewardCalculation: block.timestamp,
-      status: StakeStatus.ACTIVE
-    }));
-
-    // Update statistics
-    if (userStakes[msg.sender].length == 1) {
-      totalStakers++;
-    }
-    userSummaries[msg.sender].totalStakes++;
-    userSummaries[msg.sender].activeStakesCount++;
-
-    emit Staked(
-      msg.sender,
-      tokenAddress,
-      AssetType.NFT,
-      0,
-      serialNumber,
-      lockPeriod,
-      block.timestamp + lockPeriod,
-      stakeId
-    );
-  }
-
-  // ============ Unstaking Functions ============
-
-  /**
-   * @notice Unstake and claim rewards
-   * @param stakeId Stake ID
-   */
-  function unstake(uint256 stakeId) external {
-    if (stakeId >= userStakes[msg.sender].length) revert StakeNotFound();
-
-    Stake storage stake = userStakes[msg.sender][stakeId];
-    if (stake.status != StakeStatus.ACTIVE) revert StakeAlreadyUnstaked();
-    if (block.timestamp < stake.unlockTime) revert StakeLocked();
-
-    // Calculate final rewards
-    uint256 rewards = _calculateRewards(stake);
-    stake.accumulatedRewards += rewards;
-
-    // Transfer principal back to user
-    if (stake.assetType == AssetType.NFT) {
-      // Transfer NFT back
-      int64 result = HTS.transferNFT(
-        stake.tokenAddress,
-        address(this),
-        msg.sender,
-        stake.serialNumber
-      );
-      if (result != 22) revert HTSTransferFailed(result);
-    } else {
-      // Transfer fungible tokens back
-      if (stake.tokenAddress == address(0)) {
-        // HBAR
-        (bool success, ) = payable(msg.sender).call{value: stake.amount}("");
-        require(success, "HBAR transfer failed");
-      } else {
-        // HTS token
-        int64 result = HTS.transferToken(
-          stake.tokenAddress,
-          address(this),
-          msg.sender,
-          int64(uint64(stake.amount))
-        );
-        if (result != 22) revert HTSTransferFailed(result);
-      }
+    struct RewardPool {
+        uint256 totalRewards;
+        uint256 distributedRewards;
+        uint256 lastUpdateTime;
     }
 
-    // Transfer rewards
-    if (stake.accumulatedRewards > 0) {
-      _transferRewards(msg.sender, stake.accumulatedRewards);
+    // Standard APR rates (basis points: 100 = 1%)
+    mapping(uint256 => uint256) public baseAPRRates;
+    
+    // Dynamic rate multipliers based on TVL
+    uint256 public constant MIN_MULTIPLIER = 50; // 0.5x
+    uint256 public constant MAX_MULTIPLIER = 150; // 1.5x
+    uint256 public constant BASE_MULTIPLIER = 100; // 1.0x
+    
+    // TVL thresholds for dynamic rates
+    uint256 public lowTVLThreshold = 100000 * 1e8; // 100k HBAR
+    uint256 public highTVLThreshold = 1000000 * 1e8; // 1M HBAR
+    
+    // Sustainability limits
+    uint256 public maxRewardPoolUtilization = 8000; // 80% max utilization
+    uint256 public emergencyPenalty = 2000; // 20% penalty
+    
+    mapping(address => StakeInfo[]) public userStakes;
+    mapping(address => bool) public supportedAssets;
+    
+    RewardPool public rewardPool;
+    address public rewardToken;
+    uint256 public totalValueLocked;
+    uint256 public totalActiveStakes;
+    
+    // NFT fixed reward rate (HBAR per day)
+    uint256 public nftDailyReward = 1 * 1e8; // 1 HBAR per day
+    
+    event Staked(address indexed user, address asset, uint256 amount, uint256 lockPeriod);
+    event Unstaked(address indexed user, uint256 stakeIndex, uint256 amount, uint256 rewards);
+    event RewardsClaimed(address indexed user, uint256 stakeIndex, uint256 rewards);
+    event RewardPoolFunded(uint256 amount);
+    event RatesUpdated(uint256 tvl, uint256 multiplier);
+
+    constructor(address _rewardToken) {
+        rewardToken = _rewardToken;
+        
+        // Initialize standard APR rates (basis points)
+        baseAPRRates[7] = 200;   // 2% APR for 7 days
+        baseAPRRates[30] = 400;  // 4% APR for 30 days  
+        baseAPRRates[90] = 700;  // 7% APR for 90 days
+        baseAPRRates[180] = 1000; // 10% APR for 180 days
+        baseAPRRates[365] = 1200; // 12% APR for 365 days
+        
+        rewardPool.lastUpdateTime = block.timestamp;
     }
 
-    // Update stake status
-    stake.status = StakeStatus.UNSTAKED;
-    userSummaries[msg.sender].activeStakesCount--;
-    userSummaries[msg.sender].totalRewardsEarned += stake.accumulatedRewards;
-    totalValueLocked -= stake.amount;
-    totalRewardsPaid += stake.accumulatedRewards;
-
-    emit Unstaked(msg.sender, stakeId, stake.amount, stake.accumulatedRewards);
-  }
-
-  /**
-   * @notice Emergency unstake (with penalty)
-   * @param stakeId Stake ID
-   */
-  function emergencyUnstake(uint256 stakeId) external {
-    if (stakeId >= userStakes[msg.sender].length) revert StakeNotFound();
-
-    Stake storage stake = userStakes[msg.sender][stakeId];
-    if (stake.status != StakeStatus.ACTIVE) revert StakeAlreadyUnstaked();
-
-    // Calculate penalty
-    uint256 penalty = (stake.amount * EARLY_UNSTAKE_PENALTY) / 10000;
-    uint256 amountAfterPenalty = stake.amount - penalty;
-
-    // Transfer principal minus penalty
-    if (stake.assetType == AssetType.NFT) {
-      // NFT: no penalty, just forfeit rewards
-      int64 result = HTS.transferNFT(
-        stake.tokenAddress,
-        address(this),
-        msg.sender,
-        stake.serialNumber
-      );
-      if (result != 22) revert HTSTransferFailed(result);
-    } else {
-      if (stake.tokenAddress == address(0)) {
-        (bool success, ) = payable(msg.sender).call{value: amountAfterPenalty}("");
-        require(success, "HBAR transfer failed");
-      } else {
-        int64 result = HTS.transferToken(
-          stake.tokenAddress,
-          address(this),
-          msg.sender,
-          int64(uint64(amountAfterPenalty))
-        );
-        if (result != 22) revert HTSTransferFailed(result);
-      }
+    // Fund the reward pool
+    function fundRewardPool() external payable onlyOwner {
+        rewardPool.totalRewards += msg.value;
+        rewardPool.lastUpdateTime = block.timestamp;
+        emit RewardPoolFunded(msg.value);
     }
 
-    // Update stake status (no rewards on emergency withdraw)
-    stake.status = StakeStatus.EMERGENCY_WITHDRAWN;
-    userSummaries[msg.sender].activeStakesCount--;
-    totalValueLocked -= stake.amount;
-
-    emit EmergencyWithdraw(msg.sender, stakeId, amountAfterPenalty, penalty);
-  }
-
-  // ============ Rewards Functions ============
-
-  /**
-   * @notice Claim accumulated rewards without unstaking
-   * @param stakeId Stake ID
-   */
-  function claimRewards(uint256 stakeId) external {
-    if (stakeId >= userStakes[msg.sender].length) revert StakeNotFound();
-
-    Stake storage stake = userStakes[msg.sender][stakeId];
-    if (stake.status != StakeStatus.ACTIVE) revert StakeAlreadyUnstaked();
-
-    // Calculate and update rewards
-    uint256 rewards = _calculateRewards(stake);
-    stake.accumulatedRewards += rewards;
-    stake.lastRewardCalculation = block.timestamp;
-
-    if (stake.accumulatedRewards == 0) revert InsufficientRewards();
-
-    // Transfer rewards
-    uint256 rewardAmount = stake.accumulatedRewards;
-    stake.accumulatedRewards = 0;
-
-    _transferRewards(msg.sender, rewardAmount);
-
-    userSummaries[msg.sender].totalRewardsEarned += rewardAmount;
-    totalRewardsPaid += rewardAmount;
-
-    emit RewardsClaimed(msg.sender, rewardAmount);
-  }
-
-  // ============ View Functions ============
-
-  /**
-   * @notice Get user's active stakes
-   */
-  function getUserStakes(address user) external view returns (Stake[] memory) {
-    return userStakes[user];
-  }
-
-  /**
-   * @notice Get user's staking summary
-   */
-  function getUserSummary(address user) external view returns (UserStakingSummary memory) {
-    return userSummaries[user];
-  }
-
-  /**
-   * @notice Calculate pending rewards for a stake
-   */
-  function getPendingRewards(address user, uint256 stakeId) external view returns (uint256) {
-    if (stakeId >= userStakes[user].length) return 0;
-
-    Stake memory stake = userStakes[user][stakeId];
-    if (stake.status != StakeStatus.ACTIVE) return 0;
-
-    return _calculateRewards(stake);
-  }
-
-  /**
-   * @notice Get all supported assets
-   */
-  function getSupportedAssets() external view returns (address[] memory) {
-    return supportedAssets;
-  }
-
-  /**
-   * @notice Get asset details
-   */
-  function getAsset(address tokenAddress) external view returns (Asset memory) {
-    return assets[tokenAddress];
-  }
-
-  // ============ Internal Functions ============
-
-  /**
-   * @notice Calculate rewards for a stake
-   */
-  function _calculateRewards(Stake memory stake) internal view returns (uint256) {
-    if (stake.status != StakeStatus.ACTIVE) return 0;
-
-    uint256 stakingDuration = block.timestamp - stake.lastRewardCalculation;
-
-    // For NFTs, use fixed reward amount per day
-    if (stake.assetType == AssetType.NFT) {
-      // Fixed: 1 HBAR per day per NFT (can be customized)
-      return (stakingDuration * 1 ether) / 1 days;
+    // Calculate current dynamic rate multiplier based on TVL
+    function getCurrentRateMultiplier() public view returns (uint256) {
+        if (totalValueLocked <= lowTVLThreshold) {
+            return MAX_MULTIPLIER; // Higher rates for low TVL to attract stakers
+        } else if (totalValueLocked >= highTVLThreshold) {
+            return MIN_MULTIPLIER; // Lower rates for high TVL to manage sustainability
+        } else {
+            // Linear interpolation between thresholds
+            uint256 range = highTVLThreshold - lowTVLThreshold;
+            uint256 position = totalValueLocked - lowTVLThreshold;
+            uint256 multiplierRange = MAX_MULTIPLIER - MIN_MULTIPLIER;
+            
+            return MAX_MULTIPLIER - (position * multiplierRange / range);
+        }
     }
 
-    // For fungible tokens: (amount * APY * time) / (365 days * 10000)
-    return (stake.amount * stake.rewardAPY * stakingDuration) / (365 days * 10000);
-  }
-
-  /**
-   * @notice Transfer rewards to user
-   */
-  function _transferRewards(address user, uint256 amount) internal {
-    if (rewardToken == address(0)) {
-      // HBAR rewards
-      (bool success, ) = payable(user).call{value: amount}("");
-      require(success, "HBAR reward transfer failed");
-    } else {
-      // HTS token rewards
-      int64 result = HTS.transferToken(
-        rewardToken,
-        rewardsTreasury,
-        user,
-        int64(uint64(amount))
-      );
-      if (result != 22) revert HTSTransferFailed(result);
+    // Get effective APR for a lock period
+    function getEffectiveAPR(uint256 lockPeriod) public view returns (uint256) {
+        uint256 baseRate = baseAPRRates[lockPeriod];
+        require(baseRate > 0, "Unsupported lock period");
+        
+        uint256 multiplier = getCurrentRateMultiplier();
+        return (baseRate * multiplier) / BASE_MULTIPLIER;
     }
-  }
 
-  /**
-   * @notice Get APY for a given lock period
-   */
-  function _getAPYForLockPeriod(uint256 lockPeriod) internal pure returns (uint256) {
-    if (lockPeriod == PERIOD_7_DAYS) return APY_7_DAYS;
-    if (lockPeriod == PERIOD_30_DAYS) return APY_30_DAYS;
-    if (lockPeriod == PERIOD_90_DAYS) return APY_90_DAYS;
-    if (lockPeriod == PERIOD_180_DAYS) return APY_180_DAYS;
-    if (lockPeriod == PERIOD_365_DAYS) return APY_365_DAYS;
-    return 0;
-  }
+    // Check if reward pool can sustain new stake
+    function canSustainStake(uint256 principal, uint256 lockPeriod) public view returns (bool) {
+        uint256 projectedRewards = calculateRewards(principal, lockPeriod);
+        uint256 availableRewards = rewardPool.totalRewards - rewardPool.distributedRewards;
+        uint256 projectedUtilization = ((rewardPool.distributedRewards + projectedRewards) * 10000) / rewardPool.totalRewards;
+        
+        return projectedUtilization <= maxRewardPoolUtilization && projectedRewards <= availableRewards;
+    }
 
-  /**
-   * @notice Get APY as percentage string (for frontend)
-   */
-  function getAPYForPeriod(uint256 lockPeriod) external pure returns (uint256) {
-    return _getAPYForLockPeriod(lockPeriod);
-  }
+    // Calculate rewards using APR
+    function calculateRewards(uint256 principal, uint256 lockPeriod) public view returns (uint256) {
+        uint256 effectiveAPR = getEffectiveAPR(lockPeriod);
+        
+        // For NFTs, use fixed daily rate
+        if (principal == 0) {
+            return nftDailyReward * lockPeriod;
+        }
+        
+        // APR calculation: (principal * APR * days) / (365 * 10000)
+        return (principal * effectiveAPR * lockPeriod) / (365 * 10000);
+    }
 
-  // ============ Receive Function ============
+    // Stake HBAR
+    function stakeHBAR(uint256 lockPeriod) external payable nonReentrant whenNotPaused {
+        require(msg.value > 0, "Amount must be greater than 0");
+        require(baseAPRRates[lockPeriod] > 0, "Invalid lock period");
+        require(canSustainStake(msg.value, lockPeriod), "Insufficient reward pool");
 
-  receive() external payable {
-    // Allow contract to receive HBAR for rewards
-  }
+        StakeInfo memory newStake = StakeInfo({
+            amount: msg.value,
+            lockPeriod: lockPeriod,
+            startTime: block.timestamp,
+            lastClaimTime: block.timestamp,
+            asset: address(0), // HBAR
+            isNFT: false,
+            nftSerialNumber: 0,
+            active: true
+        });
+
+        userStakes[msg.sender].push(newStake);
+        totalValueLocked += msg.value;
+        totalActiveStakes++;
+
+        // Reserve rewards
+        uint256 projectedRewards = calculateRewards(msg.value, lockPeriod);
+        rewardPool.distributedRewards += projectedRewards;
+
+        emit Staked(msg.sender, address(0), msg.value, lockPeriod);
+        emit RatesUpdated(totalValueLocked, getCurrentRateMultiplier());
+    }
+
+    // Stake NFT
+    function stakeNFT(address nftContract, uint256 serialNumber, uint256 lockPeriod) 
+        external nonReentrant whenNotPaused {
+        require(supportedAssets[nftContract], "Asset not supported");
+        require(baseAPRRates[lockPeriod] > 0, "Invalid lock period");
+        require(canSustainStake(0, lockPeriod), "Insufficient reward pool");
+
+        // Transfer NFT to contract (implementation depends on NFT standard)
+        // IERC721(nftContract).transferFrom(msg.sender, address(this), serialNumber);
+
+        StakeInfo memory newStake = StakeInfo({
+            amount: 0,
+            lockPeriod: lockPeriod,
+            startTime: block.timestamp,
+            lastClaimTime: block.timestamp,
+            asset: nftContract,
+            isNFT: true,
+            nftSerialNumber: serialNumber,
+            active: true
+        });
+
+        userStakes[msg.sender].push(newStake);
+        totalActiveStakes++;
+
+        // Reserve NFT rewards
+        uint256 projectedRewards = calculateRewards(0, lockPeriod);
+        rewardPool.distributedRewards += projectedRewards;
+
+        emit Staked(msg.sender, nftContract, serialNumber, lockPeriod);
+    }
+
+    // Calculate claimable rewards for a stake
+    function getClaimableRewards(address user, uint256 stakeIndex) public view returns (uint256) {
+        require(stakeIndex < userStakes[user].length, "Invalid stake index");
+        
+        StakeInfo memory stake = userStakes[user][stakeIndex];
+        if (!stake.active) return 0;
+
+        uint256 timeStaked = block.timestamp - stake.lastClaimTime;
+        uint256 daysStaked = timeStaked / 86400; // Convert to days
+        
+        if (daysStaked == 0) return 0;
+
+        if (stake.isNFT) {
+            return nftDailyReward * daysStaked;
+        } else {
+            uint256 effectiveAPR = getEffectiveAPR(stake.lockPeriod);
+            return (stake.amount * effectiveAPR * daysStaked) / (365 * 10000);
+        }
+    }
+
+    // Claim rewards without unstaking
+    function claimRewards(uint256 stakeIndex) external nonReentrant {
+        require(stakeIndex < userStakes[msg.sender].length, "Invalid stake index");
+        
+        StakeInfo storage stake = userStakes[msg.sender][stakeIndex];
+        require(stake.active, "Stake not active");
+
+        uint256 rewards = getClaimableRewards(msg.sender, stakeIndex);
+        require(rewards > 0, "No rewards to claim");
+
+        stake.lastClaimTime = block.timestamp;
+        
+        // Transfer rewards
+        payable(msg.sender).transfer(rewards);
+
+        emit RewardsClaimed(msg.sender, stakeIndex, rewards);
+    }
+
+    // Unstake with or without penalty
+    function unstake(uint256 stakeIndex) external nonReentrant {
+        require(stakeIndex < userStakes[msg.sender].length, "Invalid stake index");
+        
+        StakeInfo storage stake = userStakes[msg.sender][stakeIndex];
+        require(stake.active, "Stake not active");
+
+        bool isLockExpired = block.timestamp >= stake.startTime + (stake.lockPeriod * 86400);
+        uint256 principal = stake.amount;
+        uint256 rewards = getClaimableRewards(msg.sender, stakeIndex);
+
+        if (!isLockExpired) {
+            // Apply emergency penalty to principal
+            principal = (principal * (10000 - emergencyPenalty)) / 10000;
+        }
+
+        stake.active = false;
+        totalValueLocked -= stake.amount;
+        totalActiveStakes--;
+
+        // Transfer principal and rewards
+        if (principal > 0) {
+            payable(msg.sender).transfer(principal);
+        }
+        if (rewards > 0) {
+            payable(msg.sender).transfer(rewards);
+        }
+
+        // Return NFT if applicable
+        if (stake.isNFT) {
+            // IERC721(stake.asset).transferFrom(address(this), msg.sender, stake.nftSerialNumber);
+        }
+
+        emit Unstaked(msg.sender, stakeIndex, principal, rewards);
+        emit RatesUpdated(totalValueLocked, getCurrentRateMultiplier());
+    }
+
+    // Get user's active stakes
+    function getUserStakes(address user) external view returns (StakeInfo[] memory) {
+        return userStakes[user];
+    }
+
+    // Get reward pool status
+    function getRewardPoolStatus() external view returns (
+        uint256 totalRewards,
+        uint256 distributedRewards,
+        uint256 availableRewards,
+        uint256 utilizationRate
+    ) {
+        totalRewards = rewardPool.totalRewards;
+        distributedRewards = rewardPool.distributedRewards;
+        availableRewards = totalRewards - distributedRewards;
+        utilizationRate = totalRewards > 0 ? (distributedRewards * 10000) / totalRewards : 0;
+    }
+
+    // Admin functions
+    function setSupportedAsset(address asset, bool supported) external onlyOwner {
+        supportedAssets[asset] = supported;
+    }
+
+    function updateAPRRates(uint256 lockPeriod, uint256 newRate) external onlyOwner {
+        require(newRate <= 2000, "Rate too high"); // Max 20% APR
+        baseAPRRates[lockPeriod] = newRate;
+    }
+
+    function updateTVLThresholds(uint256 _lowThreshold, uint256 _highThreshold) external onlyOwner {
+        require(_lowThreshold < _highThreshold, "Invalid thresholds");
+        lowTVLThreshold = _lowThreshold;
+        highTVLThreshold = _highThreshold;
+    }
+
+    function updateSustainabilityLimits(uint256 _maxUtilization, uint256 _penalty) external onlyOwner {
+        require(_maxUtilization <= 9000, "Max utilization too high"); // Max 90%
+        require(_penalty <= 5000, "Penalty too high"); // Max 50%
+        maxRewardPoolUtilization = _maxUtilization;
+        emergencyPenalty = _penalty;
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    // Emergency withdraw (only owner)
+    function emergencyWithdraw() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
+    }
 }

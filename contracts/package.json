@@ -9,7 +9,9 @@
     "test:coverage": "hardhat coverage",
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.js",
-    "deploy:testnet": "hardhat run scripts/deploy.js --network testnet"
+    "deploy:testnet": "hardhat run scripts/deploy.js --network testnet",
+    "export-abis": "node scripts/export-missing-abis.js",
+    "postcompile": "npm run export-abis"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

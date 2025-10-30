@@ -19,20 +19,20 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
 console.log('✅ Supabase client created');
 
-// Test connection
-supabase.from('users').select('count', { count: 'exact', head: true })
-  .then(({ error, count }) => {
-    if (error) {
-      console.error('❌ Supabase connection test failed:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-    } else {
-      console.log('✅ Supabase connection test passed. Users table exists with', count, 'rows');
-    }
-  });
+// Optional connection test - don't block app if it fails
+if (typeof window !== 'undefined') {
+  supabase.from('users').select('count', { count: 'exact', head: true })
+    .then(({ error, count }) => {
+      if (error) {
+        console.warn('⚠️ Supabase connection test failed (non-blocking):', error.message);
+      } else {
+        console.log('✅ Supabase connection test passed. Users table exists with', count, 'rows');
+      }
+    })
+    .catch(err => {
+      console.warn('⚠️ Supabase connection test failed (non-blocking):', err.message);
+    });
+}
 
 class SupabaseService {
   constructor() {

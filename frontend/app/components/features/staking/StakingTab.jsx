@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import MultiAssetStaking from '../dera-protocol/components/MultiAssetStaking';
+import MultiAssetStaking from './components/MultiAssetStaking';
 
-const StakingDashboard = () => {
+const StakingTab = () => {
   return (
     <div className="space-y-6 p-0 sm:p-6">
       {/* Header */}
@@ -22,4 +22,4 @@ const StakingDashboard = () => {
   );
 };
 
-export default StakingDashboard;
+export default StakingTab;

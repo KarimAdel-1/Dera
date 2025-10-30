@@ -8,13 +8,13 @@ import SupplyTab from './components/SupplyTab';
 import BorrowTab from './components/BorrowTab';
 import TestingTab from './components/TestingTab';
 import ActionModal from './components/ActionModal';
-import NotificationToast from './components/NotificationToast';
+import NotificationToast from '../../common/NotificationToast';
 import TransactionHistory from './components/TransactionHistory';
 import DualYieldDisplay from './DualYieldDisplay';
 import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
-import deraProtocolServiceV2 from '../../../../services/deraProtocolServiceV2';
+import deraProtocolService from '../../../../services/deraProtocolService';
 
 const DeraProtocolDashboard = () => {
   const [activeTab, setActiveTab] = useState('supply');
@@ -44,18 +44,18 @@ const DeraProtocolDashboard = () => {
   // Use wallet management hook
   const { connectToHashPack, isConnecting } = useWalletManagement();
 
-  // Initialize deraProtocolServiceV2 and load assets on mount
+  // Initialize deraProtocolService and load assets on mount
   useEffect(() => {
     const init = async () => {
       try {
         setIsLoadingAssets(true);
         setAssetsError(null);
 
-        await deraProtocolServiceV2.initialize();
-        console.log('✅ DeraProtocolServiceV2 initialized');
+        await deraProtocolService.initialize();
+        console.log('✅ DeraProtocolService initialized');
 
         // Fetch supported assets from Pool contract
-        const supportedAssets = await deraProtocolServiceV2.getSupportedAssets();
+        const supportedAssets = await deraProtocolService.getSupportedAssets();
         setAssets(supportedAssets);
         console.log('✅ Loaded assets from Pool contract:', supportedAssets);
       } catch (error) {
@@ -102,7 +102,7 @@ const DeraProtocolDashboard = () => {
       }
 
       // Get user account data from Pool contract
-      const accountData = await deraProtocolServiceV2.getUserAccountData(userAddress);
+      const accountData = await deraProtocolService.getUserAccountData(userAddress);
 
       console.log('Account data:', accountData);
 
@@ -113,7 +113,7 @@ const DeraProtocolDashboard = () => {
       for (const asset of assets) {
         try {
           // Get supply balance
-          const supplyBalance = await deraProtocolServiceV2.getUserAssetBalance(
+          const supplyBalance = await deraProtocolService.getUserAssetBalance(
             asset.address,
             userAddress
           );
@@ -130,7 +130,7 @@ const DeraProtocolDashboard = () => {
           }
 
           // Get borrow balance
-          const borrowBalance = await deraProtocolServiceV2.getUserBorrowBalance(
+          const borrowBalance = await deraProtocolService.getUserBorrowBalance(
             asset.address,
             userAddress
           );
@@ -226,7 +226,7 @@ const DeraProtocolDashboard = () => {
 
       switch (type) {
         case 'supply':
-          result = await deraProtocolServiceV2.supply(
+          result = await deraProtocolService.supply(
             assetData.address,
             amountInUnits,
             activeWallet.address,
@@ -239,7 +239,7 @@ const DeraProtocolDashboard = () => {
           const withdrawAmount = amount === 'max'
             ? ethers.MaxUint256
             : amountInUnits;
-          result = await deraProtocolServiceV2.withdraw(
+          result = await deraProtocolService.withdraw(
             assetData.address,
             withdrawAmount,
             activeWallet.address
@@ -247,7 +247,7 @@ const DeraProtocolDashboard = () => {
           break;
 
         case 'borrow':
-          result = await deraProtocolServiceV2.borrow(
+          result = await deraProtocolService.borrow(
             assetData.address,
             amountInUnits,
             0, // referral code
@@ -260,7 +260,7 @@ const DeraProtocolDashboard = () => {
           const repayAmount = amount === 'max'
             ? ethers.MaxUint256
             : amountInUnits;
-          result = await deraProtocolServiceV2.repay(
+          result = await deraProtocolService.repay(
             assetData.address,
             repayAmount,
             activeWallet.address
@@ -343,8 +343,8 @@ const DeraProtocolDashboard = () => {
       setIsProcessingTransaction(true);
 
       // Call Pool.setUserUseAssetAsCollateral(asset, useAsCollateral)
-      const signer = await deraProtocolServiceV2.getSigner();
-      const poolAddress = deraProtocolServiceV2.getContractAddress('POOL');
+      const signer = await deraProtocolService.getSigner();
+      const poolAddress = deraProtocolService.getContractAddress('POOL');
 
       // Create contract instance with signer
       const PoolABI = (await import('../../../../contracts/abis/Pool.json')).default;

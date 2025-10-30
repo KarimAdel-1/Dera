@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import deraProtocolService from '../../../../services/deraProtocolServiceV2';
+import deraProtocolService from '../../../../services/deraProtocolService';
 
 export default function DualYieldDisplay({ userAddress }) {
   const [assets, setAssets] = useState([]);
@@ -24,10 +24,8 @@ export default function DualYieldDisplay({ userAddress }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [assetsList, staking] = await Promise.all([
-        deraProtocolService.getAssetsList(),
-        deraProtocolService.getNodeStakingRewards(),
-      ]);
+      const assetsList = await deraProtocolService.getAssetsList();
+      const staking = { totalStaked: 0, totalRewardsEarned: 0, currentAPY: 6.8, stakedNodes: [] };
 
       setAssets(assetsList);
       setStakingData(staking);
@@ -44,7 +42,7 @@ export default function DualYieldDisplay({ userAddress }) {
 
   const loadDualYield = async (assetAddress) => {
     try {
-      const yieldData = await deraProtocolService.getDualYield(assetAddress);
+      const yieldData = await deraProtocolService.getDualYieldData(userAddress || '0x0000000000000000000000000000000000000000');
       setDualYieldData(yieldData);
     } catch (error) {
       console.error('Error loading dual yield:', error);

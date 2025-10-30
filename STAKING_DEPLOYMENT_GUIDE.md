@@ -15,12 +15,14 @@ This guide covers the deployment and integration of the DeraMultiAssetStaking co
 ## 🎯 Features
 
 - **Multi-Asset Support**: HBAR, HTS Tokens, NFTs, and RWAs
-- **Tiered APY Rewards**:
-  - 7 days: 5% APY
-  - 30 days: 10% APY
-  - 90 days: 20% APY
-  - 180 days: 35% APY
-  - 365 days: 50% APY
+- **Tiered APR Rewards** (Standard Rates):
+  - 7 days: 2% APR (Dynamic: 1-3%)
+  - 30 days: 4% APR (Dynamic: 2-6%)
+  - 90 days: 7% APR (Dynamic: 3.5-10.5%)
+  - 180 days: 10% APR (Dynamic: 5-15%)
+  - 365 days: 12% APR (Dynamic: 6-18%)
+- **Dynamic Rates**: Based on TVL (higher rates when TVL is low)
+- **Sustainability Checks**: Max 80% reward pool utilization
 - **NFT Staking**: Fixed 1 HBAR/day rewards
 - **Emergency Unstake**: 20% penalty for early withdrawal
 - **Rewards Claiming**: Claim without unstaking
