@@ -49,7 +49,7 @@ library AssetConfiguration {
   uint16 public constant MAX_RESERVES_COUNT = 128;
 
   function setLtv(DataTypes.AssetConfigurationMap memory self, uint256 ltv) internal pure {
-    require(ltv <= MAX_VALID_LTV, Errors.InvalidLtv());
+    if (ltv > MAX_VALID_LTV) revert Errors.InvalidLtv();
     self.data = (self.data & ~LTV_MASK) | ltv;
   }
 
@@ -58,7 +58,7 @@ library AssetConfiguration {
   }
 
   function setLiquidationThreshold(DataTypes.AssetConfigurationMap memory self, uint256 threshold) internal pure {
-    require(threshold <= MAX_VALID_LIQUIDATION_THRESHOLD, Errors.InvalidLiquidationThreshold());
+    if (threshold > MAX_VALID_LIQUIDATION_THRESHOLD) revert Errors.InvalidLiquidationThreshold();
     self.data = (self.data & ~LIQUIDATION_THRESHOLD_MASK) | (threshold << LIQUIDATION_THRESHOLD_START_BIT_POSITION);
   }
 
@@ -67,7 +67,7 @@ library AssetConfiguration {
   }
 
   function setLiquidationBonus(DataTypes.AssetConfigurationMap memory self, uint256 bonus) internal pure {
-    require(bonus <= MAX_VALID_LIQUIDATION_BONUS, Errors.InvalidLiquidationBonus());
+    if (bonus > MAX_VALID_LIQUIDATION_BONUS) revert Errors.InvalidLiquidationBonus();
     self.data = (self.data & ~LIQUIDATION_BONUS_MASK) | (bonus << LIQUIDATION_BONUS_START_BIT_POSITION);
   }
 
@@ -76,7 +76,7 @@ library AssetConfiguration {
   }
 
   function setDecimals(DataTypes.AssetConfigurationMap memory self, uint256 decimals) internal pure {
-    require(decimals <= MAX_VALID_DECIMALS, Errors.InvalidDecimals());
+    if (decimals > MAX_VALID_DECIMALS) revert Errors.InvalidDecimals();
     self.data = (self.data & ~DECIMALS_MASK) | (decimals << RESERVE_DECIMALS_START_BIT_POSITION);
   }
 
@@ -117,7 +117,7 @@ library AssetConfiguration {
   }
 
   function setAssetFactor(DataTypes.AssetConfigurationMap memory self, uint256 assetFactor) internal pure {
-    require(assetFactor <= MAX_VALID_RESERVE_FACTOR, Errors.InvalidReserveFactor());
+    if (assetFactor > MAX_VALID_RESERVE_FACTOR) revert Errors.InvalidReserveFactor();
     self.data = (self.data & ~ASSET_FACTOR_MASK) | (assetFactor << RESERVE_FACTOR_START_BIT_POSITION);
   }
 
@@ -126,7 +126,7 @@ library AssetConfiguration {
   }
 
   function setBorrowCap(DataTypes.AssetConfigurationMap memory self, uint256 borrowCap) internal pure {
-    require(borrowCap <= MAX_VALID_BORROW_CAP, Errors.InvalidBorrowCap());
+    if (borrowCap > MAX_VALID_BORROW_CAP) revert Errors.InvalidBorrowCap();
     self.data = (self.data & ~BORROW_CAP_MASK) | (borrowCap << BORROW_CAP_START_BIT_POSITION);
   }
 
@@ -135,7 +135,7 @@ library AssetConfiguration {
   }
 
   function setSupplyCap(DataTypes.AssetConfigurationMap memory self, uint256 supplyCap) internal pure {
-    require(supplyCap <= MAX_VALID_SUPPLY_CAP, Errors.InvalidSupplyCap());
+    if (supplyCap > MAX_VALID_SUPPLY_CAP) revert Errors.InvalidSupplyCap();
     self.data = (self.data & ~SUPPLY_CAP_MASK) | (supplyCap << SUPPLY_CAP_START_BIT_POSITION);
   }
 
@@ -144,7 +144,7 @@ library AssetConfiguration {
   }
 
   function setLiquidationProtocolFee(DataTypes.AssetConfigurationMap memory self, uint256 liquidationProtocolFee) internal pure {
-    require(liquidationProtocolFee <= MAX_VALID_LIQUIDATION_PROTOCOL_FEE, Errors.InvalidLiquidationProtocolFee());
+    if (liquidationProtocolFee > MAX_VALID_LIQUIDATION_PROTOCOL_FEE) revert Errors.InvalidLiquidationProtocolFee();
     self.data = (self.data & ~LIQUIDATION_PROTOCOL_FEE_MASK) | (liquidationProtocolFee << LIQUIDATION_PROTOCOL_FEE_START_BIT_POSITION);
   }
 

@@ -12,7 +12,7 @@ import {IPoolConfigurator} from '../../interfaces/IPoolConfigurator.sol';
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
 import {ConfiguratorLogic} from '../libraries/logic/ConfiguratorLogic.sol';
-import {IERC20} from '../../interfaces/IERC20.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 /**
  * @title PoolConfigurator
