@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Lock, TrendingUp, AlertCircle, Clock, Gift, Zap, ChevronDown } from 'lucide-react';
 import NotificationToast from './NotificationToast';
 import { hederaService } from '../../../../../services/hederaService';
+import { stakingService } from '../../../../../services/stakingService';
 
 const MultiAssetStaking = () => {
   // Use default wallet from Redux (same pattern as SidebarSection)
@@ -137,28 +138,15 @@ const MultiAssetStaking = () => {
 
     setIsLoadingStakes(true);
     try {
-      // TODO: Integrate with DeraMultiAssetStaking contract
-      // const stakes = await stakingService.getUserStakes(connectedAccount);
-      // setUserStakes(stakes);
+      // Initialize staking service if not already initialized
+      if (!stakingService.isInitialized) {
+        const contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
+        await stakingService.initialize(contractAddress);
+      }
 
-      // Mock data for now
-      const mockStakes = [
-        {
-          stakeId: 1,
-          assetType: 'HBAR',
-          tokenAddress: '0x0000000000000000000000000000000000000000',
-          amount: '100',
-          serialNumber: 0,
-          startTime: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-          lockPeriod: 30,
-          unlockTime: Date.now() + 25 * 24 * 60 * 60 * 1000, // 25 days from now
-          rewardAPY: 10,
-          accumulatedRewards: '1.37',
-          status: 'ACTIVE'
-        }
-      ];
-
-      setUserStakes(mockStakes);
+      // Fetch stakes from contract (or mock data if not deployed)
+      const stakes = await stakingService.getUserStakes(connectedAccount);
+      setUserStakes(stakes);
     } catch (error) {
       console.error('Error loading stakes:', error);
       showNotification('Failed to load your stakes', 'error');
@@ -196,21 +184,33 @@ const MultiAssetStaking = () => {
 
     setIsStaking(true);
     try {
-      // TODO: Integrate with DeraMultiAssetStaking contract
-      // Example integration:
-      // if (assetType === 'HBAR') {
-      //   await stakingService.stakeFungibleToken(
-      //     '0x0000000000000000000000000000000000000000', // HBAR address
-      //     ethers.utils.parseEther(amount),
-      //     lockPeriod * 24 * 60 * 60 // Convert days to seconds
-      //   );
-      // } else if (assetType === 'NFT') {
-      //   await stakingService.stakeNFT(
-      //     tokenAddress,
-      //     parseInt(serialNumber),
-      //     lockPeriod * 24 * 60 * 60
-      //   );
-      // }
+      // Initialize staking service if needed
+      if (!stakingService.isInitialized) {
+        const contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
+        await stakingService.initialize(contractAddress);
+      }
+
+      let result;
+
+      // Call appropriate staking method based on asset type
+      if (assetType === 'NFT') {
+        result = await stakingService.stakeNFT(
+          tokenAddress,
+          parseInt(serialNumber),
+          lockPeriod
+        );
+      } else {
+        // HBAR, HTS_TOKEN, or RWA (all use stakeFungibleToken)
+        const tokenAddr = assetType === 'HBAR'
+          ? '0x0000000000000000000000000000000000000000'
+          : tokenAddress;
+
+        result = await stakingService.stakeFungibleToken(
+          tokenAddr,
+          amount,
+          lockPeriod
+        );
+      }
 
       showNotification(
         `Successfully staked ${assetType === 'NFT' ? 'NFT' : amount + ' ' + assetType} for ${lockPeriod} days!`,
@@ -221,6 +221,8 @@ const MultiAssetStaking = () => {
       setAmount('');
       setTokenAddress('');
       setSerialNumber('');
+      setSelectedToken(null);
+      setSelectedNFT(null);
 
       // Reload stakes
       await loadUserStakes();
@@ -235,9 +237,7 @@ const MultiAssetStaking = () => {
   const handleUnstake = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Integrate with contract
-      // await stakingService.unstake(stakeId);
-
+      await stakingService.unstake(stakeId);
       showNotification('Successfully unstaked!', 'success');
       await loadUserStakes();
     } catch (error) {
@@ -251,9 +251,7 @@ const MultiAssetStaking = () => {
   const handleClaimRewards = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Integrate with contract
-      // await stakingService.claimRewards(stakeId);
-
+      await stakingService.claimRewards(stakeId);
       showNotification('Successfully claimed rewards!', 'success');
       await loadUserStakes();
     } catch (error) {
