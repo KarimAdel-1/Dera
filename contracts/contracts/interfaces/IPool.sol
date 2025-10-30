@@ -14,7 +14,6 @@ interface IPool {
   event Withdraw(address indexed asset, address indexed user, address indexed to, uint256 amount);
   event Borrow(address indexed asset, address user, address indexed onBehalfOf, uint256 amount, DataTypes.InterestRateMode interestRateMode, uint256 borrowRate, uint16 indexed referralCode);
   event Repay(address indexed asset, address indexed user, address indexed repayer, uint256 amount, bool useSupplyTokens);
-  event IsolationModeTotalDebtUpdated(address indexed asset, uint256 totalDebt);
   event AssetUsedAsCollateralEnabled(address indexed reserve, address indexed user);
   event AssetUsedAsCollateralDisabled(address indexed reserve, address indexed user);
 
@@ -56,7 +55,6 @@ interface IPool {
   function ADDRESSES_PROVIDER() external view returns (IPoolAddressesProvider);
   function RESERVE_INTEREST_RATE_STRATEGY() external view returns (address);
 
-  function resetIsolationModeTotalDebt(address asset) external;
   function setLiquidationGracePeriod(address asset, uint40 until) external;
   function getLiquidationGracePeriod(address asset) external view returns (uint40);
 

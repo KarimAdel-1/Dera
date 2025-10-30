@@ -224,7 +224,7 @@ library SupplyLogic {
       require(IDeraSupplyToken(asset.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
       require(
         ValidationLogic.validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfigCached),
-        Errors.UserInIsolationModeOrLtvZero()
+        Errors.LtvValidationFailed()
       );
       userConfig.setUsingAsCollateral(asset.id, asset, user, true);
     } else {

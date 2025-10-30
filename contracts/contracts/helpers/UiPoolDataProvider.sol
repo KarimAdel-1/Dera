@@ -75,11 +75,6 @@ contract UiPoolDataProvider {
     // v3 fields
     bool isPaused;
     uint128 accruedToTreasury;
-    uint128 unbacked;
-    uint128 isolationModeTotalDebt;
-    uint256 debtCeiling;
-    uint256 debtCeilingDecimals;
-    uint8 eModeCategoryId;
     uint256 borrowCap;
     uint256 supplyCap;
     uint256 virtualUnderlyingBalance;
@@ -210,10 +205,8 @@ contract UiPoolDataProvider {
       (reserveData.borrowCap, reserveData.supplyCap) = reserveConfigurationMap.getCaps();
 
       // Additional fields
-      assetData.accruedToTreasury = baseData.accruedToTreasury;
-      reserveData.unbacked = baseData.unbacked;
-      reserveData.isolationModeTotalDebt = baseData.isolationModeTotalDebt;
-      
+      reserveData.accruedToTreasury = baseData.accruedToTreasury;
+
       try pool.getVirtualUnderlyingBalance(reserveData.underlyingAsset) returns (
         uint128 virtualBalance
       ) {

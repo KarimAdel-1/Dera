@@ -27,8 +27,8 @@ import {GenericLogic} from './GenericLogic.sol';
  * - Asset Init: Initialize new pool asset with DeraSupplyToken and DeraBorrowToken addresses
  * - Treasury Minting: Mint accrued fees to treasury (protocol revenue)
  * - State Sync: Update asset indexes and interest rates
- * - Asset Management: Drop assets, reset isolation mode debt
- * 
+ * - Asset Management: Drop assets
+ *
  * SAFETY:
  * - Validation: Checks reserve not already added, max reserves not exceeded
  * - Treasury: Only mints accrued fees, not arbitrary amounts

@@ -160,13 +160,6 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     emit AssetFrozen(asset, freeze);
   }
 
-  function setBorrowableInIsolation(address asset, bool borrowable) external override onlyRiskOrPoolAdmins {
-    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    currentConfig.setBorrowableInIsolation(borrowable);
-    _pool.setConfiguration(asset, currentConfig);
-    emit BorrowableInIsolationChanged(asset, borrowable);
-  }
-
   function setAssetPause(address asset, bool paused, uint40 gracePeriod) public override onlyEmergencyOrPoolAdmin {
     if (!paused && gracePeriod != 0) {
       require(gracePeriod <= MAX_GRACE_PERIOD, Errors.InvalidGracePeriod());
@@ -228,29 +221,6 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     currentConfig.setLiquidationProtocolFee(newFee);
     _pool.setConfiguration(asset, currentConfig);
     emit LiquidationProtocolFeeChanged(asset, oldFee, newFee);
-  }
-
-  function setDebtCeiling(address asset, uint256 newDebtCeiling) external override onlyRiskOrPoolAdmins {
-    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    uint256 oldDebtCeiling = currentConfig.getDebtCeiling();
-    if (currentConfig.getLiquidationThreshold() != 0 && oldDebtCeiling == 0) {
-      _checkNoSuppliers(asset);
-    }
-    currentConfig.setDebtCeiling(newDebtCeiling);
-    _pool.setConfiguration(asset, currentConfig);
-
-    emit DebtCeilingChanged(asset, oldDebtCeiling, newDebtCeiling);
-  }
-
-  function setSiloedBorrowing(address asset, bool newSiloed) external override onlyRiskOrPoolAdmins {
-    if (newSiloed) {
-      _checkNoBorrowers(asset);
-    }
-    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    bool oldSiloed = currentConfig.getSiloedBorrowing();
-    currentConfig.setSiloedBorrowing(newSiloed);
-    _pool.setConfiguration(asset, currentConfig);
-    emit SiloedBorrowingChanged(asset, oldSiloed, newSiloed);
   }
 
   function setPoolPause(bool paused, uint40 gracePeriod) public override onlyEmergencyOrPoolAdmin {
