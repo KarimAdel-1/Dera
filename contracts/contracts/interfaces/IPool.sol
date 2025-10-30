@@ -15,7 +15,6 @@ interface IPool {
   event Borrow(address indexed asset, address user, address indexed onBehalfOf, uint256 amount, DataTypes.InterestRateMode interestRateMode, uint256 borrowRate, uint16 indexed referralCode);
   event Repay(address indexed asset, address indexed user, address indexed repayer, uint256 amount, bool useSupplyTokens);
   event IsolationModeTotalDebtUpdated(address indexed asset, uint256 totalDebt);
-  event UserEModeSet(address indexed user, uint8 categoryId);
   event AssetUsedAsCollateralEnabled(address indexed reserve, address indexed user);
   event AssetUsedAsCollateralDisabled(address indexed reserve, address indexed user);
 
@@ -57,16 +56,6 @@ interface IPool {
   function ADDRESSES_PROVIDER() external view returns (IPoolAddressesProvider);
   function RESERVE_INTEREST_RATE_STRATEGY() external view returns (address);
 
-  function configureEModeCategory(uint8 id, DataTypes.EModeCategoryBaseConfiguration memory config) external;
-  function configureEModeCategoryCollateralBitmap(uint8 id, uint128 collateralBitmap) external;
-  function configureEModeCategoryBorrowableBitmap(uint8 id, uint128 borrowableBitmap) external;
-  function getEModeCategoryData(uint8 id) external view returns (DataTypes.EModeCategoryLegacy memory);
-  function getEModeCategoryLabel(uint8 id) external view returns (string memory);
-  function getEModeCategoryCollateralConfig(uint8 id) external view returns (DataTypes.CollateralConfig memory);
-  function getEModeCategoryCollateralBitmap(uint8 id) external view returns (uint128);
-  function getEModeCategoryBorrowableBitmap(uint8 id) external view returns (uint128);
-  function setUserEMode(uint8 categoryId) external;
-  function getUserEMode(address user) external view returns (uint256);
   function resetIsolationModeTotalDebt(address asset) external;
   function setLiquidationGracePeriod(address asset, uint40 until) external;
   function getLiquidationGracePeriod(address asset) external view returns (uint40);
@@ -79,14 +68,12 @@ interface IPool {
   function approvePositionManager(address positionManager, bool approve) external;
   function renouncePositionManagerRole(address user) external;
   function setUserUseAssetAsCollateralOnBehalfOf(address asset, bool useAsCollateral, address onBehalfOf) external;
-  function setUserEModeOnBehalfOf(uint8 categoryId, address onBehalfOf) external;
   function isApprovedPositionManager(address user, address positionManager) external view returns (bool);
   function getAssetDeficit(address asset) external view returns (uint256);
   function getAssetSupplyToken(address asset) external view returns (address);
   function getAssetBorrowToken(address asset) external view returns (address);
 
   function getBorrowLogic() external pure returns (address);
-  function getEModeLogic() external pure returns (address);
   function getLiquidationLogic() external pure returns (address);
   function getPoolLogic() external pure returns (address);
   function getSupplyLogic() external pure returns (address);

@@ -74,21 +74,6 @@ library DataTypes {
     uint16 liquidationBonus;
   }
 
-  struct EModeCategoryBaseConfiguration {
-    uint16 ltv;
-    uint16 liquidationThreshold;
-    uint16 liquidationBonus;
-    string label;
-  }
-
-  struct EModeCategoryLegacy {
-    uint16 ltv;
-    uint16 liquidationThreshold;
-    uint16 liquidationBonus;
-    address priceSource;
-    string label;
-  }
-
   enum InterestRateMode {
     NONE,
     VARIABLE

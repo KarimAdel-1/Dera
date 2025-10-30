@@ -41,10 +41,8 @@ library Errors {
   error InvalidAddressesProvider();
   error AssetAlreadyAdded();
   error NoMoreReservesAllowed();
-  error EModeCategoryReserved();
   error AssetLiquidityNotZero();
   error InvalidReserveParams();
-  error InvalidEmodeCategoryParams();
   error CallerMustBePool();
   error InvalidMintAmount();
   error InvalidBurnAmount();
@@ -69,7 +67,6 @@ library Errors {
   error UnderlyingClaimableRightsNotZero();
   error VariableDebtSupplyNotZero();
   error LtvValidationFailed();
-  error InconsistentEModeCategory();
   error PriceOracleSentinelCheckFailed();
   error AssetNotBorrowableInIsolation();
   error AssetAlreadyInitialized();
@@ -106,7 +103,6 @@ library Errors {
   error LiquidationGraceSentinelCheckFailed();
   error InvalidGracePeriod();
   error InvalidFreezeState();
-  error NotBorrowableInEMode();
   error CallerNotUmbrella();
   error AssetNotInDeficit();
   error MustNotLeaveDust();

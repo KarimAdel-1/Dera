@@ -24,9 +24,6 @@ interface IPoolConfigurator {
   event LiquidationProtocolFeeChanged(address indexed asset, uint256 oldFee, uint256 newFee);
   event LiquidationGracePeriodChanged(address indexed asset, uint40 gracePeriodUntil);
   event LiquidationGracePeriodDisabled(address indexed asset);
-  event AssetCollateralInEModeChanged(address indexed asset, uint8 categoryId, bool collateral);
-  event AssetBorrowableInEModeChanged(address indexed asset, uint8 categoryId, bool borrowable);
-  event EModeCategoryAdded(uint8 indexed categoryId, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus, address oracle, string label);
   event ReserveInterestRateStrategyChanged(address indexed asset, address oldStrategy, address newStrategy);
   event AssetInterestRateDataChanged(address indexed asset, address indexed strategy, bytes data);
   event SupplyTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
@@ -56,9 +53,6 @@ interface IPoolConfigurator {
   function setBorrowCap(address asset, uint256 newBorrowCap) external;
   function setSupplyCap(address asset, uint256 newSupplyCap) external;
   function setLiquidationProtocolFee(address asset, uint256 newFee) external;
-  function setAssetBorrowableInEMode(address asset, uint8 categoryId, bool borrowable) external;
-  function setAssetCollateralInEMode(address asset, uint8 categoryId, bool collateral) external;
-  function setEModeCategory(uint8 categoryId, uint16 ltv, uint16 liquidationThreshold, uint16 liquidationBonus, string calldata label) external;
   function dropAsset(address asset) external;
 
   function setDebtCeiling(address asset, uint256 newDebtCeiling) external;
