@@ -9,6 +9,10 @@
     "frontend"
   ],
   "scripts": {
+    "setup": "node setup-environment.js",
+    "deploy": "node deploy.js",
+    "deploy:quick": "cd contracts && npx hardhat run scripts/deploy-complete.js --network testnet",
+    "deploy:hcs": "cd contracts && node scripts/create-hcs-topics.js",
     "install:all": "npm install && npm run install:contracts && npm run install:backend && npm run install:frontend",
     "install:contracts": "cd contracts && npm install",
     "install:backend": "cd backend && npm install",

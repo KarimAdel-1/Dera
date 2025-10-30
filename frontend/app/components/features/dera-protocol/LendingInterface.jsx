@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import deraProtocolService from '../../../../services/deraProtocolServiceV2';
+import deraProtocolService from '../../../../services/deraProtocolService';
 import toast from 'react-hot-toast';
 
 export default function LendingInterface({ userAddress }) {
@@ -34,7 +34,9 @@ export default function LendingInterface({ userAddress }) {
 
   const loadUserData = async () => {
     try {
-      const accountData = await deraProtocolService.getUserAccountData(userAddress);
+      const accountData = await deraProtocolService.getUserAccountData(
+        userAddress
+      );
       setUserAccountData(accountData);
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -49,7 +51,9 @@ export default function LendingInterface({ userAddress }) {
 
     setLoading(true);
     try {
-      const amountInUnits = (parseFloat(amount) * Math.pow(10, selectedAsset.decimals)).toString();
+      const amountInUnits = (
+        parseFloat(amount) * Math.pow(10, selectedAsset.decimals)
+      ).toString();
       const txId = await deraProtocolService.supply(
         selectedAsset.address,
         amountInUnits,
@@ -76,7 +80,9 @@ export default function LendingInterface({ userAddress }) {
 
     setLoading(true);
     try {
-      const amountInUnits = (parseFloat(amount) * Math.pow(10, selectedAsset.decimals)).toString();
+      const amountInUnits = (
+        parseFloat(amount) * Math.pow(10, selectedAsset.decimals)
+      ).toString();
       const txId = await deraProtocolService.borrow(
         selectedAsset.address,
         amountInUnits,
@@ -153,7 +159,9 @@ export default function LendingInterface({ userAddress }) {
               <select
                 value={selectedAsset?.address || ''}
                 onChange={(e) => {
-                  const asset = assets.find((a) => a.address === e.target.value);
+                  const asset = assets.find(
+                    (a) => a.address === e.target.value
+                  );
                   setSelectedAsset(asset);
                 }}
                 className="w-full px-4 py-3 bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-[12px] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
@@ -209,7 +217,9 @@ export default function LendingInterface({ userAddress }) {
             {amount && parseFloat(amount) > 0 && (
               <div className="bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-[12px] p-4 space-y-2">
                 <div className="flex justify-between text-[13px] sm:text-[14px]">
-                  <span className="text-[var(--color-text-muted)]">Transaction Type</span>
+                  <span className="text-[var(--color-text-muted)]">
+                    Transaction Type
+                  </span>
                   <span className="text-[var(--color-text-primary)] font-medium">
                     {mode === 'supply' ? 'Supply' : 'Borrow'}
                   </span>
@@ -221,8 +231,12 @@ export default function LendingInterface({ userAddress }) {
                   </span>
                 </div>
                 <div className="flex justify-between text-[13px] sm:text-[14px]">
-                  <span className="text-[var(--color-text-muted)]">Estimated Gas</span>
-                  <span className="text-[var(--color-text-primary)] font-medium">~0.05 HBAR</span>
+                  <span className="text-[var(--color-text-muted)]">
+                    Estimated Gas
+                  </span>
+                  <span className="text-[var(--color-text-primary)] font-medium">
+                    ~0.05 HBAR
+                  </span>
                 </div>
               </div>
             )}
@@ -278,7 +292,9 @@ export default function LendingInterface({ userAddress }) {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">Health Factor</span>
+                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">
+                    Health Factor
+                  </span>
                   <span
                     className={`text-[13px] sm:text-[14px] font-semibold ${
                       userAccountData.healthFactor >= 2
@@ -312,19 +328,25 @@ export default function LendingInterface({ userAddress }) {
 
               <div className="pt-4 border-t border-[var(--color-border-secondary)] space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">Total Supplied</span>
+                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">
+                    Total Supplied
+                  </span>
                   <span className="text-[13px] sm:text-[14px] font-medium text-[var(--color-success)]">
                     {formatUSD(userAccountData.totalSuppliedUSD)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">Total Borrowed</span>
+                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">
+                    Total Borrowed
+                  </span>
                   <span className="text-[13px] sm:text-[14px] font-medium text-[var(--color-text-primary)]">
                     {formatUSD(userAccountData.totalBorrowedUSD)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">Available to Borrow</span>
+                  <span className="text-[11px] sm:text-[12px] text-[var(--color-text-muted)]">
+                    Available to Borrow
+                  </span>
                   <span className="text-[13px] sm:text-[14px] font-medium text-[var(--color-primary)]">
                     {formatUSD(userAccountData.availableToBorrowUSD)}
                   </span>

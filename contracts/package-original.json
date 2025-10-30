@@ -8,10 +8,8 @@
     "test:integration": "hardhat test test/integration/**/*.test.js",
     "test:coverage": "hardhat coverage",
     "compile": "hardhat compile",
-    "deploy": "hardhat run scripts/deploy-complete.js --network testnet",
-    "deploy:testnet": "hardhat run scripts/deploy-complete.js --network testnet",
-    "deploy:hcs": "node scripts/create-hcs-topics.js",
-    "verify": "hardhat run scripts/verify-deployment.js --network testnet",
+    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network testnet",
     "export-abis": "node scripts/export-missing-abis.js",
     "postcompile": "npm run export-abis"
   },
@@ -29,7 +27,6 @@
   "dependencies": {
     "@hashgraph/sdk": "^2.39.0",
     "@openzeppelin/contracts": "4.9.6",
-    "@openzeppelin/contracts-upgradeable": "4.9.6",
-    "dotenv": "^16.3.1"
+    "@openzeppelin/contracts-upgradeable": "4.9.6"
   }
 }
