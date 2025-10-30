@@ -235,17 +235,14 @@ contract UiPoolDataProvider {
    * @param provider PoolAddressesProvider address
    * @param user User address
    * @return userReservesData Array of user reserve data
-   * @return userEmodeCategoryId User's eMode category
    */
   function getUserAssetsData(
     IPoolAddressesProvider provider,
     address user
-  ) external view returns (UserReserveData[] memory, uint8) {
+  ) external view returns (UserReserveData[] memory) {
     IPool pool = IPool(provider.getPool());
     address[] memory reserves = pool.getAssetsList();
     DataTypes.UserConfigurationMap memory userConfig = pool.getUserConfiguration(user);
-
-    uint8 userEmodeCategoryId = uint8(pool.getUserEMode(user));
 
     UserReserveData[] memory userReservesData = new UserReserveData[](
       user != address(0) ? reserves.length : 0
@@ -267,6 +264,6 @@ contract UiPoolDataProvider {
       }
     }
 
-    return (userReservesData, userEmodeCategoryId);
+    return userReservesData;
   }
 }
