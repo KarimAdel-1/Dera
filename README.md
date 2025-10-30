@@ -10,6 +10,7 @@
 
 ## 📋 Table of Contents
 
+- [Quick Links for Judges](#-quick-links-for-judges)
 - [Project Overview](#-project-overview)
 - [Hedera Integration Summary](#-hedera-integration-summary)
 - [Quick Start (5 Minutes)](#-quick-start-5-minutes)
@@ -23,6 +24,21 @@
 - [Project Structure](#-project-structure)
 - [Economic Model](#-economic-model)
 - [Future Roadmap](#-future-roadmap)
+
+---
+
+## 🎯 Quick Links for Judges
+
+**⚡ Super Fast Start:**
+- **[JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)** - 5-step deployment guide with checklist
+- **[DEPLOYMENT_SCRIPTS_GUIDE.md](./DEPLOYMENT_SCRIPTS_GUIDE.md)** - Detailed script documentation
+
+**Essential Commands:**
+```bash
+npm run verify-setup      # Check prerequisites (10 seconds)
+npm run deploy:hackathon  # Deploy everything (5-8 minutes)
+cd frontend && npm run dev # Start frontend
+```
 
 ---
 
