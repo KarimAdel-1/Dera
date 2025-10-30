@@ -397,6 +397,110 @@ class DeraProtocolService {
   }
 
   /**
+   * Get detailed asset configuration
+   * @param {string} assetAddress - Asset address
+   * @returns {Promise<Object>} Asset details including APY, LTV, etc.
+   */
+  async getAssetDetails(assetAddress) {
+    try {
+      // Get asset data from pool
+      const assetData = await this.poolContract.getAssetData(assetAddress);
+
+      // Get asset configuration
+      const config = await this.poolContract.getConfiguration(assetAddress);
+
+      // Get token metadata (symbol, name, decimals)
+      const tokenContract = new ethers.Contract(assetAddress, ERC20ABI.abi, this.provider);
+      let symbol, name, decimals;
+
+      try {
+        [symbol, name, decimals] = await Promise.all([
+          tokenContract.symbol(),
+          tokenContract.name(),
+          tokenContract.decimals()
+        ]);
+      } catch (e) {
+        // Handle HBAR (native token) or tokens without standard interface
+        if (assetAddress === '0x0000000000000000000000000000000000000000' ||
+            assetAddress.toLowerCase().includes('hbar')) {
+          symbol = 'HBAR';
+          name = 'Hedera';
+          decimals = 8;
+        } else {
+          throw e;
+        }
+      }
+
+      // Get price from oracle
+      let price = '0';
+      try {
+        const oraclePrice = await this.oracleContract.getAssetPrice(assetAddress);
+        price = ethers.formatUnits(oraclePrice, 8);
+      } catch (error) {
+        console.warn(`Could not fetch price for ${symbol}:`, error.message);
+        // Use default price if oracle not available
+        price = symbol === 'USDC' ? '1.00' : '0.08';
+      }
+
+      // Convert APY from ray (27 decimals) to percentage
+      const supplyAPY = Number(ethers.formatUnits(assetData.currentLiquidityRate || 0, 27)) * 100;
+      const borrowAPY = Number(ethers.formatUnits(assetData.currentVariableBorrowRate || 0, 27)) * 100;
+
+      // Extract LTV and liquidation threshold from configuration
+      // Configuration is a bitmap where:
+      // bits 0-15: LTV (in basis points, e.g. 8000 = 80%)
+      // bits 16-31: Liquidation threshold
+      const configData = config.data || config;
+      const ltv = Number(configData) & 0xFFFF; // First 16 bits
+      const liquidationThreshold = (Number(configData) >> 16) & 0xFFFF; // Next 16 bits
+
+      return {
+        address: assetAddress,
+        symbol,
+        name,
+        decimals: Number(decimals),
+        supplyAPY: supplyAPY.toFixed(2),
+        borrowAPY: borrowAPY.toFixed(2),
+        price: price,
+        ltv: ltv / 100, // Convert basis points to percentage
+        liquidationThreshold: liquidationThreshold / 100,
+        liquidityIndex: ethers.formatUnits(assetData.liquidityIndex || 0, 27),
+        variableBorrowIndex: ethers.formatUnits(assetData.variableBorrowIndex || 0, 27)
+      };
+    } catch (error) {
+      console.error(`Get asset details error for ${assetAddress}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all supported assets with detailed information
+   * @returns {Promise<Array>} Array of asset objects with full details
+   */
+  async getSupportedAssets() {
+    try {
+      // Get list of asset addresses from contract
+      const assetAddresses = await this.getAssetsList();
+
+      console.log(`Found ${assetAddresses.length} assets in pool`);
+
+      // Fetch detailed information for each asset
+      const assetsDetails = await Promise.all(
+        assetAddresses.map(address => this.getAssetDetails(address))
+      );
+
+      console.log('✅ Loaded assets from contract:', assetsDetails);
+      return assetsDetails;
+    } catch (error) {
+      console.error('Get supported assets error:', error);
+
+      // If contract call fails, throw error - no fallback
+      // Frontend should handle this by showing error message
+      throw new Error(`Failed to load assets from Pool contract: ${error.message}`);
+    }
+  }
+
+  /**
    * Get asset price from oracle
    * @param {string} asset - Asset address
    * @returns {Promise<string>} Price in base currency (8 decimals)
@@ -630,17 +734,7 @@ class DeraProtocolService {
       };
     } catch (error) {
       console.error('Get protocol metrics error:', error);
-
-      // Return empty data if analytics contract not available
-      console.warn('⚠️ Analytics contract not available');
-      return {
-        totalValueLocked: '0',
-        totalSupplied: '0', 
-        totalBorrowed: '0',
-        totalUsers: 0,
-        totalTransactions: 0,
-        lastUpdateTimestamp: Date.now()
-      };
+      throw new Error(`Failed to load protocol metrics from Analytics contract: ${error.message}`);
     }
   }
 
@@ -671,19 +765,7 @@ class DeraProtocolService {
       };
     } catch (error) {
       console.error('Get asset metrics error:', error);
-
-      // Return empty data if analytics contract not available
-      console.warn('⚠️ Analytics contract not available for asset:', assetAddress);
-      return {
-        totalSupply: '0',
-        totalBorrow: '0',
-        supplyAPY: '0.00',
-        borrowAPY: '0.00', 
-        utilization: '0.00',
-        supplierCount: 0,
-        borrowerCount: 0,
-        volume24h: '0'
-      };
+      throw new Error(`Failed to load asset metrics from Analytics contract: ${error.message}`);
     }
   }
 
@@ -710,10 +792,7 @@ class DeraProtocolService {
       }));
     } catch (error) {
       console.error('Get historical snapshots error:', error);
-
-      // Return empty data if analytics contract not available
-      console.warn('⚠️ Analytics contract not available');
-      return [];
+      throw new Error(`Failed to load historical snapshots from Analytics contract: ${error.message}`);
     }
   }
 }
