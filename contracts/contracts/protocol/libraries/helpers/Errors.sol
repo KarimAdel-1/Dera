@@ -63,14 +63,11 @@ library Errors {
   error SpecifiedCurrencyNotBorrowedByUser();
   error BorrowCapExceeded();
   error SupplyCapExceeded();
-  error DebtCeilingExceeded();
   error UnderlyingClaimableRightsNotZero();
   error VariableDebtSupplyNotZero();
   error LtvValidationFailed();
   error PriceOracleSentinelCheckFailed();
-  error AssetNotBorrowableInIsolation();
   error AssetAlreadyInitialized();
-  error UserInIsolationModeOrLtvZero();
   error InvalidLtv();
   error InvalidLiquidationThreshold();
   error InvalidLiquidationBonus();
@@ -79,7 +76,6 @@ library Errors {
   error InvalidBorrowCap();
   error InvalidSupplyCap();
   error InvalidLiquidationProtocolFee();
-  error InvalidDebtCeiling();
   error InvalidReserveIndex();
   error AclAdminCannotBeZero();
   error InconsistentParamsLength();
@@ -87,13 +83,11 @@ library Errors {
   error InvalidExpiration();
   error InvalidSignature();
   error OperationNotSupported();
-  error DebtCeilingNotZero();
   error AssetNotListed();
   error InvalidOptimalUsageRatio();
   error UnderlyingCannotBeRescued();
   error AddressesProviderAlreadyAdded();
   error PoolAddressesDoNotMatch();
-  error SiloedBorrowingViolation();
   error AssetDebtNotZero();
   error InvalidMaxRate();
   error WithdrawToSupplyToken();

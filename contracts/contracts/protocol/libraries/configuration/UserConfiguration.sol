@@ -86,29 +86,6 @@ library UserConfiguration {
     return self.data == 0;
   }
 
-  function getIsolationModeState(DataTypes.UserConfigurationMap memory self, mapping(address => DataTypes.PoolAssetData) storage poolAssets, mapping(uint256 => address) storage assetsList) internal view returns (bool, address, uint256) {
-    if (isUsingAsCollateralOne(self)) {
-      uint256 assetId = _getFirstAssetIdByMask(self, COLLATERAL_MASK);
-      address assetAddress = assetsList[assetId];
-      uint256 ceiling = poolAssets[assetAddress].configuration.getDebtCeiling();
-      if (ceiling != 0) {
-        return (true, assetAddress, ceiling);
-      }
-    }
-    return (false, address(0), 0);
-  }
-
-  function getSiloedBorrowingState(DataTypes.UserConfigurationMap memory self, mapping(address => DataTypes.PoolAssetData) storage poolAssets, mapping(uint256 => address) storage assetsList) internal view returns (bool, address) {
-    if (isBorrowingOne(self)) {
-      uint256 assetId = _getFirstAssetIdByMask(self, BORROWING_MASK);
-      address assetAddress = assetsList[assetId];
-      if (poolAssets[assetAddress].configuration.getSiloedBorrowing()) {
-        return (true, assetAddress);
-      }
-    }
-    return (false, address(0));
-  }
-
   function getNextFlags(uint256 data) internal pure returns (uint256, bool, bool) {
     bool isBorrowed = data & 1 == 1;
     bool isEnabledAsCollateral = data & 2 == 2;

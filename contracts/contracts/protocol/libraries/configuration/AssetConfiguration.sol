@@ -18,13 +18,10 @@ library AssetConfiguration {
   uint256 internal constant FROZEN_MASK = 0x0000000000000000000000000000000000000000000000000200000000000000;
   uint256 internal constant BORROWING_MASK = 0x0000000000000000000000000000000000000000000000000400000000000000;
   uint256 internal constant PAUSED_MASK = 0x0000000000000000000000000000000000000000000000001000000000000000;
-  uint256 internal constant BORROWABLE_IN_ISOLATION_MASK = 0x0000000000000000000000000000000000000000000000002000000000000000;
-  uint256 internal constant SILOED_BORROWING_MASK = 0x0000000000000000000000000000000000000000000000004000000000000000;
   uint256 internal constant ASSET_FACTOR_MASK = 0x00000000000000000000000000000000000000000000FFFF0000000000000000;
   uint256 internal constant BORROW_CAP_MASK = 0x00000000000000000000000000000000000FFFFFFFFF00000000000000000000;
   uint256 internal constant SUPPLY_CAP_MASK = 0x00000000000000000000000000FFFFFFFFF00000000000000000000000000000;
   uint256 internal constant LIQUIDATION_PROTOCOL_FEE_MASK = 0x0000000000000000000000FFFF00000000000000000000000000000000000000;
-  uint256 internal constant DEBT_CEILING_MASK = 0x0FFFFFFFFFF00000000000000000000000000000000000000000000000000000;
   uint256 internal constant VIRTUAL_ACC_ACTIVE_MASK = 0x1000000000000000000000000000000000000000000000000000000000000000;
 
   uint256 internal constant LIQUIDATION_THRESHOLD_START_BIT_POSITION = 16;
@@ -34,13 +31,10 @@ library AssetConfiguration {
   uint256 internal constant IS_FROZEN_START_BIT_POSITION = 57;
   uint256 internal constant BORROWING_ENABLED_START_BIT_POSITION = 58;
   uint256 internal constant IS_PAUSED_START_BIT_POSITION = 60;
-  uint256 internal constant BORROWABLE_IN_ISOLATION_START_BIT_POSITION = 61;
-  uint256 internal constant SILOED_BORROWING_START_BIT_POSITION = 62;
   uint256 internal constant RESERVE_FACTOR_START_BIT_POSITION = 64;
   uint256 internal constant BORROW_CAP_START_BIT_POSITION = 80;
   uint256 internal constant SUPPLY_CAP_START_BIT_POSITION = 116;
   uint256 internal constant LIQUIDATION_PROTOCOL_FEE_START_BIT_POSITION = 152;
-  uint256 internal constant DEBT_CEILING_START_BIT_POSITION = 212;
   uint256 internal constant VIRTUAL_ACC_START_BIT_POSITION = 252;
 
   uint256 internal constant MAX_VALID_LTV = 65535;
@@ -51,9 +45,7 @@ library AssetConfiguration {
   uint256 internal constant MAX_VALID_BORROW_CAP = 68719476735;
   uint256 internal constant MAX_VALID_SUPPLY_CAP = 68719476735;
   uint256 internal constant MAX_VALID_LIQUIDATION_PROTOCOL_FEE = 65535;
-  uint256 internal constant MAX_VALID_DEBT_CEILING = 1099511627775;
 
-  uint256 public constant DEBT_CEILING_DECIMALS = 2;
   uint16 public constant MAX_RESERVES_COUNT = 128;
 
   function setLtv(DataTypes.AssetConfigurationMap memory self, uint256 ltv) internal pure {
@@ -116,22 +108,6 @@ library AssetConfiguration {
     return (self.data & PAUSED_MASK) != 0;
   }
 
-  function setBorrowableInIsolation(DataTypes.AssetConfigurationMap memory self, bool borrowable) internal pure {
-    self.data = (self.data & ~BORROWABLE_IN_ISOLATION_MASK) | (uint256(borrowable ? 1 : 0) << BORROWABLE_IN_ISOLATION_START_BIT_POSITION);
-  }
-
-  function getBorrowableInIsolation(DataTypes.AssetConfigurationMap memory self) internal pure returns (bool) {
-    return (self.data & BORROWABLE_IN_ISOLATION_MASK) != 0;
-  }
-
-  function setSiloedBorrowing(DataTypes.AssetConfigurationMap memory self, bool siloed) internal pure {
-    self.data = (self.data & ~SILOED_BORROWING_MASK) | (uint256(siloed ? 1 : 0) << SILOED_BORROWING_START_BIT_POSITION);
-  }
-
-  function getSiloedBorrowing(DataTypes.AssetConfigurationMap memory self) internal pure returns (bool) {
-    return (self.data & SILOED_BORROWING_MASK) != 0;
-  }
-
   function setBorrowingEnabled(DataTypes.AssetConfigurationMap memory self, bool enabled) internal pure {
     self.data = (self.data & ~BORROWING_MASK) | (uint256(enabled ? 1 : 0) << BORROWING_ENABLED_START_BIT_POSITION);
   }
@@ -165,15 +141,6 @@ library AssetConfiguration {
 
   function getSupplyCap(DataTypes.AssetConfigurationMap memory self) internal pure returns (uint256) {
     return (self.data & SUPPLY_CAP_MASK) >> SUPPLY_CAP_START_BIT_POSITION;
-  }
-
-  function setDebtCeiling(DataTypes.AssetConfigurationMap memory self, uint256 ceiling) internal pure {
-    require(ceiling <= MAX_VALID_DEBT_CEILING, Errors.InvalidDebtCeiling());
-    self.data = (self.data & ~DEBT_CEILING_MASK) | (ceiling << DEBT_CEILING_START_BIT_POSITION);
-  }
-
-  function getDebtCeiling(DataTypes.AssetConfigurationMap memory self) internal pure returns (uint256) {
-    return (self.data & DEBT_CEILING_MASK) >> DEBT_CEILING_START_BIT_POSITION;
   }
 
   function setLiquidationProtocolFee(DataTypes.AssetConfigurationMap memory self, uint256 liquidationProtocolFee) internal pure {

@@ -28,11 +28,7 @@ interface IPoolConfigurator {
   event AssetInterestRateDataChanged(address indexed asset, address indexed strategy, bytes data);
   event SupplyTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
   event BorrowTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
-  event DebtCeilingChanged(address indexed asset, uint256 oldDebtCeiling, uint256 newDebtCeiling);
-  event SiloedBorrowingChanged(address indexed asset, bool oldState, bool newState);
   event BridgeProtocolFeeUpdated(uint256 oldBridgeProtocolFee, uint256 newBridgeProtocolFee);
-
-  event BorrowableInIsolationChanged(address asset, bool borrowable);
 
   function initAssets(ConfiguratorInputTypes.InitAssetInput[] calldata input) external;
   function updateSupplyToken(ConfiguratorInputTypes.UpdateSupplyTokenInput calldata input) external;
@@ -42,7 +38,6 @@ interface IPoolConfigurator {
 
   function setAssetActive(address asset, bool active) external;
   function setAssetFreeze(address asset, bool freeze) external;
-  function setBorrowableInIsolation(address asset, bool borrowable) external;
   function setAssetPause(address asset, bool paused, uint40 gracePeriod) external;
   function setAssetPause(address asset, bool paused) external;
   function disableLiquidationGracePeriod(address asset) external;
@@ -55,8 +50,6 @@ interface IPoolConfigurator {
   function setLiquidationProtocolFee(address asset, uint256 newFee) external;
   function dropAsset(address asset) external;
 
-  function setDebtCeiling(address asset, uint256 newDebtCeiling) external;
-  function setSiloedBorrowing(address asset, bool siloed) external;
   function getPendingLtv(address asset) external view returns (uint256);
   function getConfiguratorLogic() external view returns (address);
   function MAX_GRACE_PERIOD() external view returns (uint40);

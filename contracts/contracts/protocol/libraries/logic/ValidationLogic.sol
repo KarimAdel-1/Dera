@@ -73,14 +73,6 @@ library ValidationLogic {
       uint256 totalDebt = (params.assetState.currScaledVariableDebt + params.amountScaled).getBorrowTokenBalance(params.assetState.nextVariableBorrowIndex);
       require(totalDebt <= borrowCap * (10 ** params.assetState.assetConfiguration.getDecimals()), Errors.BorrowCapExceeded());
     }
-    if (params.userConfig.isBorrowingAny()) {
-      (bool siloedBorrowingEnabled, address siloedBorrowingAddress) = params.userConfig.getSiloedBorrowingState(poolAssets, assetsList);
-      if (siloedBorrowingEnabled) {
-        require(siloedBorrowingAddress == params.asset, Errors.SiloedBorrowingViolation());
-      } else {
-        require(!params.assetState.assetConfiguration.getSiloedBorrowing(), Errors.SiloedBorrowingViolation());
-      }
-    }
   }
 
   function validateRepay(address user, DataTypes.AssetState memory assetState, uint256 amountSent, DataTypes.InterestRateMode interestRateMode, address onBehalfOf, uint256 debtScaled) internal pure {
@@ -179,11 +171,7 @@ library ValidationLogic {
     if (assetConfig.getLtv() == 0) {
       return false;
     }
-    if (!userConfig.isUsingAsCollateralAny()) {
-      return true;
-    }
-    (bool isolationModeActive, , ) = userConfig.getIsolationModeState(poolAssets, assetsList);
-    return (!isolationModeActive && assetConfig.getDebtCeiling() == 0);
+    return true;
   }
 
   function validateAutomaticUseAsCollateral(

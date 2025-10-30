@@ -75,8 +75,6 @@ contract UiPoolDataProvider {
     // v3 fields
     bool isPaused;
     uint128 accruedToTreasury;
-    uint256 debtCeiling;
-    uint256 debtCeilingDecimals;
     uint256 borrowCap;
     uint256 supplyCap;
     uint256 virtualUnderlyingBalance;
