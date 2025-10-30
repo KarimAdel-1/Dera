@@ -82,11 +82,11 @@ library PoolLogic {
 
   function executeSyncRatesState(
     DataTypes.PoolAssetData storage asset,
-    address asset,
+    address assetAddress,
     address interestRateStrategyAddress
   ) external {
     DataTypes.AssetState memory assetState = asset.cache();
-    asset.updateInterestRatesAndVirtualBalance(assetState, asset, 0, 0, interestRateStrategyAddress);
+    asset.updateInterestRatesAndVirtualBalance(assetState, assetAddress, 0, 0, interestRateStrategyAddress);
   }
 
   /**

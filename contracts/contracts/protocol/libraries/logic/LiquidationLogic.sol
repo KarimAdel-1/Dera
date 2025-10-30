@@ -331,14 +331,14 @@ library LiquidationLogic {
     DataTypes.PoolAssetData storage debtAsset,
     DataTypes.UserConfigurationMap storage borrowerConfig,
     address borrower,
-    address debtAsset,
+    address debtAssetAddress,
     uint256 borrowerReserveDebt,
     uint256 actualDebtToLiquidate,
     bool hasNoCollateralLeft,
     address interestRateStrategyAddress
   ) internal {
     bool noMoreDebt = true;
-    
+
     if (borrowerReserveDebt != 0) {
       uint256 burnAmount = hasNoCollateralLeft ? borrowerReserveDebt : actualDebtToLiquidate;
 
@@ -354,7 +354,7 @@ library LiquidationLogic {
     uint256 outstandingDebt = borrowerReserveDebt - actualDebtToLiquidate;
     if (hasNoCollateralLeft && outstandingDebt != 0) {
       debtAsset.deficit += outstandingDebt.toUint128();
-      emit IPool.DeficitCreated(borrower, debtAsset, outstandingDebt);
+      emit IPool.DeficitCreated(borrower, debtAssetAddress, outstandingDebt);
     }
 
     if (noMoreDebt) {
@@ -363,7 +363,7 @@ library LiquidationLogic {
 
     debtAsset.updateInterestRatesAndVirtualBalance(
       debtReserveCache,
-      debtAsset,
+      debtAssetAddress,
       actualDebtToLiquidate,
       0,
       interestRateStrategyAddress

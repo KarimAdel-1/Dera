@@ -165,9 +165,9 @@ library ValidationLogic {
     require(!asset.configuration.getPaused(), Errors.AssetPaused());
   }
 
-  function validateDropAsset(mapping(uint256 => address) storage assetsList, DataTypes.PoolAssetData storage asset, address asset) internal view {
-    require(asset != address(0), Errors.ZeroAddressNotValid());
-    require(asset.id != 0 || assetsList[0] == asset, Errors.AssetNotListed());
+  function validateDropAsset(mapping(uint256 => address) storage assetsList, DataTypes.PoolAssetData storage asset, address assetAddress) internal view {
+    require(assetAddress != address(0), Errors.ZeroAddressNotValid());
+    require(asset.id != 0 || assetsList[0] == assetAddress, Errors.AssetNotListed());
   }
 
   function validateUseAsCollateral(
