@@ -48,6 +48,18 @@ library DataTypes {
     uint128 virtualUnderlyingBalance;
   }
 
+  struct AssetDataLegacy {
+    AssetConfigurationMap configuration;
+    uint128 liquidityIndex;
+    uint128 currentLiquidityRate;
+    uint128 variableBorrowIndex;
+    uint128 currentVariableBorrowRate;
+    uint40 lastUpdateTimestamp;
+    uint16 id;
+    address supplyTokenAddress;
+    address borrowTokenAddress;
+  }
+
   struct AssetConfigurationMap {
     uint256 data;
   }
