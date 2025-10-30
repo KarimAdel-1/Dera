@@ -1,357 +1,301 @@
 import { ethers } from 'ethers';
+import DeraMultiAssetStakingABI from '../contracts/abis/DeraMultiAssetStaking.json';
 
-/**
- * StakingService - Handles all interactions with DeraMultiAssetStaking contract
- *
- * Features:
- * - Stake HBAR, HTS tokens, NFTs, and RWAs
- * - Unstake assets after lock period
- * - Claim rewards without unstaking
- * - Emergency unstake with penalty
- * - View user stakes and pending rewards
- */
 class StakingService {
   constructor() {
     this.contract = null;
     this.provider = null;
     this.signer = null;
-    this.contractAddress = null;
     this.isInitialized = false;
+    this.contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
   }
 
-  /**
-   * Initialize the staking service
-   * @param {string} contractAddress - DeraMultiAssetStaking contract address
-   */
-  async initialize(contractAddress) {
+  async initialize(provider, signer) {
     try {
-      if (!contractAddress) {
-        console.warn('⚠️ StakingService: Contract address not provided. Using placeholder.');
-        this.contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS || null;
-      } else {
-        this.contractAddress = contractAddress;
-      }
-
       if (!this.contractAddress) {
-        console.warn('⚠️ StakingService: No contract address configured. Service will use mock data.');
-        this.isInitialized = false;
-        return;
+        throw new Error('Staking contract address not configured');
       }
 
-      // Setup provider (will be replaced with HashPack provider)
-      if (typeof window !== 'undefined' && window.ethereum) {
-        this.provider = new ethers.BrowserProvider(window.ethereum);
-        this.signer = await this.provider.getSigner();
-      }
-
-      // Import contract ABI
-      let DeraMultiAssetStakingABI;
-      try {
-        const abiModule = await import('../contracts/abis/DeraMultiAssetStaking.json');
-        DeraMultiAssetStakingABI = abiModule.default || abiModule;
-      } catch (error) {
-        console.warn('⚠️ DeraMultiAssetStaking ABI not found. Run: npm run export-abis');
-        throw new Error('Contract ABI not available. Please compile and export contracts first.');
-      }
-
-      // Create contract instance
+      this.provider = provider;
+      this.signer = signer;
       this.contract = new ethers.Contract(
         this.contractAddress,
         DeraMultiAssetStakingABI.abi,
-        this.signer || this.provider
+        signer
       );
 
       this.isInitialized = true;
-      console.log('✅ StakingService initialized with contract:', this.contractAddress);
+      console.log('✅ StakingService initialized');
+      
+      // Display current rates and sustainability info
+      await this.logCurrentStatus();
+      
+      return true;
     } catch (error) {
-      console.error('❌ StakingService initialization error:', error);
-      this.isInitialized = false;
+      console.error('❌ Failed to initialize StakingService:', error);
+      return false;
     }
   }
 
-  /**
-   * Get signer from HashPack or wallet provider
-   */
-  async getSigner() {
-    if (this.signer) return this.signer;
+  async logCurrentStatus() {
+    try {
+      const tvl = await this.contract.totalValueLocked();
+      const multiplier = await this.contract.getCurrentRateMultiplier();
+      const poolStatus = await this.contract.getRewardPoolStatus();
 
-    if (typeof window !== 'undefined' && window.ethereum) {
-      this.provider = new ethers.BrowserProvider(window.ethereum);
-      this.signer = await this.provider.getSigner();
-      return this.signer;
+      console.log('📊 Staking Status:');
+      console.log('- TVL:', ethers.formatEther(tvl), 'HBAR');
+      console.log('- Rate Multiplier:', multiplier / 100, 'x');
+      console.log('- Pool Utilization:', poolStatus.utilizationRate / 100, '%');
+    } catch (error) {
+      console.error('Failed to log status:', error);
     }
-
-    throw new Error('No signer available');
   }
 
-  /**
-   * Stake fungible tokens (HBAR, HTS Token, RWA)
-   * @param {string} tokenAddress - Token address (0x0 for HBAR)
-   * @param {string} amount - Amount to stake in token units
-   * @param {number} lockPeriodDays - Lock period in days (7, 30, 90, 180, 365)
-   * @returns {Promise<Object>} Transaction receipt
-   */
-  async stakeFungibleToken(tokenAddress, amount, lockPeriodDays) {
-    if (!this.isInitialized) {
-      throw new Error('StakingService not initialized');
+  // Get current effective APR rates
+  async getEffectiveRates() {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    const lockPeriods = [7, 30, 90, 180, 365];
+    const rates = {};
+
+    for (const period of lockPeriods) {
+      try {
+        const rate = await this.contract.getEffectiveAPR(period);
+        rates[period] = {
+          apr: Number(rate) / 100, // Convert from basis points
+          display: `${(Number(rate) / 100).toFixed(1)}% APR`
+        };
+      } catch (error) {
+        console.error(`Failed to get rate for ${period} days:`, error);
+        rates[period] = { apr: 0, display: 'N/A' };
+      }
     }
+
+    return rates;
+  }
+
+  // Check if a stake can be sustained
+  async canSustainStake(amount, lockPeriod) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
 
     try {
-      const lockPeriodSeconds = lockPeriodDays * 24 * 60 * 60;
       const amountWei = ethers.parseEther(amount.toString());
-
-      console.log('🔄 Staking fungible token:', {
-        tokenAddress,
-        amount,
-        lockPeriodDays,
-        lockPeriodSeconds
-      });
-
-      // Call contract method
-      const tx = await this.contract.stakeFungibleToken(
-        tokenAddress,
-        amountWei,
-        lockPeriodSeconds
-      );
-
-      console.log('⏳ Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('✅ Stake successful:', receipt);
-
-      return {
-        success: true,
-        transactionHash: receipt.hash,
-        receipt
-      };
+      return await this.contract.canSustainStake(amountWei, lockPeriod);
     } catch (error) {
-      console.error('❌ Staking error:', error);
-      throw error;
+      console.error('Failed to check sustainability:', error);
+      return false;
     }
   }
 
-  /**
-   * Stake NFT
-   * @param {string} tokenAddress - NFT token address
-   * @param {number} serialNumber - NFT serial number
-   * @param {number} lockPeriodDays - Lock period in days
-   * @returns {Promise<Object>} Transaction receipt
-   */
-  async stakeNFT(tokenAddress, serialNumber, lockPeriodDays) {
-    if (!this.isInitialized) {
-      throw new Error('StakingService not initialized');
-    }
+  // Calculate projected rewards
+  async calculateRewards(amount, lockPeriod, isNFT = false) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
 
     try {
-      const lockPeriodSeconds = lockPeriodDays * 24 * 60 * 60;
-
-      console.log('🔄 Staking NFT:', {
-        tokenAddress,
-        serialNumber,
-        lockPeriodDays
-      });
-
-      const tx = await this.contract.stakeNFT(
-        tokenAddress,
-        serialNumber,
-        lockPeriodSeconds
-      );
-
-      console.log('⏳ Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('✅ NFT stake successful:', receipt);
-
-      return {
-        success: true,
-        transactionHash: receipt.hash,
-        receipt
-      };
-    } catch (error) {
-      console.error('❌ NFT staking error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Unstake assets after lock period
-   * @param {number} stakeId - Stake ID
-   * @returns {Promise<Object>} Transaction receipt
-   */
-  async unstake(stakeId) {
-    if (!this.isInitialized) {
-      throw new Error('StakingService not initialized');
-    }
-
-    try {
-      console.log('🔄 Unstaking:', stakeId);
-
-      const tx = await this.contract.unstake(stakeId);
-      console.log('⏳ Transaction sent:', tx.hash);
-
-      const receipt = await tx.wait();
-      console.log('✅ Unstake successful:', receipt);
-
-      return {
-        success: true,
-        transactionHash: receipt.hash,
-        receipt
-      };
-    } catch (error) {
-      console.error('❌ Unstake error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Emergency unstake (with 20% penalty)
-   * @param {number} stakeId - Stake ID
-   * @returns {Promise<Object>} Transaction receipt
-   */
-  async emergencyUnstake(stakeId) {
-    if (!this.isInitialized) {
-      throw new Error('StakingService not initialized');
-    }
-
-    try {
-      console.log('🔄 Emergency unstaking:', stakeId);
-
-      const tx = await this.contract.emergencyUnstake(stakeId);
-      console.log('⏳ Transaction sent:', tx.hash);
-
-      const receipt = await tx.wait();
-      console.log('✅ Emergency unstake successful:', receipt);
-
-      return {
-        success: true,
-        transactionHash: receipt.hash,
-        receipt
-      };
-    } catch (error) {
-      console.error('❌ Emergency unstake error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Claim rewards without unstaking
-   * @param {number} stakeId - Stake ID
-   * @returns {Promise<Object>} Transaction receipt
-   */
-  async claimRewards(stakeId) {
-    if (!this.isInitialized) {
-      throw new Error('StakingService not initialized');
-    }
-
-    try {
-      console.log('🔄 Claiming rewards:', stakeId);
-
-      const tx = await this.contract.claimRewards(stakeId);
-      console.log('⏳ Transaction sent:', tx.hash);
-
-      const receipt = await tx.wait();
-      console.log('✅ Claim successful:', receipt);
-
-      return {
-        success: true,
-        transactionHash: receipt.hash,
-        receipt
-      };
-    } catch (error) {
-      console.error('❌ Claim rewards error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get user's stakes
-   * @param {string} userAddress - User's wallet address
-   * @returns {Promise<Array>} Array of user stakes
-   */
-  async getUserStakes(userAddress) {
-    if (!this.isInitialized) {
-      console.warn('⚠️ StakingService not initialized');
-      return [];
-    }
-
-    try {
-      console.log('🔍 Fetching stakes for:', userAddress);
-
-      const stakeIds = await this.contract.getUserStakeIds(userAddress);
-
-      const stakes = await Promise.all(
-        stakeIds.map(async (stakeId) => {
-          const stake = await this.contract.getStake(userAddress, stakeId);
-          const pendingRewards = await this.contract.getPendingRewards(userAddress, stakeId);
-
-          return {
-            stakeId: stakeId.toString(),
-            assetType: this.getAssetTypeName(stake.assetType),
-            tokenAddress: stake.tokenAddress,
-            amount: ethers.formatEther(stake.amount),
-            serialNumber: stake.serialNumber.toString(),
-            startTime: Number(stake.startTime) * 1000, // Convert to milliseconds
-            lockPeriod: Number(stake.lockPeriod),
-            unlockTime: Number(stake.unlockTime) * 1000,
-            rewardAPY: Number(stake.rewardAPY),
-            accumulatedRewards: ethers.formatEther(stake.accumulatedRewards),
-            pendingRewards: ethers.formatEther(pendingRewards),
-            status: this.getStakeStatus(stake.status)
-          };
-        })
-      );
-
-      console.log('✅ Found stakes:', stakes.length);
-      return stakes;
-    } catch (error) {
-      console.error('❌ Error fetching stakes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get pending rewards for a stake
-   * @param {string} userAddress - User's wallet address
-   * @param {number} stakeId - Stake ID
-   * @returns {Promise<string>} Pending rewards amount
-   */
-  async getPendingRewards(userAddress, stakeId) {
-    if (!this.isInitialized) {
-      return '0';
-    }
-
-    try {
-      const rewards = await this.contract.getPendingRewards(userAddress, stakeId);
+      const amountWei = isNFT ? 0 : ethers.parseEther(amount.toString());
+      const rewards = await this.contract.calculateRewards(amountWei, lockPeriod);
       return ethers.formatEther(rewards);
     } catch (error) {
-      console.error('❌ Error fetching pending rewards:', error);
+      console.error('Failed to calculate rewards:', error);
       return '0';
     }
   }
 
-  /**
-   * Helper: Convert asset type enum to string
-   */
-  getAssetTypeName(assetType) {
-    const types = ['HBAR', 'FUNGIBLE_TOKEN', 'NFT', 'RWA'];
-    return types[assetType] || 'UNKNOWN';
+  // Stake HBAR with sustainability check
+  async stakeHBAR(amount, lockPeriod) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      // Check sustainability first
+      const canSustain = await this.canSustainStake(amount, lockPeriod);
+      if (!canSustain) {
+        throw new Error('Insufficient reward pool to sustain this stake. Please try a smaller amount or shorter period.');
+      }
+
+      const amountWei = ethers.parseEther(amount.toString());
+      const tx = await this.contract.stakeHBAR(lockPeriod, { value: amountWei });
+      
+      console.log('🔄 Staking transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      
+      console.log('✅ HBAR staked successfully');
+      await this.logCurrentStatus(); // Update status after staking
+      
+      return receipt;
+    } catch (error) {
+      console.error('❌ Failed to stake HBAR:', error);
+      throw error;
+    }
   }
 
-  /**
-   * Helper: Convert stake status enum to string
-   */
-  getStakeStatus(status) {
-    const statuses = ['ACTIVE', 'UNSTAKED', 'EMERGENCY_UNSTAKED'];
-    return statuses[status] || 'UNKNOWN';
+  // Get claimable rewards for a stake
+  async getClaimableRewards(userAddress, stakeIndex) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      const rewards = await this.contract.getClaimableRewards(userAddress, stakeIndex);
+      return ethers.formatEther(rewards);
+    } catch (error) {
+      console.error('Failed to get claimable rewards:', error);
+      return '0';
+    }
   }
 
+  // Claim rewards
+  async claimRewards(stakeIndex) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
 
+    try {
+      const tx = await this.contract.claimRewards(stakeIndex);
+      console.log('🔄 Claiming rewards:', tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log('✅ Rewards claimed successfully');
+      
+      return receipt;
+    } catch (error) {
+      console.error('❌ Failed to claim rewards:', error);
+      throw error;
+    }
+  }
 
-  /**
-   * Get contract address
-   */
+  // Unstake with penalty warning
+  async unstake(stakeIndex, userStakes) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      const stake = userStakes[stakeIndex];
+      const lockEndTime = stake.startTime + (stake.lockPeriod * 86400);
+      const currentTime = Math.floor(Date.now() / 1000);
+      const isEarlyUnstake = currentTime < lockEndTime;
+
+      if (isEarlyUnstake) {
+        const penalty = await this.contract.emergencyPenalty();
+        const penaltyPercent = Number(penalty) / 100;
+        
+        const confirmed = confirm(
+          `⚠️ Early Unstake Warning\n\n` +
+          `You are unstaking before the lock period ends.\n` +
+          `Penalty: ${penaltyPercent}% of principal\n\n` +
+          `Continue with early unstake?`
+        );
+        
+        if (!confirmed) {
+          throw new Error('Unstake cancelled by user');
+        }
+      }
+
+      const tx = await this.contract.unstake(stakeIndex);
+      console.log('🔄 Unstaking transaction sent:', tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log('✅ Unstaked successfully');
+      
+      await this.logCurrentStatus(); // Update status after unstaking
+      
+      return receipt;
+    } catch (error) {
+      console.error('❌ Failed to unstake:', error);
+      throw error;
+    }
+  }
+
+  // Get user stakes with enhanced info
+  async getUserStakes(userAddress) {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      const stakes = await this.contract.getUserStakes(userAddress);
+      const enhancedStakes = [];
+
+      for (let i = 0; i < stakes.length; i++) {
+        const stake = stakes[i];
+        if (!stake.active) continue;
+
+        const claimableRewards = await this.getClaimableRewards(userAddress, i);
+        const lockEndTime = Number(stake.startTime) + (Number(stake.lockPeriod) * 86400);
+        const currentTime = Math.floor(Date.now() / 1000);
+        const isUnlocked = currentTime >= lockEndTime;
+        const timeRemaining = Math.max(0, lockEndTime - currentTime);
+
+        enhancedStakes.push({
+          index: i,
+          amount: ethers.formatEther(stake.amount),
+          lockPeriod: Number(stake.lockPeriod),
+          startTime: Number(stake.startTime),
+          asset: stake.asset,
+          isNFT: stake.isNFT,
+          nftSerialNumber: Number(stake.nftSerialNumber),
+          claimableRewards,
+          isUnlocked,
+          timeRemaining,
+          timeRemainingDisplay: this.formatTimeRemaining(timeRemaining)
+        });
+      }
+
+      return enhancedStakes;
+    } catch (error) {
+      console.error('Failed to get user stakes:', error);
+      return [];
+    }
+  }
+
+  // Get reward pool status
+  async getRewardPoolStatus() {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      const status = await this.contract.getRewardPoolStatus();
+      return {
+        totalRewards: ethers.formatEther(status.totalRewards),
+        distributedRewards: ethers.formatEther(status.distributedRewards),
+        availableRewards: ethers.formatEther(status.availableRewards),
+        utilizationRate: Number(status.utilizationRate) / 100
+      };
+    } catch (error) {
+      console.error('Failed to get reward pool status:', error);
+      return null;
+    }
+  }
+
+  // Get TVL and dynamic rate info
+  async getTVLInfo() {
+    if (!this.isInitialized) throw new Error('Service not initialized');
+
+    try {
+      const tvl = await this.contract.totalValueLocked();
+      const multiplier = await this.contract.getCurrentRateMultiplier();
+      const lowThreshold = await this.contract.lowTVLThreshold();
+      const highThreshold = await this.contract.highTVLThreshold();
+
+      return {
+        tvl: ethers.formatEther(tvl),
+        multiplier: Number(multiplier) / 100,
+        lowThreshold: ethers.formatEther(lowThreshold),
+        highThreshold: ethers.formatEther(highThreshold)
+      };
+    } catch (error) {
+      console.error('Failed to get TVL info:', error);
+      return null;
+    }
+  }
+
+  formatTimeRemaining(seconds) {
+    if (seconds <= 0) return 'Unlocked';
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }
+
   getContractAddress() {
     return this.contractAddress;
   }
 }
 
-export const stakingService = new StakingService();
-export default stakingService;
+export default new StakingService();

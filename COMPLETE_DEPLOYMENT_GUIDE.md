@@ -1,4 +1,5 @@
 # Dera Protocol Complete Deployment Guide
+
 ## Step-by-Step Deployment for Hedera Testnet/Mainnet
 
 **Last Updated:** October 29, 2025
@@ -30,18 +31,21 @@
 ### Required Accounts & Keys
 
 1. **Hedera Account**
+
    - Testnet account with sufficient HBAR (get from [https://portal.hedera.com/](https://portal.hedera.com/))
    - Account ID (e.g., `0.0.123456`)
    - Private key (ED25519 or ECDSA secp256k1)
    - Minimum balance: 100 HBAR for testnet deployment
 
 2. **Node.js Environment**
+
    ```bash
    node --version  # v18 or higher
    npm --version   # v9 or higher
    ```
 
 3. **Required Tools**
+
    ```bash
    # Install globally
    npm install -g hardhat
@@ -55,6 +59,7 @@
 ### Environment Variables Template
 
 Create these files now (we'll fill them in during deployment):
+
 ```bash
 # Create config files
 touch contracts/.env
@@ -120,12 +125,14 @@ touch backend/rate-updater-service/.env
 ### ✅ Contracts Use Hedera-Native Tools
 
 1. **HTS (Hedera Token Service)**
+
    - Location: `Pool.sol:73` - `IHTS private constant HTS = IHTS(address(0x167))`
    - Purpose: All token operations (supply, withdraw, borrow, repay)
    - Functions: `transferToken()`, `approve()`, `balanceOf()`
    - **No ERC20 transfers** - everything goes through HTS precompile
 
 2. **HCS (Hedera Consensus Service)**
+
    - Location: `DeraHCSEventStreamer.sol`
    - Purpose: Immutable event logging with consensus timestamps
    - Topics: Supply, Withdraw, Borrow, Repay, Liquidation
@@ -139,6 +146,7 @@ touch backend/rate-updater-service/.env
 ### ⚠️ Also Uses (for contract interaction)
 
 4. **ethers.js**
+
    - Purpose: Contract calls via JSON-RPC Relay (Hedera's EVM compatibility layer)
    - Location: Frontend (`deraProtocolServiceV2.js`), Backend services
    - **Note:** This is correct - Hedera supports EVM via JSON-RPC Relay
@@ -147,13 +155,6 @@ touch backend/rate-updater-service/.env
    - Purpose: Native Hedera operations (HCS submission, HBAR transfers, account management)
    - Location: All backend services
    - **This is the PRIMARY tool for Hedera-specific operations**
-
-### ❌ NOT Using (Good!)
-
-- ✅ No Web3.js
-- ✅ No Ethereum-specific libraries
-- ✅ No Infura/Alchemy endpoints
-- ✅ No Layer 2 solutions
 
 ---
 
@@ -201,35 +202,36 @@ export HEDERA_NETWORK="testnet"  # or "mainnet"
 Edit `contracts/hardhat.config.js`:
 
 ```javascript
-require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
+require('@nomicfoundation/hardhat-toolbox');
+require('dotenv').config();
 
 module.exports = {
   solidity: {
-    version: "0.8.19",
+    version: '0.8.19',
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
-      }
-    }
+        runs: 200,
+      },
+    },
   },
   networks: {
     testnet: {
-      url: "https://testnet.hashio.io/api",
+      url: 'https://testnet.hashio.io/api',
       accounts: [process.env.DEPLOYER_PRIVATE_KEY],
-      chainId: 296  // Hedera testnet chain ID
+      chainId: 296, // Hedera testnet chain ID
     },
     mainnet: {
-      url: "https://mainnet.hashio.io/api",
+      url: 'https://mainnet.hashio.io/api',
       accounts: [process.env.DEPLOYER_PRIVATE_KEY],
-      chainId: 295  // Hedera mainnet chain ID
-    }
-  }
+      chainId: 295, // Hedera mainnet chain ID
+    },
+  },
 };
 ```
 
 Create `contracts/.env`:
+
 ```bash
 DEPLOYER_PRIVATE_KEY=your_private_key_here
 DEPLOYER_ACCOUNT_ID=0.0.123456
@@ -269,62 +271,72 @@ ls artifacts/contracts/contracts/hedera/DeraHCSEventStreamer.sol/DeraHCSEventStr
 Create `contracts/scripts/01-deploy-core.js`:
 
 ```javascript
-const { ethers } = require("hardhat");
+const { ethers } = require('hardhat');
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Deploying Dera Protocol Core Contracts to Hedera Testnet\n");
+  console.log('🚀 Deploying Dera Protocol Core Contracts to Hedera Testnet\n');
 
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
-  console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
+  console.log('Deploying with account:', deployer.address);
+  console.log(
+    'Account balance:',
+    (await deployer.provider.getBalance(deployer.address)).toString()
+  );
 
   const deployedAddresses = {};
 
   // 1. Deploy PoolAddressesProvider
-  console.log("\n📍 Deploying PoolAddressesProvider...");
-  const PoolAddressesProvider = await ethers.getContractFactory("PoolAddressesProvider");
-  const addressesProvider = await PoolAddressesProvider.deploy("DERA_MARKET", deployer.address);
+  console.log('\n📍 Deploying PoolAddressesProvider...');
+  const PoolAddressesProvider = await ethers.getContractFactory(
+    'PoolAddressesProvider'
+  );
+  const addressesProvider = await PoolAddressesProvider.deploy(
+    'DERA_MARKET',
+    deployer.address
+  );
   await addressesProvider.waitForDeployment();
   const addressesProviderAddress = await addressesProvider.getAddress();
-  console.log("✅ PoolAddressesProvider deployed:", addressesProviderAddress);
+  console.log('✅ PoolAddressesProvider deployed:', addressesProviderAddress);
   deployedAddresses.POOL_ADDRESSES_PROVIDER = addressesProviderAddress;
 
   // 2. Deploy ACLManager
-  console.log("\n📍 Deploying ACLManager...");
-  const ACLManager = await ethers.getContractFactory("ACLManager");
+  console.log('\n📍 Deploying ACLManager...');
+  const ACLManager = await ethers.getContractFactory('ACLManager');
   const aclManager = await ACLManager.deploy(addressesProviderAddress);
   await aclManager.waitForDeployment();
   const aclManagerAddress = await aclManager.getAddress();
-  console.log("✅ ACLManager deployed:", aclManagerAddress);
+  console.log('✅ ACLManager deployed:', aclManagerAddress);
   deployedAddresses.ACL_MANAGER = aclManagerAddress;
 
   // Set ACLManager in AddressesProvider
   await addressesProvider.setACLManager(aclManagerAddress);
-  console.log("✅ ACLManager set in AddressesProvider");
+  console.log('✅ ACLManager set in AddressesProvider');
 
   // 3. Deploy DeraOracle
-  console.log("\n📍 Deploying DeraOracle...");
-  const DeraOracle = await ethers.getContractFactory("DeraOracle");
+  console.log('\n📍 Deploying DeraOracle...');
+  const DeraOracle = await ethers.getContractFactory('DeraOracle');
   const oracle = await DeraOracle.deploy();
   await oracle.waitForDeployment();
   const oracleAddress = await oracle.getAddress();
-  console.log("✅ DeraOracle deployed:", oracleAddress);
+  console.log('✅ DeraOracle deployed:', oracleAddress);
   deployedAddresses.ORACLE = oracleAddress;
 
   // Set Oracle in AddressesProvider
   await addressesProvider.setPriceOracle(oracleAddress);
-  console.log("✅ Oracle set in AddressesProvider");
+  console.log('✅ Oracle set in AddressesProvider');
 
   // 4. Deploy Default Interest Rate Strategy
-  console.log("\n📍 Deploying DefaultReserveInterestRateStrategy...");
-  const InterestRateStrategy = await ethers.getContractFactory("DefaultReserveInterestRateStrategy");
+  console.log('\n📍 Deploying DefaultReserveInterestRateStrategy...');
+  const InterestRateStrategy = await ethers.getContractFactory(
+    'DefaultReserveInterestRateStrategy'
+  );
 
   // Interest rate model parameters (example values - adjust as needed)
-  const optimalUsageRatio = ethers.parseUnits("0.8", 27); // 80% optimal utilization
-  const baseVariableBorrowRate = ethers.parseUnits("0", 27); // 0% base rate
-  const variableRateSlope1 = ethers.parseUnits("0.04", 27); // 4% slope 1
-  const variableRateSlope2 = ethers.parseUnits("1.0", 27); // 100% slope 2
+  const optimalUsageRatio = ethers.parseUnits('0.8', 27); // 80% optimal utilization
+  const baseVariableBorrowRate = ethers.parseUnits('0', 27); // 0% base rate
+  const variableRateSlope1 = ethers.parseUnits('0.04', 27); // 4% slope 1
+  const variableRateSlope2 = ethers.parseUnits('1.0', 27); // 100% slope 2
 
   const rateStrategy = await InterestRateStrategy.deploy(
     addressesProviderAddress,
@@ -335,59 +347,65 @@ async function main() {
   );
   await rateStrategy.waitForDeployment();
   const rateStrategyAddress = await rateStrategy.getAddress();
-  console.log("✅ Interest Rate Strategy deployed:", rateStrategyAddress);
+  console.log('✅ Interest Rate Strategy deployed:', rateStrategyAddress);
   deployedAddresses.RATE_STRATEGY = rateStrategyAddress;
 
   // 5. Deploy Pool Implementation
-  console.log("\n📍 Deploying Pool...");
-  const Pool = await ethers.getContractFactory("Pool");
-  const poolImpl = await Pool.deploy(addressesProviderAddress, rateStrategyAddress);
+  console.log('\n📍 Deploying Pool...');
+  const Pool = await ethers.getContractFactory('Pool');
+  const poolImpl = await Pool.deploy(
+    addressesProviderAddress,
+    rateStrategyAddress
+  );
   await poolImpl.waitForDeployment();
   const poolImplAddress = await poolImpl.getAddress();
-  console.log("✅ Pool Implementation deployed:", poolImplAddress);
+  console.log('✅ Pool Implementation deployed:', poolImplAddress);
   deployedAddresses.POOL_IMPL = poolImplAddress;
 
   // 6. Deploy PoolInstance (proxy initializer)
-  console.log("\n📍 Deploying PoolInstance...");
-  const PoolInstance = await ethers.getContractFactory("PoolInstance");
-  const poolInstance = await PoolInstance.deploy(addressesProviderAddress, rateStrategyAddress);
+  console.log('\n📍 Deploying PoolInstance...');
+  const PoolInstance = await ethers.getContractFactory('PoolInstance');
+  const poolInstance = await PoolInstance.deploy(
+    addressesProviderAddress,
+    rateStrategyAddress
+  );
   await poolInstance.waitForDeployment();
   const poolAddress = await poolInstance.getAddress();
-  console.log("✅ PoolInstance deployed:", poolAddress);
+  console.log('✅ PoolInstance deployed:', poolAddress);
   deployedAddresses.POOL = poolAddress;
 
   // Initialize Pool
   await poolInstance.initialize(addressesProviderAddress);
-  console.log("✅ Pool initialized");
+  console.log('✅ Pool initialized');
 
   // Set Pool in AddressesProvider
   await addressesProvider.setPool(poolAddress);
-  console.log("✅ Pool set in AddressesProvider");
+  console.log('✅ Pool set in AddressesProvider');
 
   // 7. Deploy PoolConfigurator
-  console.log("\n📍 Deploying PoolConfigurator...");
-  const PoolConfigurator = await ethers.getContractFactory("PoolConfigurator");
+  console.log('\n📍 Deploying PoolConfigurator...');
+  const PoolConfigurator = await ethers.getContractFactory('PoolConfigurator');
   const poolConfigurator = await PoolConfigurator.deploy();
   await poolConfigurator.waitForDeployment();
   const poolConfiguratorAddress = await poolConfigurator.getAddress();
-  console.log("✅ PoolConfigurator deployed:", poolConfiguratorAddress);
+  console.log('✅ PoolConfigurator deployed:', poolConfiguratorAddress);
   deployedAddresses.POOL_CONFIGURATOR = poolConfiguratorAddress;
 
   // Set PoolConfigurator in AddressesProvider
   await addressesProvider.setPoolConfigurator(poolConfiguratorAddress);
-  console.log("✅ PoolConfigurator set in AddressesProvider");
+  console.log('✅ PoolConfigurator set in AddressesProvider');
 
   // Save addresses to file
   const addressesJson = JSON.stringify(deployedAddresses, null, 2);
   fs.writeFileSync('./deployed-addresses-core.json', addressesJson);
-  console.log("\n💾 Addresses saved to deployed-addresses-core.json");
+  console.log('\n💾 Addresses saved to deployed-addresses-core.json');
 
-  console.log("\n" + "=".repeat(60));
-  console.log("✅ PHASE 1 COMPLETE - Core Contracts Deployed");
-  console.log("=".repeat(60));
-  console.log("\n📋 Deployed Addresses:");
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ PHASE 1 COMPLETE - Core Contracts Deployed');
+  console.log('='.repeat(60));
+  console.log('\n📋 Deployed Addresses:');
   console.log(addressesJson);
-  console.log("\n🔜 Next: Phase 2 - Create HCS Topics");
+  console.log('\n🔜 Next: Phase 2 - Create HCS Topics');
 }
 
 main()
@@ -411,6 +429,7 @@ npx hardhat run scripts/01-deploy-core.js --network testnet
 ```
 
 **Expected Output:**
+
 ```
 ✅ PHASE 1 COMPLETE - Core Contracts Deployed
 📋 Deployed Addresses:
@@ -432,6 +451,7 @@ npx hardhat run scripts/01-deploy-core.js --network testnet
 ### Why HCS Topics?
 
 HCS (Hedera Consensus Service) provides immutable, consensus-timestamped event logging that is:
+
 - Queryable via Mirror Node API (no custom indexer needed)
 - Tamper-proof and auditable
 - **Unique to Hedera - cannot be replicated on Ethereum or other chains**
@@ -453,13 +473,13 @@ const {
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
   PrivateKey,
-  AccountId
-} = require("@hashgraph/sdk");
-require("dotenv").config();
+  AccountId,
+} = require('@hashgraph/sdk');
+require('dotenv').config();
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Creating HCS Topics for Dera Protocol\n");
+  console.log('🚀 Creating HCS Topics for Dera Protocol\n');
 
   // Initialize Hedera client
   const accountId = AccountId.fromString(process.env.DEPLOYER_ACCOUNT_ID);
@@ -468,7 +488,7 @@ async function main() {
   const client = Client.forTestnet();
   client.setOperator(accountId, privateKey);
 
-  console.log("Using account:", accountId.toString());
+  console.log('Using account:', accountId.toString());
 
   const topics = {};
 
@@ -480,7 +500,7 @@ async function main() {
     { name: 'REPAY', description: 'Repay events' },
     { name: 'LIQUIDATION', description: 'Liquidation events' },
     { name: 'CONFIG', description: 'Configuration change events' },
-    { name: 'GOVERNANCE', description: 'Governance events' }
+    { name: 'GOVERNANCE', description: 'Governance events' },
   ];
 
   for (const eventType of eventTypes) {
@@ -504,7 +524,7 @@ async function main() {
       type: 'TOPIC_INITIALIZED',
       eventType: eventType.name,
       timestamp: Date.now(),
-      protocol: 'Dera Protocol'
+      protocol: 'Dera Protocol',
     });
 
     const submitTx = new TopicMessageSubmitTransaction()
@@ -515,20 +535,20 @@ async function main() {
     console.log(`✅ Test message submitted to ${eventType.name} topic`);
 
     // Wait a bit to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   // Save topic IDs
   const topicsJson = JSON.stringify(topics, null, 2);
   fs.writeFileSync('./hcs-topics.json', topicsJson);
-  console.log("\n💾 Topic IDs saved to hcs-topics.json");
+  console.log('\n💾 Topic IDs saved to hcs-topics.json');
 
-  console.log("\n" + "=".repeat(60));
-  console.log("✅ PHASE 2 COMPLETE - HCS Topics Created");
-  console.log("=".repeat(60));
-  console.log("\n📋 Topic IDs:");
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ PHASE 2 COMPLETE - HCS Topics Created');
+  console.log('='.repeat(60));
+  console.log('\n📋 Topic IDs:');
   console.log(topicsJson);
-  console.log("\n🔜 Next: Phase 3 - Deploy Hedera-Specific Contracts");
+  console.log('\n🔜 Next: Phase 3 - Deploy Hedera-Specific Contracts');
 
   client.close();
 }
@@ -552,6 +572,7 @@ node scripts/02-create-hcs-topics.js
 ```
 
 **Expected Output:**
+
 ```
 ✅ PHASE 2 COMPLETE - HCS Topics Created
 📋 Topic IDs:
@@ -571,6 +592,7 @@ node scripts/02-create-hcs-topics.js
 Visit: `https://hashscan.io/testnet/topic/0.0.200001` (replace with your topic ID)
 
 You should see:
+
 - Topic info
 - Your test message
 - Topic memo: "Dera Protocol - Supply events"
@@ -586,107 +608,126 @@ These contracts are **unique to Hedera** and use HTS, HCS, and Mirror Node featu
 Create `contracts/scripts/03-deploy-hedera-contracts.js`:
 
 ```javascript
-const { ethers } = require("hardhat");
+const { ethers } = require('hardhat');
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Deploying Dera Protocol Hedera-Specific Contracts\n");
+  console.log('🚀 Deploying Dera Protocol Hedera-Specific Contracts\n');
 
   // Load previous deployment data
-  const coreAddresses = JSON.parse(fs.readFileSync('./deployed-addresses-core.json', 'utf8'));
+  const coreAddresses = JSON.parse(
+    fs.readFileSync('./deployed-addresses-core.json', 'utf8')
+  );
   const hcsTopics = JSON.parse(fs.readFileSync('./hcs-topics.json', 'utf8'));
 
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
+  console.log('Deploying with account:', deployer.address);
 
   const deployedAddresses = { ...coreAddresses };
 
   // 1. Deploy DeraHCSEventStreamer
-  console.log("\n📍 Deploying DeraHCSEventStreamer...");
-  const DeraHCSEventStreamer = await ethers.getContractFactory("DeraHCSEventStreamer");
+  console.log('\n📍 Deploying DeraHCSEventStreamer...');
+  const DeraHCSEventStreamer = await ethers.getContractFactory(
+    'DeraHCSEventStreamer'
+  );
   const hcsStreamer = await DeraHCSEventStreamer.deploy(
     coreAddresses.POOL,
     deployer.address
   );
   await hcsStreamer.waitForDeployment();
   const hcsStreamerAddress = await hcsStreamer.getAddress();
-  console.log("✅ DeraHCSEventStreamer deployed:", hcsStreamerAddress);
+  console.log('✅ DeraHCSEventStreamer deployed:', hcsStreamerAddress);
   deployedAddresses.HCS_STREAMER = hcsStreamerAddress;
 
   // Initialize HCS topics
-  console.log("📍 Initializing HCS topics...");
+  console.log('📍 Initializing HCS topics...');
   await hcsStreamer.initializeTopics(
-    hcsTopics.SUPPLY.split('.').pop(),      // Extract topic ID number
+    hcsTopics.SUPPLY.split('.').pop(), // Extract topic ID number
     hcsTopics.WITHDRAW.split('.').pop(),
     hcsTopics.BORROW.split('.').pop(),
     hcsTopics.REPAY.split('.').pop(),
     hcsTopics.LIQUIDATION.split('.').pop(),
     hcsTopics.CONFIG.split('.').pop()
   );
-  console.log("✅ HCS topics initialized");
+  console.log('✅ HCS topics initialized');
 
   // 2. Deploy DeraMirrorNodeAnalytics
-  console.log("\n📍 Deploying DeraMirrorNodeAnalytics...");
-  const DeraMirrorNodeAnalytics = await ethers.getContractFactory("DeraMirrorNodeAnalytics");
+  console.log('\n📍 Deploying DeraMirrorNodeAnalytics...');
+  const DeraMirrorNodeAnalytics = await ethers.getContractFactory(
+    'DeraMirrorNodeAnalytics'
+  );
   const analytics = await DeraMirrorNodeAnalytics.deploy(
     coreAddresses.POOL,
     deployer.address
   );
   await analytics.waitForDeployment();
   const analyticsAddress = await analytics.getAddress();
-  console.log("✅ DeraMirrorNodeAnalytics deployed:", analyticsAddress);
+  console.log('✅ DeraMirrorNodeAnalytics deployed:', analyticsAddress);
   deployedAddresses.ANALYTICS = analyticsAddress;
 
   // 3. Deploy DeraNodeStaking
-  console.log("\n📍 Deploying DeraNodeStaking...");
-  const DeraNodeStaking = await ethers.getContractFactory("DeraNodeStaking");
+  console.log('\n📍 Deploying DeraNodeStaking...');
+  const DeraNodeStaking = await ethers.getContractFactory('DeraNodeStaking');
   const nodeStaking = await DeraNodeStaking.deploy(
     coreAddresses.POOL,
     deployer.address
   );
   await nodeStaking.waitForDeployment();
   const nodeStakingAddress = await nodeStaking.getAddress();
-  console.log("✅ DeraNodeStaking deployed:", nodeStakingAddress);
+  console.log('✅ DeraNodeStaking deployed:', nodeStakingAddress);
   deployedAddresses.NODE_STAKING = nodeStakingAddress;
 
   // 4. Deploy DeraProtocolIntegration
-  console.log("\n📍 Deploying DeraProtocolIntegration...");
-  const DeraProtocolIntegration = await ethers.getContractFactory("DeraProtocolIntegration");
+  console.log('\n📍 Deploying DeraProtocolIntegration...');
+  const DeraProtocolIntegration = await ethers.getContractFactory(
+    'DeraProtocolIntegration'
+  );
   const protocolIntegration = await DeraProtocolIntegration.deploy(
     coreAddresses.POOL,
     deployer.address
   );
   await protocolIntegration.waitForDeployment();
   const protocolIntegrationAddress = await protocolIntegration.getAddress();
-  console.log("✅ DeraProtocolIntegration deployed:", protocolIntegrationAddress);
+  console.log(
+    '✅ DeraProtocolIntegration deployed:',
+    protocolIntegrationAddress
+  );
   deployedAddresses.PROTOCOL_INTEGRATION = protocolIntegrationAddress;
 
   // 5. Deploy DeraInterestRateModel
-  console.log("\n📍 Deploying DeraInterestRateModel...");
-  const DeraInterestRateModel = await ethers.getContractFactory("DeraInterestRateModel");
+  console.log('\n📍 Deploying DeraInterestRateModel...');
+  const DeraInterestRateModel = await ethers.getContractFactory(
+    'DeraInterestRateModel'
+  );
   const rateModel = await DeraInterestRateModel.deploy(deployer.address);
   await rateModel.waitForDeployment();
   const rateModelAddress = await rateModel.getAddress();
-  console.log("✅ DeraInterestRateModel deployed:", rateModelAddress);
+  console.log('✅ DeraInterestRateModel deployed:', rateModelAddress);
   deployedAddresses.RATE_MODEL = rateModelAddress;
 
   // Save all addresses
   const addressesJson = JSON.stringify(deployedAddresses, null, 2);
   fs.writeFileSync('./deployed-addresses-all.json', addressesJson);
-  console.log("\n💾 All addresses saved to deployed-addresses-all.json");
+  console.log('\n💾 All addresses saved to deployed-addresses-all.json');
 
-  console.log("\n" + "=".repeat(60));
-  console.log("✅ PHASE 3 COMPLETE - Hedera Contracts Deployed");
-  console.log("=".repeat(60));
-  console.log("\n📋 New Deployments:");
-  console.log(JSON.stringify({
-    HCS_STREAMER: hcsStreamerAddress,
-    ANALYTICS: analyticsAddress,
-    NODE_STAKING: nodeStakingAddress,
-    PROTOCOL_INTEGRATION: protocolIntegrationAddress,
-    RATE_MODEL: rateModelAddress
-  }, null, 2));
-  console.log("\n🔜 Next: Phase 4 - Configure Contract Integration");
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ PHASE 3 COMPLETE - Hedera Contracts Deployed');
+  console.log('='.repeat(60));
+  console.log('\n📋 New Deployments:');
+  console.log(
+    JSON.stringify(
+      {
+        HCS_STREAMER: hcsStreamerAddress,
+        ANALYTICS: analyticsAddress,
+        NODE_STAKING: nodeStakingAddress,
+        PROTOCOL_INTEGRATION: protocolIntegrationAddress,
+        RATE_MODEL: rateModelAddress,
+      },
+      null,
+      2
+    )
+  );
+  console.log('\n🔜 Next: Phase 4 - Configure Contract Integration');
 }
 
 main()
@@ -715,56 +756,61 @@ Now we need to connect all the contracts together.
 Create `contracts/scripts/04-configure-integration.js`:
 
 ```javascript
-const { ethers } = require("hardhat");
+const { ethers } = require('hardhat');
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Configuring Dera Protocol Contract Integration\n");
+  console.log('🚀 Configuring Dera Protocol Contract Integration\n');
 
-  const addresses = JSON.parse(fs.readFileSync('./deployed-addresses-all.json', 'utf8'));
+  const addresses = JSON.parse(
+    fs.readFileSync('./deployed-addresses-all.json', 'utf8')
+  );
 
   const [deployer] = await ethers.getSigners();
-  console.log("Configuring with account:", deployer.address);
+  console.log('Configuring with account:', deployer.address);
 
   // Get contract instances
-  const pool = await ethers.getContractAt("Pool", addresses.POOL);
-  const protocolIntegration = await ethers.getContractAt("DeraProtocolIntegration", addresses.PROTOCOL_INTEGRATION);
+  const pool = await ethers.getContractAt('Pool', addresses.POOL);
+  const protocolIntegration = await ethers.getContractAt(
+    'DeraProtocolIntegration',
+    addresses.PROTOCOL_INTEGRATION
+  );
 
   // 1. Set HCS Event Streamer in Pool
-  console.log("\n📍 Setting HCS Event Streamer in Pool...");
+  console.log('\n📍 Setting HCS Event Streamer in Pool...');
   await pool.setHCSEventStreamer(addresses.HCS_STREAMER);
-  console.log("✅ HCS Event Streamer set");
+  console.log('✅ HCS Event Streamer set');
 
   // 2. Set Protocol Integration in Pool
-  console.log("\n📍 Setting Protocol Integration in Pool...");
+  console.log('\n📍 Setting Protocol Integration in Pool...');
   await pool.setProtocolIntegration(addresses.PROTOCOL_INTEGRATION);
-  console.log("✅ Protocol Integration set");
+  console.log('✅ Protocol Integration set');
 
   // 3. Set Analytics Contract in Pool
-  console.log("\n📍 Setting Analytics Contract in Pool...");
+  console.log('\n📍 Setting Analytics Contract in Pool...');
   await pool.setAnalyticsContract(addresses.ANALYTICS);
-  console.log("✅ Analytics Contract set");
+  console.log('✅ Analytics Contract set');
 
   // 4. Set Node Staking Contract in Pool
-  console.log("\n📍 Setting Node Staking Contract in Pool...");
+  console.log('\n📍 Setting Node Staking Contract in Pool...');
   await pool.setNodeStakingContract(addresses.NODE_STAKING);
-  console.log("✅ Node Staking Contract set");
+  console.log('✅ Node Staking Contract set');
 
   // 5. Configure Protocol Integration
-  console.log("\n📍 Configuring Protocol Integration...");
+  console.log('\n📍 Configuring Protocol Integration...');
   await protocolIntegration.setHCSEventStreamer(addresses.HCS_STREAMER);
-  console.log("✅ HCS Streamer set in Protocol Integration");
+  console.log('✅ HCS Streamer set in Protocol Integration');
 
   await protocolIntegration.setAnalyticsContract(addresses.ANALYTICS);
-  console.log("✅ Analytics set in Protocol Integration");
+  console.log('✅ Analytics set in Protocol Integration');
 
   await protocolIntegration.setNodeStakingContract(addresses.NODE_STAKING);
-  console.log("✅ Node Staking set in Protocol Integration");
+  console.log('✅ Node Staking set in Protocol Integration');
 
-  console.log("\n" + "=".repeat(60));
-  console.log("✅ PHASE 4 COMPLETE - Integration Configured");
-  console.log("=".repeat(60));
-  console.log("\n🔜 Next: Phase 5 - Deploy Backend Services");
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ PHASE 4 COMPLETE - Integration Configured');
+  console.log('='.repeat(60));
+  console.log('\n🔜 Next: Phase 5 - Deploy Backend Services');
 }
 
 main()
@@ -820,6 +866,7 @@ HCS_STREAMER_ADDRESS=$(cat contracts/deployed-addresses-all.json | grep HCS_STRE
 #### A. HCS Event Service
 
 Create `backend/hcs-event-service/.env`:
+
 ```bash
 # Hedera Network
 HEDERA_NETWORK=testnet
@@ -848,6 +895,7 @@ MAX_BATCH_SIZE=50
 #### B. Liquidation Bot
 
 Create `backend/liquidation-bot/.env`:
+
 ```bash
 # Hedera Network
 HEDERA_NETWORK=testnet
@@ -872,6 +920,7 @@ GAS_LIMIT=500000
 #### C. Node Staking Service
 
 Create `backend/node-staking-service/.env`:
+
 ```bash
 # Hedera Network
 HEDERA_NETWORK=testnet
@@ -892,6 +941,7 @@ COMPOUND_INTERVAL_HOURS=24
 #### D. Monitoring Service
 
 Create `backend/monitoring-service/.env`:
+
 ```bash
 # Hedera Network
 HEDERA_NETWORK=testnet
@@ -1044,18 +1094,21 @@ console.log("HCS Streamer:", hcsStreamer);  // Should match your deployed addres
 ### Step 7.2: HCS Topic Verification
 
 Visit HashScan:
+
 - Supply topic: `https://hashscan.io/testnet/topic/0.0.YOUR_SUPPLY_TOPIC`
 - Should show your test message from Phase 2
 
 ### Step 7.3: End-to-End Test
 
 1. **Connect Wallet**
+
    - Open frontend
    - Click "Connect Wallet"
    - Select HashPack
    - Approve connection
 
 2. **Test Supply**
+
    - Navigate to "Supply" tab
    - Select USDC
    - Enter amount (e.g., 10 USDC)
@@ -1065,11 +1118,13 @@ Visit HashScan:
    - Verify transaction on HashScan
 
 3. **Verify HCS Event**
+
    - Go to Supply topic on HashScan
    - Should see new message with your supply event
    - Message should contain: user address, asset, amount, timestamp
 
 4. **Check Analytics**
+
    - Navigate to "Analytics" tab
    - Should show updated TVL
    - Should show your supply
@@ -1132,6 +1187,7 @@ Visit HashScan:
 **Problem:** User or contract not associated with HTS token
 
 **Solution:**
+
 ```bash
 # Associate user with USDC token
 hedera-cli token associate --account YOUR_ACCOUNT --token 0.0.USDC_TOKEN_ID
@@ -1144,6 +1200,7 @@ hedera-cli token associate --account YOUR_ACCOUNT --token 0.0.USDC_TOKEN_ID
 **Problem:** Account doesn't have enough HBAR for gas or enough tokens
 
 **Solution:**
+
 - Check HBAR balance: [https://hashscan.io/testnet/account/YOUR_ACCOUNT](https://hashscan.io/testnet/account/YOUR_ACCOUNT)
 - Get testnet HBAR: [https://portal.hedera.com/](https://portal.hedera.com/)
 
@@ -1152,6 +1209,7 @@ hedera-cli token associate --account YOUR_ACCOUNT --token 0.0.USDC_TOKEN_ID
 **Problem:** JSON-RPC Relay URL incorrect or network down
 
 **Solution:**
+
 - Verify RPC URL: `https://testnet.hashio.io/api`
 - Check Hedera status: [https://status.hedera.com/](https://status.hedera.com/)
 - Try alternative relay: [https://testnet.hashio.io/api](https://testnet.hashio.io/api)
@@ -1161,6 +1219,7 @@ hedera-cli token associate --account YOUR_ACCOUNT --token 0.0.USDC_TOKEN_ID
 **Problem:** Topic ID incorrect or not created
 
 **Solution:**
+
 - Verify topic on HashScan: `https://hashscan.io/testnet/topic/YOUR_TOPIC_ID`
 - Check `hcs-topics.json` for correct IDs
 - Re-create topic if needed (Phase 2)
@@ -1170,6 +1229,7 @@ hedera-cli token associate --account YOUR_ACCOUNT --token 0.0.USDC_TOKEN_ID
 **Problem:** .env.local not loaded or incorrect
 
 **Solution:**
+
 ```bash
 # Check .env.local exists
 ls frontend/.env.local
@@ -1188,6 +1248,7 @@ npm run dev
 **Problem:** Analytics methods not implemented (known issue from integration analysis)
 
 **Solution:**
+
 - Disable analytics tab temporarily (see DEPLOYMENT_INTEGRATION_ANALYSIS.md)
 - OR implement analytics methods (see issue #2 in integration analysis)
 
@@ -1201,39 +1262,42 @@ Add USDC and HBAR to the pool:
 
 ```javascript
 // In hardhat console
-const poolConfigurator = await ethers.getContractAt("PoolConfigurator", "YOUR_CONFIGURATOR_ADDRESS");
+const poolConfigurator = await ethers.getContractAt(
+  'PoolConfigurator',
+  'YOUR_CONFIGURATOR_ADDRESS'
+);
 
 // Add USDC
 await poolConfigurator.initAsset({
-  asset: "0.0.YOUR_USDC_TOKEN",
-  dTokenImpl: "YOUR_D_TOKEN_IMPL",
-  variableDebtTokenImpl: "YOUR_DEBT_TOKEN_IMPL",
-  interestRateStrategy: "YOUR_RATE_STRATEGY",
-  treasury: "YOUR_TREASURY",
-  assetName: "USDC",
-  assetSymbol: "USDC",
+  asset: '0.0.YOUR_USDC_TOKEN',
+  dTokenImpl: 'YOUR_D_TOKEN_IMPL',
+  variableDebtTokenImpl: 'YOUR_DEBT_TOKEN_IMPL',
+  interestRateStrategy: 'YOUR_RATE_STRATEGY',
+  treasury: 'YOUR_TREASURY',
+  assetName: 'USDC',
+  assetSymbol: 'USDC',
   params: {
-    baseLTV: 8000,  // 80%
-    liquidationThreshold: 8500,  // 85%
-    liquidationBonus: 10500,  // 105%
+    baseLTV: 8000, // 80%
+    liquidationThreshold: 8500, // 85%
+    liquidationBonus: 10500, // 105%
     decimals: 6,
     active: true,
     frozen: false,
-    borrowable: true
-  }
+    borrowable: true,
+  },
 });
 ```
 
 ### 2. Set Oracle Prices
 
 ```javascript
-const oracle = await ethers.getContractAt("DeraOracle", "YOUR_ORACLE_ADDRESS");
+const oracle = await ethers.getContractAt('DeraOracle', 'YOUR_ORACLE_ADDRESS');
 
 // Set USDC price (1 USD = 1e8 base units)
-await oracle.setAssetPrice("0.0.USDC_TOKEN", ethers.parseUnits("1", 8));
+await oracle.setAssetPrice('0.0.USDC_TOKEN', ethers.parseUnits('1', 8));
 
 // Set HBAR price (e.g., 0.08 USD)
-await oracle.setAssetPrice("0.0.0", ethers.parseUnits("0.08", 8));
+await oracle.setAssetPrice('0.0.0', ethers.parseUnits('0.08', 8));
 ```
 
 ### 3. Fund Liquidation Bot
@@ -1263,6 +1327,7 @@ tail -f frontend/.next/trace
 When ready for mainnet:
 
 1. **Change network to mainnet in all configs:**
+
    ```bash
    HEDERA_NETWORK=mainnet
    NEXT_PUBLIC_HEDERA_NETWORK=mainnet
@@ -1283,17 +1348,20 @@ When ready for mainnet:
 ## Support & Resources
 
 ### Hedera Documentation
+
 - Hedera Docs: [https://docs.hedera.com/](https://docs.hedera.com/)
 - HTS Guide: [https://docs.hedera.com/guides/tokens/](https://docs.hedera.com/guides/tokens/)
 - HCS Guide: [https://docs.hedera.com/guides/consensus/](https://docs.hedera.com/guides/consensus/)
 - Mirror Node API: [https://docs.hedera.com/mirror-node-api/](https://docs.hedera.com/mirror-node-api/)
 
 ### Tools
+
 - HashScan Explorer: [https://hashscan.io/](https://hashscan.io/)
 - Hedera Portal: [https://portal.hedera.com/](https://portal.hedera.com/)
 - JSON-RPC Relay: [https://github.com/hashgraph/hedera-json-rpc-relay](https://github.com/hashgraph/hedera-json-rpc-relay)
 
 ### Dera Protocol
+
 - Integration Analysis: See `DEPLOYMENT_INTEGRATION_ANALYSIS.md`
 - Known Issues: See integration analysis for list of issues to address
 
@@ -1302,6 +1370,7 @@ When ready for mainnet:
 **🎉 Congratulations! You've deployed Dera Protocol on Hedera!**
 
 For questions or issues, refer to:
+
 - `DEPLOYMENT_INTEGRATION_ANALYSIS.md` - Comprehensive integration analysis
 - `FIXES_COMPLETED.md` - Status of fixes applied
 - `MISSING_INTEGRATIONS_ANALYSIS.md` - Additional integration details
