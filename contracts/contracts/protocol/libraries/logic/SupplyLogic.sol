@@ -139,12 +139,10 @@ library SupplyLogic {
         ValidationLogic.validateHFAndLtvzero(
           poolAssets,
           assetsList,
-          
           userConfig,
           params.asset,
           params.user,
-          params.oracle,
-          
+          params.oracle
         );
       }
     }
