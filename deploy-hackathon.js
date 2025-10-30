@@ -1,0 +1,425 @@
+#!/usr/bin/env node
+
+/**
+ * DERA PROTOCOL - HACKATHON DEPLOYMENT SCRIPT
+ * ============================================
+ *
+ * This script automates the complete deployment of the Dera Protocol
+ * to Hedera Testnet for hackathon judges and mentors.
+ *
+ * Expected Runtime: 5-8 minutes
+ *
+ * Prerequisites:
+ * - Node.js 18+
+ * - Hedera Testnet account with at least 100 HBAR
+ * - Environment variables configured in .env
+ *
+ * Usage:
+ *   npm run deploy:hackathon
+ */
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+
+// ANSI color codes for pretty output
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m'
+};
+
+function log(message, color = 'reset') {
+  console.log(`${colors[color]}${message}${colors.reset}`);
+}
+
+function execCommand(command, cwd = process.cwd(), silent = false) {
+  try {
+    const output = execSync(command, {
+      cwd,
+      stdio: silent ? 'pipe' : 'inherit',
+      encoding: 'utf8'
+    });
+    return { success: true, output };
+  } catch (error) {
+    return { success: false, error: error.message, output: error.stdout };
+  }
+}
+
+function checkPrerequisites() {
+  log('\n📋 Checking Prerequisites...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+
+  // Check Node.js version
+  const nodeVersion = process.version;
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+  if (majorVersion < 18) {
+    log(`❌ Node.js version ${nodeVersion} is too old. Please install Node.js 18 or higher.`, 'red');
+    return false;
+  }
+  log(`✅ Node.js ${nodeVersion}`, 'green');
+
+  // Check for .env file
+  const envPath = path.join(__dirname, 'contracts', '.env');
+  if (!fs.existsSync(envPath)) {
+    log('❌ .env file not found in contracts directory', 'red');
+    log('   Please copy .env.example to .env and configure your credentials', 'yellow');
+    return false;
+  }
+  log('✅ Environment file found', 'green');
+
+  // Load and validate environment variables
+  require('dotenv').config({ path: envPath });
+
+  const requiredVars = [
+    'HEDERA_OPERATOR_ID',
+    'HEDERA_OPERATOR_KEY',
+    'PRIVATE_KEY'
+  ];
+
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      log(`❌ Missing required environment variable: ${varName}`, 'red');
+      return false;
+    }
+  }
+  log('✅ Required environment variables configured', 'green');
+
+  // Check Git
+  const gitCheck = execCommand('git --version', process.cwd(), true);
+  if (!gitCheck.success) {
+    log('⚠️  Git not found (optional)', 'yellow');
+  } else {
+    log('✅ Git installed', 'green');
+  }
+
+  log('\n✅ All prerequisites met!', 'green');
+  return true;
+}
+
+async function promptUser(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+}
+
+async function installDependencies() {
+  log('\n📦 Installing Dependencies...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('This may take 2-3 minutes...', 'yellow');
+
+  // Install root dependencies
+  log('\n📍 Installing root dependencies...', 'blue');
+  const rootInstall = execCommand('npm install', process.cwd());
+  if (!rootInstall.success) {
+    log('❌ Failed to install root dependencies', 'red');
+    return false;
+  }
+
+  // Install contracts dependencies
+  log('\n📍 Installing contract dependencies...', 'blue');
+  const contractsPath = path.join(__dirname, 'contracts');
+  const contractsInstall = execCommand('npm install', contractsPath);
+  if (!contractsInstall.success) {
+    log('❌ Failed to install contracts dependencies', 'red');
+    return false;
+  }
+
+  // Install frontend dependencies
+  log('\n📍 Installing frontend dependencies...', 'blue');
+  const frontendPath = path.join(__dirname, 'frontend');
+  const frontendInstall = execCommand('npm install', frontendPath);
+  if (!frontendInstall.success) {
+    log('❌ Failed to install frontend dependencies', 'red');
+    return false;
+  }
+
+  log('\n✅ All dependencies installed successfully!', 'green');
+  return true;
+}
+
+async function compileContracts() {
+  log('\n🔨 Compiling Smart Contracts...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+
+  const contractsPath = path.join(__dirname, 'contracts');
+  const compile = execCommand('npx hardhat compile', contractsPath);
+
+  if (!compile.success) {
+    log('❌ Contract compilation failed', 'red');
+    return false;
+  }
+
+  log('✅ Contracts compiled successfully!', 'green');
+  return true;
+}
+
+async function deployContracts() {
+  log('\n🚀 Deploying Core Contracts to Hedera Testnet...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('This will take 3-5 minutes. Please be patient...', 'yellow');
+
+  const contractsPath = path.join(__dirname, 'contracts');
+  const deploy = execCommand(
+    'npx hardhat run scripts/deploy-complete.js --network testnet',
+    contractsPath
+  );
+
+  if (!deploy.success) {
+    log('❌ Contract deployment failed', 'red');
+    log('\nCheck the error above and ensure you have enough HBAR (at least 50 HBAR)', 'yellow');
+    return false;
+  }
+
+  // Check if deployment-info.json was created
+  const deploymentInfoPath = path.join(contractsPath, 'deployment-info.json');
+  if (!fs.existsSync(deploymentInfoPath)) {
+    log('❌ Deployment info file not found', 'red');
+    return false;
+  }
+
+  log('✅ Contracts deployed successfully!', 'green');
+  return true;
+}
+
+async function createHCSTopics() {
+  log('\n📡 Creating HCS Topics for Event Logging...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+
+  const contractsPath = path.join(__dirname, 'contracts');
+  const hcsScript = execCommand('node scripts/create-hcs-topics.js', contractsPath);
+
+  if (!hcsScript.success) {
+    log('❌ HCS topic creation failed', 'red');
+    return false;
+  }
+
+  // Check if hcs-topics.json was created
+  const topicsPath = path.join(contractsPath, 'hcs-topics.json');
+  if (!fs.existsSync(topicsPath)) {
+    log('❌ HCS topics file not found', 'red');
+    return false;
+  }
+
+  log('✅ HCS topics created successfully!', 'green');
+  return true;
+}
+
+async function configureFrontend() {
+  log('\n⚙️  Configuring Frontend...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+
+  const frontendPath = path.join(__dirname, 'frontend');
+  const envLocalPath = path.join(frontendPath, '.env.local');
+  const envExamplePath = path.join(frontendPath, '.env.example');
+
+  // Create .env.local from .env.example if it doesn't exist
+  if (!fs.existsSync(envLocalPath) && fs.existsSync(envExamplePath)) {
+    fs.copyFileSync(envExamplePath, envLocalPath);
+    log('✅ Created .env.local from template', 'green');
+  }
+
+  // Load deployment info and update .env.local
+  const deploymentInfoPath = path.join(__dirname, 'contracts', 'deployment-info.json');
+  const topicsPath = path.join(__dirname, 'contracts', 'hcs-topics.json');
+
+  if (fs.existsSync(deploymentInfoPath) && fs.existsSync(envLocalPath)) {
+    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentInfoPath, 'utf8'));
+    const topicsInfo = fs.existsSync(topicsPath)
+      ? JSON.parse(fs.readFileSync(topicsPath, 'utf8'))
+      : null;
+
+    let envContent = fs.readFileSync(envLocalPath, 'utf8');
+
+    // Update contract addresses
+    if (deploymentInfo.addresses) {
+      Object.entries(deploymentInfo.addresses).forEach(([key, value]) => {
+        const envKey = `NEXT_PUBLIC_${key}`;
+        const regex = new RegExp(`${envKey}=.*`, 'g');
+        if (envContent.match(regex)) {
+          envContent = envContent.replace(regex, `${envKey}=${value}`);
+        } else {
+          envContent += `\n${envKey}=${value}`;
+        }
+      });
+    }
+
+    // Update HCS topic IDs
+    if (topicsInfo && topicsInfo.topics) {
+      Object.entries(topicsInfo.topics).forEach(([key, value]) => {
+        const envKey = `NEXT_PUBLIC_HCS_${key}_TOPIC`;
+        const regex = new RegExp(`${envKey}=.*`, 'g');
+        if (envContent.match(regex)) {
+          envContent = envContent.replace(regex, `${envKey}=${value}`);
+        } else {
+          envContent += `\n${envKey}=${value}`;
+        }
+      });
+    }
+
+    fs.writeFileSync(envLocalPath, envContent);
+    log('✅ Frontend environment configured', 'green');
+  }
+
+  return true;
+}
+
+function displayDeploymentSummary() {
+  log('\n🎉 DEPLOYMENT COMPLETE!', 'green');
+  log('━'.repeat(60), 'green');
+
+  // Load deployment info
+  const deploymentInfoPath = path.join(__dirname, 'contracts', 'deployment-info.json');
+  const topicsPath = path.join(__dirname, 'contracts', 'hcs-topics.json');
+
+  if (fs.existsSync(deploymentInfoPath)) {
+    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentInfoPath, 'utf8'));
+
+    log('\n📋 DEPLOYED CONTRACT ADDRESSES:', 'cyan');
+    log('━'.repeat(60), 'cyan');
+
+    if (deploymentInfo.addresses) {
+      Object.entries(deploymentInfo.addresses).forEach(([name, address]) => {
+        log(`   ${name.padEnd(30)} ${address}`, 'white');
+      });
+    }
+
+    log('\n🔗 HASHSCAN LINKS (View on Explorer):', 'cyan');
+    log('━'.repeat(60), 'cyan');
+    if (deploymentInfo.addresses) {
+      Object.entries(deploymentInfo.addresses).forEach(([name, address]) => {
+        log(`   ${name}:`, 'yellow');
+        log(`   https://hashscan.io/testnet/contract/${address}`, 'blue');
+      });
+    }
+  }
+
+  if (fs.existsSync(topicsPath)) {
+    const topicsInfo = JSON.parse(fs.readFileSync(topicsPath, 'utf8'));
+
+    log('\n📡 HCS TOPIC IDs:', 'cyan');
+    log('━'.repeat(60), 'cyan');
+
+    if (topicsInfo.topics) {
+      Object.entries(topicsInfo.topics).forEach(([name, topicId]) => {
+        log(`   ${name.padEnd(30)} ${topicId}`, 'white');
+        log(`   https://hashscan.io/testnet/topic/${topicId}`, 'blue');
+      });
+    }
+  }
+
+  log('\n🚀 NEXT STEPS:', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('   1. Start the frontend:', 'yellow');
+  log('      cd frontend && npm run dev', 'white');
+  log('', 'white');
+  log('   2. Open your browser:', 'yellow');
+  log('      http://localhost:3000', 'white');
+  log('', 'white');
+  log('   3. Connect your HashPack wallet', 'yellow');
+  log('', 'white');
+  log('   4. Start interacting with the protocol!', 'yellow');
+
+  log('\n📄 DEPLOYMENT FILES:', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('   - contracts/deployment-info.json     Contract addresses', 'white');
+  log('   - contracts/hcs-topics.json          HCS topic IDs', 'white');
+  log('   - frontend/.env.local                Frontend configuration', 'white');
+
+  log('\n💡 TIPS FOR JUDGES:', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('   - All transaction costs ~$0.10 USD or less on Hedera', 'white');
+  log('   - HCS provides immutable audit log of all operations', 'white');
+  log('   - Mirror Node API available for historical queries', 'white');
+  log('   - Test HBAR available from: https://portal.hedera.com/', 'white');
+
+  log('\n✅ HACKATHON DEPLOYMENT SUCCESSFUL!', 'green');
+  log('━'.repeat(60), 'green');
+}
+
+async function main() {
+  log('\n╔════════════════════════════════════════════════════════════╗', 'magenta');
+  log('║                                                            ║', 'magenta');
+  log('║           DERA PROTOCOL - HACKATHON DEPLOYMENT            ║', 'magenta');
+  log('║                 Hedera Testnet Edition                    ║', 'magenta');
+  log('║                                                            ║', 'magenta');
+  log('╚════════════════════════════════════════════════════════════╝', 'magenta');
+
+  log('\n🎯 This script will deploy the complete Dera Protocol to Hedera Testnet', 'yellow');
+  log('⏱️  Expected time: 5-8 minutes', 'yellow');
+  log('💰 Required: At least 100 HBAR in your Hedera account', 'yellow');
+
+  // Check prerequisites
+  if (!checkPrerequisites()) {
+    log('\n❌ Prerequisites check failed. Please fix the issues above and try again.', 'red');
+    process.exit(1);
+  }
+
+  const answer = await promptUser('\n▶️  Ready to begin deployment? (yes/no): ');
+  if (answer.toLowerCase() !== 'yes' && answer.toLowerCase() !== 'y') {
+    log('\n❌ Deployment cancelled by user', 'yellow');
+    process.exit(0);
+  }
+
+  const startTime = Date.now();
+
+  // Step 1: Install dependencies
+  if (!await installDependencies()) {
+    log('\n❌ Deployment failed during dependency installation', 'red');
+    process.exit(1);
+  }
+
+  // Step 2: Compile contracts
+  if (!await compileContracts()) {
+    log('\n❌ Deployment failed during contract compilation', 'red');
+    process.exit(1);
+  }
+
+  // Step 3: Deploy contracts
+  if (!await deployContracts()) {
+    log('\n❌ Deployment failed during contract deployment', 'red');
+    process.exit(1);
+  }
+
+  // Step 4: Create HCS topics
+  if (!await createHCSTopics()) {
+    log('\n❌ Deployment failed during HCS topic creation', 'red');
+    process.exit(1);
+  }
+
+  // Step 5: Configure frontend
+  if (!await configureFrontend()) {
+    log('\n❌ Deployment failed during frontend configuration', 'red');
+    process.exit(1);
+  }
+
+  const endTime = Date.now();
+  const duration = Math.round((endTime - startTime) / 1000);
+
+  // Display summary
+  displayDeploymentSummary();
+
+  log(`\n⏱️  Total deployment time: ${duration} seconds`, 'cyan');
+  log('\n🎉 Thank you for checking out Dera Protocol!', 'magenta');
+}
+
+// Run main function
+main().catch((error) => {
+  log('\n❌ Fatal error during deployment:', 'red');
+  console.error(error);
+  process.exit(1);
+});

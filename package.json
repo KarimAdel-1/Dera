@@ -11,6 +11,8 @@
   "scripts": {
     "setup": "node setup-environment.js",
     "deploy": "node deploy.js",
+    "deploy:hackathon": "node deploy-hackathon.js",
+    "quick-deploy": "./quick-deploy.sh",
     "deploy:quick": "cd contracts && npx hardhat run scripts/deploy-complete.js --network testnet",
     "deploy:hcs": "cd contracts && node scripts/create-hcs-topics.js",
     "install:all": "npm install && npm run install:contracts && npm run install:backend && npm run install:frontend",
