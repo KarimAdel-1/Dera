@@ -176,12 +176,10 @@ library SupplyLogic {
           ValidationLogic.validateHFAndLtvzero(
             poolAssets,
             assetsList,
-            
             usersConfig[params.from],
             params.asset,
             params.from,
-            params.oracle,
-            
+            params.oracle
           );
         }
       }
@@ -234,12 +232,10 @@ library SupplyLogic {
       ValidationLogic.validateHFAndLtvzero(
         poolAssets,
         assetsList,
-        
         userConfig,
         asset,
         user,
-        priceOracle,
-        
+        priceOracle
       );
     }
   }
