@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "setup": "node setup-environment.js",
+    "verify-setup": "node verify-setup.js",
     "deploy": "node deploy.js",
     "deploy:hackathon": "node deploy-hackathon.js",
     "quick-deploy": "./quick-deploy.sh",
