@@ -33,9 +33,8 @@ class StakingService {
       }
 
       if (!this.contractAddress) {
-        console.warn('⚠️ StakingService: No contract address configured. Service will use mock data.');
-        this.isInitialized = false;
-        return;
+        console.error('❌ StakingService: No contract address configured. Please set NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS.');
+        throw new Error('StakingService: Contract address not configured');
       }
 
       // Setup provider (will be replaced with HashPack provider)
@@ -261,8 +260,7 @@ class StakingService {
    */
   async getUserStakes(userAddress) {
     if (!this.isInitialized) {
-      console.warn('⚠️ StakingService not initialized, returning mock data');
-      return this.getMockStakes(userAddress);
+      throw new Error('StakingService not initialized. Please initialize before calling getUserStakes.');
     }
 
     try {
@@ -296,7 +294,7 @@ class StakingService {
       return stakes;
     } catch (error) {
       console.error('❌ Error fetching stakes:', error);
-      return this.getMockStakes(userAddress);
+      throw error;
     }
   }
 
@@ -334,28 +332,6 @@ class StakingService {
   getStakeStatus(status) {
     const statuses = ['ACTIVE', 'UNSTAKED', 'EMERGENCY_UNSTAKED'];
     return statuses[status] || 'UNKNOWN';
-  }
-
-  /**
-   * Get mock stakes for development/testing
-   */
-  getMockStakes(userAddress) {
-    return [
-      {
-        stakeId: '1',
-        assetType: 'HBAR',
-        tokenAddress: '0x0000000000000000000000000000000000000000',
-        amount: '100',
-        serialNumber: '0',
-        startTime: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-        lockPeriod: 30 * 24 * 60 * 60, // 30 days in seconds
-        unlockTime: Date.now() + 25 * 24 * 60 * 60 * 1000, // 25 days from now
-        rewardAPY: 10,
-        accumulatedRewards: '1.37',
-        pendingRewards: '1.37',
-        status: 'ACTIVE'
-      }
-    ];
   }
 
   /**

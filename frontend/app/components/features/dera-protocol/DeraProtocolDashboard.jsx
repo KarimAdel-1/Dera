@@ -33,6 +33,9 @@ const DeraProtocolDashboard = () => {
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [isProcessingTransaction, setIsProcessingTransaction] = useState(false);
+  const [assets, setAssets] = useState([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(true);
+  const [assetsError, setAssetsError] = useState(null);
 
   // Get wallet state from Redux
   const { wallets, activeWalletId } = useSelector((state) => state.wallet);
@@ -41,46 +44,36 @@ const DeraProtocolDashboard = () => {
   // Use wallet management hook
   const { connectToHashPack, isConnecting } = useWalletManagement();
 
-  // Asset configuration (will be fetched from contract in production)
-  const mockAssets = [
-    {
-      symbol: 'USDC',
-      name: 'USD Coin',
-      supplyAPY: 3.45,
-      borrowAPY: 5.20,
-      price: 1.00,
-      ltv: 80,
-      liquidationThreshold: 85,
-      address: process.env.NEXT_PUBLIC_USDC_ADDRESS || '0.0.123456',
-      decimals: 6
-    },
-    {
-      symbol: 'HBAR',
-      name: 'Hedera',
-      supplyAPY: 2.15,
-      borrowAPY: 4.80,
-      price: 0.08,
-      ltv: 75,
-      liquidationThreshold: 80,
-      address: process.env.NEXT_PUBLIC_HBAR_ADDRESS || '0.0.123457',
-      decimals: 8
-    }
-  ];
-
-  // Initialize deraProtocolServiceV2 on mount
+  // Initialize deraProtocolServiceV2 and load assets on mount
   useEffect(() => {
     const init = async () => {
-      await deraProtocolServiceV2.initialize();
-      console.log('✅ DeraProtocolServiceV2 initialized');
+      try {
+        setIsLoadingAssets(true);
+        setAssetsError(null);
+
+        await deraProtocolServiceV2.initialize();
+        console.log('✅ DeraProtocolServiceV2 initialized');
+
+        // Fetch supported assets from Pool contract
+        const supportedAssets = await deraProtocolServiceV2.getSupportedAssets();
+        setAssets(supportedAssets);
+        console.log('✅ Loaded assets from Pool contract:', supportedAssets);
+      } catch (error) {
+        console.error('❌ Failed to load assets from contract:', error);
+        setAssetsError(error.message);
+        showNotification('Failed to load assets from contract. Please check deployment.', 'error');
+      } finally {
+        setIsLoadingAssets(false);
+      }
     };
     init();
   }, []);
 
-  // Load user positions when wallet connects
+  // Load user positions when wallet connects and assets are loaded
   useEffect(() => {
-    if (activeWallet?.address) {
+    if (activeWallet?.address && assets.length > 0) {
       loadUserPositions(activeWallet.address);
-    } else {
+    } else if (!activeWallet?.address) {
       // Reset account when wallet disconnects
       setUserAccount({
         address: null,
@@ -92,7 +85,7 @@ const DeraProtocolDashboard = () => {
         healthFactor: Infinity
       });
     }
-  }, [activeWallet?.address]);
+  }, [activeWallet?.address, assets]);
 
   /**
    * Load user positions from Pool contract
@@ -101,6 +94,12 @@ const DeraProtocolDashboard = () => {
     try {
       setIsLoadingPositions(true);
       console.log('📊 Loading user positions for:', userAddress);
+
+      // Ensure assets are loaded before querying positions
+      if (assets.length === 0) {
+        console.warn('⚠️ Assets not loaded yet, skipping position load');
+        return;
+      }
 
       // Get user account data from Pool contract
       const accountData = await deraProtocolServiceV2.getUserAccountData(userAddress);
@@ -111,7 +110,7 @@ const DeraProtocolDashboard = () => {
       const supplies = [];
       const borrows = [];
 
-      for (const asset of mockAssets) {
+      for (const asset of assets) {
         try {
           // Get supply balance
           const supplyBalance = await deraProtocolServiceV2.getUserAssetBalance(
@@ -124,7 +123,7 @@ const DeraProtocolDashboard = () => {
             supplies.push({
               asset: asset.symbol,
               amount,
-              apy: asset.supplyAPY,
+              apy: Number(asset.supplyAPY),
               collateralEnabled: true, // Will be fetched from contract in production
               address: asset.address
             });
@@ -141,7 +140,7 @@ const DeraProtocolDashboard = () => {
             borrows.push({
               asset: asset.symbol,
               amount,
-              apy: asset.borrowAPY,
+              apy: Number(asset.borrowAPY),
               address: asset.address
             });
           }
@@ -208,7 +207,7 @@ const DeraProtocolDashboard = () => {
       setIsProcessingTransaction(true);
 
       // Find asset config
-      const assetData = mockAssets.find(a => a.symbol === assetSymbol);
+      const assetData = assets.find(a => a.symbol === assetSymbol);
       if (!assetData) {
         throw new Error(`Asset ${assetSymbol} not found`);
       }
@@ -327,7 +326,7 @@ const DeraProtocolDashboard = () => {
   const toggleCollateral = async (assetSymbol) => {
     try {
       const supply = userAccount.supplies.find(s => s.asset === assetSymbol);
-      const assetData = mockAssets.find(a => a.symbol === assetSymbol);
+      const assetData = assets.find(a => a.symbol === assetSymbol);
 
       if (!supply || !assetData) {
         showNotification('Asset not found', 'error');
@@ -434,44 +433,61 @@ const DeraProtocolDashboard = () => {
         </div>
 
         <div className="p-4 sm:p-6">
-          {activeTab === 'supply' && (
-            <SupplyTab
-              assets={mockAssets}
-              onSupply={(asset) => openModal('supply', asset)}
-              disabled={!activeWallet || isProcessingTransaction}
-            />
-          )}
-          {activeTab === 'borrow' && (
-            <BorrowTab
-              assets={mockAssets}
-              availableToBorrow={userAccount.availableToBorrow}
-              onBorrow={(asset) => openModal('borrow', asset)}
-              disabled={!activeWallet || isProcessingTransaction}
-            />
-          )}
-          {activeTab === 'positions' && (
+          {isLoadingAssets ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)] mx-auto mb-4"></div>
+              <p className="text-[var(--color-text-muted)]">Loading assets from Pool contract...</p>
+            </div>
+          ) : assetsError ? (
+            <div className="text-center py-12">
+              <p className="text-red-500 mb-2">Failed to load assets from contract</p>
+              <p className="text-[var(--color-text-muted)] text-sm">{assetsError}</p>
+              <p className="text-[var(--color-text-muted)] text-sm mt-4">
+                Please ensure contracts are deployed and NEXT_PUBLIC_POOL_ADDRESS is configured.
+              </p>
+            </div>
+          ) : (
             <>
-              <TestingTab
-                supplies={userAccount.supplies}
-                borrows={userAccount.borrows}
-                assets={mockAssets}
-                onWithdraw={(asset) => openModal('withdraw', asset)}
-                onRepay={(asset) => openModal('repay', asset)}
-                onSupplyMore={(asset) => openModal('supply', asset)}
-                onBorrowMore={(asset) => openModal('borrow', asset)}
-                onToggleCollateral={toggleCollateral}
-                disabled={isProcessingTransaction}
-              />
-              <div className="mt-6">
-                <TransactionHistory transactions={transactionHistory} />
-              </div>
+              {activeTab === 'supply' && (
+                <SupplyTab
+                  assets={assets}
+                  onSupply={(asset) => openModal('supply', asset)}
+                  disabled={!activeWallet || isProcessingTransaction}
+                />
+              )}
+              {activeTab === 'borrow' && (
+                <BorrowTab
+                  assets={assets}
+                  availableToBorrow={userAccount.availableToBorrow}
+                  onBorrow={(asset) => openModal('borrow', asset)}
+                  disabled={!activeWallet || isProcessingTransaction}
+                />
+              )}
+              {activeTab === 'positions' && (
+                <>
+                  <TestingTab
+                    supplies={userAccount.supplies}
+                    borrows={userAccount.borrows}
+                    assets={assets}
+                    onWithdraw={(asset) => openModal('withdraw', asset)}
+                    onRepay={(asset) => openModal('repay', asset)}
+                    onSupplyMore={(asset) => openModal('supply', asset)}
+                    onBorrowMore={(asset) => openModal('borrow', asset)}
+                    onToggleCollateral={toggleCollateral}
+                    disabled={isProcessingTransaction}
+                  />
+                  <div className="mt-6">
+                    <TransactionHistory transactions={transactionHistory} />
+                  </div>
+                </>
+              )}
+              {activeTab === 'events' && (
+                <HCSEventHistory />
+              )}
+              {activeTab === 'analytics' && (
+                <ProtocolAnalytics />
+              )}
             </>
-          )}
-          {activeTab === 'events' && (
-            <HCSEventHistory />
-          )}
-          {activeTab === 'analytics' && (
-            <ProtocolAnalytics />
           )}
         </div>
       </div>
@@ -480,7 +496,7 @@ const DeraProtocolDashboard = () => {
         <ActionModal
           type={modalState.type}
           asset={modalState.asset}
-          assets={mockAssets}
+          assets={assets}
           userAccount={userAccount}
           onClose={closeModal}
           onExecute={executeTransaction}

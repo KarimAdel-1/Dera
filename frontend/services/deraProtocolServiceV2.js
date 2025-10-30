@@ -675,17 +675,7 @@ class DeraProtocolServiceV2 {
       };
     } catch (error) {
       console.error('Get protocol metrics error:', error);
-
-      // Return mock data if analytics contract not deployed or fails
-      console.warn('⚠️ Analytics contract not available, returning mock data');
-      return {
-        totalValueLocked: '0',
-        totalSupplied: '0',
-        totalBorrowed: '0',
-        totalUsers: 0,
-        totalTransactions: 0,
-        lastUpdateTimestamp: Date.now()
-      };
+      throw new Error(`Failed to load protocol metrics from Analytics contract: ${error.message}`);
     }
   }
 
@@ -716,19 +706,7 @@ class DeraProtocolServiceV2 {
       };
     } catch (error) {
       console.error('Get asset metrics error:', error);
-
-      // Return mock data if analytics contract not deployed or fails
-      console.warn('⚠️ Analytics contract not available, returning mock data for asset:', assetAddress);
-      return {
-        totalSupply: '0',
-        totalBorrow: '0',
-        supplyAPY: '0.00',
-        borrowAPY: '0.00',
-        utilization: '0.00',
-        supplierCount: 0,
-        borrowerCount: 0,
-        volume24h: '0'
-      };
+      throw new Error(`Failed to load asset metrics from Analytics contract: ${error.message}`);
     }
   }
 
@@ -755,27 +733,7 @@ class DeraProtocolServiceV2 {
       }));
     } catch (error) {
       console.error('Get historical snapshots error:', error);
-
-      // Return mock data if analytics contract not deployed or fails
-      console.warn('⚠️ Analytics contract not available, returning mock historical data');
-
-      // Generate mock data for the requested number of days
-      const now = Date.now();
-      const mockSnapshots = [];
-      const hoursToGenerate = Math.min(days * 24, 168);
-
-      for (let i = hoursToGenerate; i >= 0; i--) {
-        const timestamp = now - (i * 60 * 60 * 1000); // i hours ago
-        mockSnapshots.push({
-          timestamp,
-          tvl: (Math.random() * 1000000 + 500000).toString(), // Random TVL between 500k-1.5M
-          totalSupplied: (Math.random() * 800000 + 400000).toString(),
-          totalBorrowed: (Math.random() * 400000 + 200000).toString(),
-          utilizationRate: Math.random() * 80 + 20 // 20-100%
-        });
-      }
-
-      return mockSnapshots;
+      throw new Error(`Failed to load historical snapshots from Analytics contract: ${error.message}`);
     }
   }
 }
