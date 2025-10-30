@@ -58,7 +58,14 @@ function checkEnvVariables() {
   const envPath = path.join(__dirname, 'contracts', '.env');
 
   if (!fs.existsSync(envPath)) {
-    log(`  ⚠️  .env file not found - copy .env.example to .env`, 'yellow');
+    log(`  ❌ .env file not found`, 'red');
+    log(`  `, 'white');
+    log(`  Run the setup wizard:`, 'yellow');
+    log(`    npm run setup-env`, 'white');
+    log(`  `, 'white');
+    log(`  Or manually:`, 'yellow');
+    log(`    cp contracts/.env.example contracts/.env`, 'white');
+    log(`    nano contracts/.env  # Add your credentials`, 'white');
     return false;
   }
 
@@ -74,11 +81,36 @@ function checkEnvVariables() {
 
   for (const varName of requiredVars) {
     if (process.env[varName] && process.env[varName].length > 0) {
-      log(`  ✅ ${varName} is set`, 'green');
+      // Additional validation for PRIVATE_KEY
+      if (varName === 'PRIVATE_KEY') {
+        const key = process.env[varName];
+        const cleanKey = key.startsWith('0x') ? key.slice(2) : key;
+        if (cleanKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(cleanKey)) {
+          log(`  ❌ ${varName} is invalid (must be 64 hex characters)`, 'red');
+          allPresent = false;
+        } else {
+          log(`  ✅ ${varName} is set and valid`, 'green');
+        }
+      } else if (varName === 'HEDERA_OPERATOR_ID') {
+        if (!/^0\.0\.\d+$/.test(process.env[varName])) {
+          log(`  ❌ ${varName} is invalid (format: 0.0.xxxxx)`, 'red');
+          allPresent = false;
+        } else {
+          log(`  ✅ ${varName} is set and valid`, 'green');
+        }
+      } else {
+        log(`  ✅ ${varName} is set`, 'green');
+      }
     } else {
-      log(`  ❌ ${varName} is missing`, 'red');
+      log(`  ❌ ${varName} is missing or empty`, 'red');
       allPresent = false;
     }
+  }
+
+  if (!allPresent) {
+    log(`  `, 'white');
+    log(`  Fix by running the setup wizard:`, 'yellow');
+    log(`    npm run setup-env`, 'white');
   }
 
   return allPresent;

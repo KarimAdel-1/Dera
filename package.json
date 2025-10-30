@@ -9,9 +9,8 @@
     "frontend"
   ],
   "scripts": {
-    "setup": "node setup-environment.js",
+    "setup-env": "node setup-env.js",
     "verify-setup": "node verify-setup.js",
-    "deploy": "node deploy.js",
     "deploy:hackathon": "node deploy-hackathon.js",
     "quick-deploy": "./quick-deploy.sh",
     "deploy:quick": "cd contracts && npx hardhat run scripts/deploy-complete.js --network testnet",
