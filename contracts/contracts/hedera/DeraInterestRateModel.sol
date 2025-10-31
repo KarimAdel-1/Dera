@@ -264,7 +264,7 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
     // Calculate weighted average of recent utilization
     uint256 totalWeight = 0;
     uint256 weightedSum = 0;
-    uint256 now = block.timestamp;
+    uint256 currentTime = block.timestamp;
 
     // Weight recent data more heavily (exponential decay)
     for (uint256 i = 0; i < utilizationHistory.length && i < 10; i++) {
@@ -272,7 +272,7 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
         utilizationHistory.length - 1 - i
       ];
 
-      uint256 age = now - snapshot.timestamp;
+      uint256 age = currentTime - snapshot.timestamp;
       // Weight decreases with age: recent = 100%, 1hr old = 50%, 2hr old = 25%
       uint256 weight = age < 3600 ? 100 : (age < 7200 ? 50 : 25);
 
@@ -356,6 +356,15 @@ contract DeraInterestRateModel is IReserveInterestRateStrategy {
       dynamicOptimalUtilization,
       volatilityMultiplier
     );
+  }
+
+  /**
+   * @notice Set interest rate parameters
+   * @dev Required by IReserveInterestRateStrategy interface
+   */
+  function setInterestRateParams(address asset, bytes calldata rateData) external override onlyAdmin {
+    // Implementation for setting rate parameters
+    // This is a placeholder - can be extended based on specific needs
   }
 
   /**

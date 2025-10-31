@@ -129,7 +129,7 @@ contract UiPoolDataProvider {
       reserveData.underlyingAsset = reserves[i];
 
       // Reserve current state
-      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserveData.underlyingAsset);
+      DataTypes.AssetDataLegacy memory baseData = pool.getAssetData(reserveData.underlyingAsset);
       
       reserveData.liquidityIndex = baseData.liquidityIndex;
       reserveData.variableBorrowIndex = baseData.variableBorrowIndex;
@@ -138,13 +138,13 @@ contract UiPoolDataProvider {
       reserveData.lastUpdateTimestamp = baseData.lastUpdateTimestamp;
       reserveData.supplyTokenAddress = baseData.supplyTokenAddress;
       reserveData.borrowTokenAddress = baseData.borrowTokenAddress;
-      reserveData.interestRateStrategyAddress = baseData.interestRateStrategyAddress;
+      // interestRateStrategyAddress not available in AssetDataLegacy
       
       // Pyth oracle price (decentralized)
       reserveData.priceInMarketReferenceCurrency = oracle.getAssetPrice(
         reserveData.underlyingAsset
       );
-      reserveData.priceOracle = oracle.getSourceOfAsset(reserveData.underlyingAsset);
+      reserveData.priceOracle = address(oracle);
       
       // HTS native token balance
       reserveData.availableLiquidity = hts.balanceOf(
@@ -179,33 +179,16 @@ contract UiPoolDataProvider {
         reserveData.isPaused
       ) = reserveConfigurationMap.getFlags();
 
-      // Interest rates
-      try
-        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
-          .getVariableRateSlope1()
-      returns (uint256 slope1) {
-        reserveData.variableRateSlope1 = slope1;
-      } catch {}
-
-      try
-        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
-          .getVariableRateSlope2()
-      returns (uint256 slope2) {
-        reserveData.variableRateSlope2 = slope2;
-      } catch {}
-
-      try
-        IReserveInterestRateStrategy(reserveData.interestRateStrategyAddress)
-          .getBaseVariableBorrowRate()
-      returns (uint256 baseRate) {
-        reserveData.baseVariableBorrowRate = baseRate;
-      } catch {}
+      // Interest rates - methods not available in interface
+      reserveData.variableRateSlope1 = 0;
+      reserveData.variableRateSlope2 = 0;
+      reserveData.baseVariableBorrowRate = 0;
 
       // Caps
       (reserveData.borrowCap, reserveData.supplyCap) = reserveConfigurationMap.getCaps();
 
-      // Additional fields
-      reserveData.accruedToTreasury = baseData.accruedToTreasury;
+      // Additional fields - accruedToTreasury not available in AssetDataLegacy
+      reserveData.accruedToTreasury = 0;
 
       try pool.getVirtualUnderlyingBalance(reserveData.underlyingAsset) returns (
         uint128 virtualBalance
@@ -242,7 +225,7 @@ contract UiPoolDataProvider {
     );
 
     for (uint256 i = 0; i < reserves.length; i++) {
-      DataTypes.PoolAssetData memory baseData = pool.getAssetData(reserves[i]);
+      DataTypes.AssetDataLegacy memory baseData = pool.getAssetData(reserves[i]);
 
       userReservesData[i].underlyingAsset = reserves[i];
       userReservesData[i].scaledSupplyTokenBalance = IDeraSupplyToken(baseData.supplyTokenAddress).scaledBalanceOf(

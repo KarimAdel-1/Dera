@@ -106,4 +106,7 @@ library Errors {
   error NoDebtToCover();
   error AmountExceedsDeficit();
   error ProtocolPaused();
+  error ProxyCreationFailed();
+  error InitializationFailed();
+  error UpgradeFailed();
 }

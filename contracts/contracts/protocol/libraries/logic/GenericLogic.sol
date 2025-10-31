@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IERC20} from '../../../interfaces/IERC20.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {IDeraSupplyToken} from '../../../interfaces/IDeraSupplyToken.sol';
+import {AssetLogic} from './AssetLogic.sol';
 import {IDeraBorrowToken} from '../../../interfaces/IDeraBorrowToken.sol';
 import {IPriceOracleGetter} from '../../../interfaces/IPriceOracleGetter.sol';
 import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
@@ -173,7 +174,7 @@ library GenericLogic {
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
-    uint256 normalizedIncome = asset.getNormalizedIncome();
+    uint256 normalizedIncome = AssetLogic.getNormalizedIncome(asset);
     uint256 balance = (IERC20(asset.supplyTokenAddress).balanceOf(user).rayMul(normalizedIncome)) *
       assetPrice;
     unchecked {
@@ -187,7 +188,7 @@ library GenericLogic {
     uint256 assetPrice,
     uint256 assetUnit
   ) private view returns (uint256) {
-    uint256 normalizedDebt = asset.getNormalizedDebt();
+    uint256 normalizedDebt = AssetLogic.getNormalizedDebt(asset);
     uint256 balance = (IERC20(asset.borrowTokenAddress).balanceOf(user).rayMul(normalizedDebt)) *
       assetPrice;
     unchecked {

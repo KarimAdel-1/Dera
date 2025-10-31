@@ -90,7 +90,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   // HTS amount conversion with safety check
   function _toInt64Checked(uint256 amount) internal pure returns (int64) {
-    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+    if (amount > uint256(uint64(type(int64).max))) revert AmountExceedsInt64();
     return int64(uint64(amount));
   }
 
@@ -148,7 +148,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param streamer Address of DeraHCSEventStreamer contract
    */
   function setHCSEventStreamer(address streamer) external onlyPoolAdmin {
-    require(streamer != address(0), Errors.ZeroAddressNotValid());
+    if (streamer == address(0)) revert Errors.ZeroAddressNotValid();
     address oldStreamer = hcsEventStreamer;
     hcsEventStreamer = streamer;
     emit HCSEventStreamerUpdated(oldStreamer, streamer);
@@ -167,7 +167,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param integration Address of DeraProtocolIntegration contract
    */
   function setProtocolIntegration(address integration) external onlyPoolAdmin {
-    require(integration != address(0), Errors.ZeroAddressNotValid());
+    if (integration == address(0)) revert Errors.ZeroAddressNotValid();
     emit ProtocolIntegrationUpdated(integration);
   }
 
@@ -177,7 +177,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param nodeStaking Address of DeraNodeStaking contract
    */
   function setNodeStakingContract(address nodeStaking) external onlyPoolAdmin {
-    require(nodeStaking != address(0), Errors.ZeroAddressNotValid());
+    if (nodeStaking == address(0)) revert Errors.ZeroAddressNotValid();
     address oldContract = nodeStakingContract;
     nodeStakingContract = nodeStaking;
     emit NodeStakingContractUpdated(oldContract, nodeStaking);
@@ -196,7 +196,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param analytics Address of DeraMirrorNodeAnalytics contract
    */
   function setAnalyticsContract(address analytics) external onlyPoolAdmin {
-    require(analytics != address(0), Errors.ZeroAddressNotValid());
+    if (analytics == address(0)) revert Errors.ZeroAddressNotValid();
     address oldContract = analyticsContract;
     analyticsContract = analytics;
     emit AnalyticsContractUpdated(oldContract, analytics);
@@ -215,7 +215,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param _treasury Address of Treasury contract
    */
   function setTreasury(address _treasury) external onlyPoolAdmin {
-    require(_treasury != address(0), Errors.ZeroAddressNotValid());
+    if (_treasury == address(0)) revert Errors.ZeroAddressNotValid();
     address oldTreasury = treasury;
     treasury = _treasury;
     emit TreasuryUpdated(oldTreasury, _treasury);
@@ -246,28 +246,28 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   event UserRegistered(address indexed user, uint256 totalUsers);
 
   modifier onlyPoolConfigurator() {
-    require(ADDRESSES_PROVIDER.getPoolConfigurator() == _msgSender(), Errors.CallerNotPoolConfigurator());
+    if (ADDRESSES_PROVIDER.getPoolConfigurator() != _msgSender()) revert Errors.CallerNotPoolConfigurator();
     _;
   }
 
   modifier onlyPoolAdmin() {
-    require(IACLManager(ADDRESSES_PROVIDER.getACLManager()).isPoolAdmin(_msgSender()), Errors.CallerNotPoolAdmin());
+    if (!IACLManager(ADDRESSES_PROVIDER.getACLManager()).isPoolAdmin(_msgSender())) revert Errors.CallerNotPoolAdmin();
     _;
   }
 
   modifier onlyEmergencyAdmin() {
-    require(IACLManager(ADDRESSES_PROVIDER.getACLManager()).isEmergencyAdmin(_msgSender()), Errors.CallerNotPoolOrEmergencyAdmin());
+    if (!IACLManager(ADDRESSES_PROVIDER.getACLManager()).isEmergencyAdmin(_msgSender())) revert Errors.CallerNotPoolOrEmergencyAdmin();
     _;
   }
 
   modifier whenNotPaused() {
-    require(!_paused, Errors.ProtocolPaused());
+    if (_paused) revert Errors.ProtocolPaused();
     _;
   }
 
   constructor(IPoolAddressesProvider provider, IReserveInterestRateStrategy interestRateStrategy) {
     ADDRESSES_PROVIDER = provider;
-    require(address(interestRateStrategy) != address(0), Errors.ZeroAddressNotValid());
+    if (address(interestRateStrategy) == address(0)) revert Errors.ZeroAddressNotValid();
     RESERVE_INTEREST_RATE_STRATEGY = address(interestRateStrategy);
   }
 
@@ -276,14 +276,25 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   /**
    * @notice Supply assets to the pool
    * @dev HTS requires both sender and receiver to be associated with the token
-   * @param asset The HTS token address
-   * @param amount Amount to supply (must be within int64 range for HTS)
+   * @dev For native HBAR (asset = 0x0), use msg.value instead of amount parameter
+   * @param asset The HTS token address (0x0 for native HBAR)
+   * @param amount Amount to supply (ignored for HBAR, uses msg.value)
    * @param onBehalfOf Address receiving the dTokens
    * @param referralCode Referral code for tracking
    */
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public virtual override nonReentrant whenNotPaused {
-    if (amount == 0) revert InvalidAmount();
-    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) public payable virtual override nonReentrant whenNotPaused {
+    // For native HBAR, use msg.value instead of amount parameter
+    uint256 actualAmount = (asset == address(0)) ? msg.value : amount;
+    if (actualAmount == 0) revert InvalidAmount();
+    
+    // Check if asset is listed - special handling for HBAR (address(0))
+    if (asset == address(0)) {
+      // For HBAR, check if it's initialized as the first asset
+      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+    } else {
+      // For HTS tokens, check normal way
+      if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
+    }
 
     // Register user for liquidation monitoring
     _registerUser(onBehalfOf);
@@ -296,12 +307,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         user: _msgSender(),
         asset: asset,
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: amount,
+        amount: actualAmount,
         onBehalfOf: onBehalfOf,
         referralCode: referralCode
       })
     );
-    emit Supply(_msgSender(), asset, amount, onBehalfOf, referralCode, HCSTopics.SUPPLY_TOPIC());
+    emit Supply(_msgSender(), asset, actualAmount, onBehalfOf, referralCode, HCSTopics.SUPPLY_TOPIC());
 
     // Queue event to HCS for Hedera-native indexing
     IDeraHCSEventStreamer streamer = _getHCSStreamer();
@@ -376,7 +387,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    */
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
-    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+    if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
 
     // Register user for liquidation monitoring
     _registerUser(onBehalfOf);
@@ -421,7 +432,10 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     }
   }
 
-  function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public virtual override nonReentrant returns (uint256) {
+  function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) public payable virtual override nonReentrant returns (uint256) {
+    // For native HBAR repay, use msg.value instead of amount parameter
+    uint256 actualAmount = (asset == address(0)) ? msg.value : amount;
+    
     uint256 repaid = BorrowLogic.executeRepay(
       _poolAssets,
       _assetsList,
@@ -430,7 +444,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         asset: asset,
         user: _msgSender(),
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: amount,
+        amount: actualAmount,
         interestRateMode: DataTypes.InterestRateMode(interestRateMode),
         onBehalfOf: onBehalfOf,
         useSupplyTokens: false,
@@ -558,18 +572,16 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function getAssetData(address asset) external view virtual override returns (DataTypes.AssetDataLegacy memory res) {
-    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
-    res.configuration = asset.configuration;
-    res.liquidityIndex = asset.liquidityIndex;
-    res.currentLiquidityRate = asset.currentLiquidityRate;
-    res.variableBorrowIndex = asset.variableBorrowIndex;
-    res.currentVariableBorrowRate = asset.currentVariableBorrowRate;
-    res.lastUpdateTimestamp = asset.lastUpdateTimestamp;
-    res.id = asset.id;
-    res.supplyTokenAddress = asset.supplyTokenAddress;
-    res.borrowTokenAddress = asset.borrowTokenAddress;
-    res.interestRateStrategyAddress = RESERVE_INTEREST_RATE_STRATEGY;
-    res.accruedToTreasury = asset.accruedToTreasury;
+    DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
+    res.configuration = assetData.configuration;
+    res.liquidityIndex = assetData.liquidityIndex;
+    res.currentLiquidityRate = assetData.currentLiquidityRate;
+    res.variableBorrowIndex = assetData.variableBorrowIndex;
+    res.currentVariableBorrowRate = assetData.currentVariableBorrowRate;
+    res.lastUpdateTimestamp = assetData.lastUpdateTimestamp;
+    res.id = assetData.id;
+    res.supplyTokenAddress = assetData.supplyTokenAddress;
+    res.borrowTokenAddress = assetData.borrowTokenAddress;
   }
 
   function getConfiguration(address asset) external view virtual override returns (DataTypes.AssetConfigurationMap memory) {
@@ -622,8 +634,14 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function setConfiguration(address asset, DataTypes.AssetConfigurationMap calldata configuration) external virtual override onlyPoolConfigurator {
-    require(asset != address(0), Errors.ZeroAddressNotValid());
-    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+    // Check if asset is listed - special handling for HBAR (address(0))
+    if (asset == address(0)) {
+      // For HBAR, check if it's initialized as the first asset
+      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+    } else {
+      // For HTS tokens, check normal way
+      if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
+    }
     _poolAssets[asset].configuration = configuration;
   }
 
@@ -642,7 +660,14 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
 
   function setLiquidationGracePeriod(address asset, uint40 until) external virtual override onlyPoolConfigurator {
-    require(_poolAssets[asset].id != 0 || _assetsList[0] == asset, Errors.AssetNotListed());
+    // Check if asset is listed - special handling for HBAR (address(0))
+    if (asset == address(0)) {
+      // For HBAR, check if it's initialized as the first asset
+      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+    } else {
+      // For HTS tokens, check normal way
+      if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
+    }
     PoolLogic.executeSetLiquidationGracePeriod(_poolAssets, asset, until);
   }
 
@@ -655,7 +680,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
-    require(_msgSender() == _poolAssets[asset].supplyTokenAddress, Errors.CallerNotSupplyToken());
+    if (_msgSender() != _poolAssets[asset].supplyTokenAddress) revert Errors.CallerNotSupplyToken();
     SupplyLogic.executeFinalizeTransfer(
       _poolAssets,
       _assetsList,
@@ -703,23 +728,22 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @param amount Amount of deficit to cover
    */
   function coverAssetDeficit(address asset, uint256 amount) external virtual nonReentrant onlyPoolAdmin {
-    DataTypes.PoolAssetData storage asset = _poolAssets[asset];
-    require(asset.deficit > 0, Errors.NoDebtToCover());
-    require(amount <= asset.deficit, Errors.AmountExceedsDeficit());
+    DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
+    if (assetData.deficit == 0) revert Errors.NoDebtToCover();
+    if (amount > assetData.deficit) revert Errors.AmountExceedsDeficit();
 
     uint256 amountToCover = amount;
-    if (amount > asset.deficit) {
-      amountToCover = asset.deficit;
+    if (amount > assetData.deficit) {
+      amountToCover = assetData.deficit;
     }
 
     // Transfer tokens from treasury to dToken contract via HTS
-    address treasuryAddress = ADDRESSES_PROVIDER.getTreasury();
-    _safeHTSTransfer(asset, treasuryAddress, asset.supplyTokenAddress, amountToCover);
+    _safeHTSTransfer(asset, treasury, assetData.supplyTokenAddress, amountToCover);
 
     // Reduce deficit
-    asset.deficit -= uint128(amountToCover);
+    assetData.deficit -= uint128(amountToCover);
 
-    emit DeficitCovered(asset, amountToCover, asset.deficit);
+    emit DeficitCovered(asset, amountToCover, assetData.deficit);
   }
 
   event DeficitCovered(address indexed asset, uint256 amountCovered, uint256 remainingDeficit);
@@ -761,7 +785,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     return 1;
   }
 
-  function getRevision() external pure virtual returns (uint256) {
+  function getRevision() internal pure virtual override(VersionedInitializable, PoolStorage) returns (uint256) {
     return POOL_REVISION();
   }
 
@@ -790,7 +814,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @return User address at the given index
    */
   function getUserAtIndex(uint256 index) external view returns (address) {
-    require(index < _users.length, "Index out of bounds");
+    if (index >= _users.length) revert("Index out of bounds");
     return _users[index];
   }
 
@@ -816,7 +840,7 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     view
     returns (address[] memory users, uint256 nextIndex)
   {
-    require(startIndex < _users.length, "Start index out of bounds");
+    if (startIndex >= _users.length) revert("Start index out of bounds");
 
     uint256 endIndex = startIndex + count;
     if (endIndex > _users.length) {
@@ -841,5 +865,13 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   
   fallback() external payable {
     emit HBARReceived(msg.sender, msg.value);
+  }
+  
+  /**
+   * @notice Get the contract's HBAR balance
+   * @return HBAR balance in tinybars
+   */
+  function getHBARBalance() external view returns (uint256) {
+    return address(this).balance;
   }
 }

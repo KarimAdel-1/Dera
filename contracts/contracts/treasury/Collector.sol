@@ -294,7 +294,7 @@ contract Collector is Ownable, ReentrancyGuard {
   }
 
   function _safeHTSTransfer(address token, address from, address to, uint256 amount) internal {
-    require(amount <= uint256(type(int64).max), "Amount exceeds int64");
+    if (amount > uint256(uint64(type(int64).max))) revert("Amount exceeds int64");
     int64 result = HTS.transferToken(token, from, to, int64(uint64(amount)));
     require(result == 0, "HTS transfer failed");
   }

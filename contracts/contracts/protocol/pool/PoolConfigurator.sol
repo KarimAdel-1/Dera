@@ -13,6 +13,7 @@ import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
 import {ConfiguratorLogic} from '../libraries/logic/ConfiguratorLogic.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {IERC20Metadata} from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 
 /**
  * @title PoolConfigurator
@@ -36,7 +37,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   IPool internal _pool;
 
   modifier onlyPoolAdmin() {
-    require(IACLManager(_addressesProvider.getACLManager()).isPoolAdmin(msg.sender), Errors.CallerNotPoolAdmin());
+    if (!IACLManager(_addressesProvider.getACLManager()).isPoolAdmin(msg.sender)) revert Errors.CallerNotPoolAdmin();
     _;
   }
 
@@ -65,24 +66,66 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function initialize(IPoolAddressesProvider provider) public virtual;
 
+  /**
+   * @notice Finalize initialization of an asset by registering tokens in the Pool and applying configuration
+   * @dev This is split out from `initAssets` to avoid single-transaction gas / stack limits when creating proxies
+   */
+  function finalizeInitAsset(address underlyingAsset, address dTokenProxy, address variableDebtProxy, uint8 decimals) external virtual;
+
   function initAssets(ConfiguratorInputTypes.InitAssetInput[] calldata input) external override onlyAssetListingOrPoolAdmins {
     IPool cachedPool = _pool;
     address interestRateStrategyAddress = cachedPool.RESERVE_INTEREST_RATE_STRATEGY();
     
     uint256 len = input.length;
     for (uint256 i; i < len; ) {
-      ConfiguratorLogic.executeInitAsset(cachedPool, input[i]);
-      emit AssetInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, input[i].interestRateData);
+      // FIX: Improved decimals extraction with fallback to token query
+      uint8 decimals = 18; // Default
+      
+      // Try to get decimals from the token itself first
+      try IERC20Metadata(input[i].underlyingAsset).decimals() returns (uint8 d) {
+        decimals = d;
+      } catch {
+        // Fallback: try to extract from params if available
+        if (input[i].params.length > 0) {
+          decimals = uint8(input[i].params[0]);
+        }
+      }
+      
+      ConfiguratorLogic.executeInitAsset(cachedPool, ConfiguratorLogic.InitAssetInput({
+        supplyTokenImpl: input[i].supplyTokenImpl,
+        variableDebtTokenImpl: input[i].variableDebtTokenImpl,
+        underlyingAsset: input[i].underlyingAsset,
+        interestRateStrategyAddress: interestRateStrategyAddress,
+        underlyingAssetDecimals: decimals,
+        supplyTokenName: input[i].supplyTokenName,
+        supplyTokenSymbol: input[i].supplyTokenSymbol,
+        variableDebtTokenName: input[i].variableDebtTokenName,
+        variableDebtTokenSymbol: input[i].variableDebtTokenSymbol,
+        params: input[i].params
+      }));
+      emit AssetInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, "");
       unchecked { ++i; }
     }
   }
 
   function updateSupplyToken(ConfiguratorInputTypes.UpdateSupplyTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateSupplyToken(_pool, input);
+    ConfiguratorLogic.executeUpdateSupplyToken(_pool, ConfiguratorLogic.UpdateSupplyTokenInput({
+      asset: input.asset,
+      implementation: input.implementation,
+      name: input.name,
+      symbol: input.symbol,
+      params: input.params
+    }));
   }
 
   function updateBorrowToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateBorrowToken(_pool, input);
+    ConfiguratorLogic.executeUpdateBorrowToken(_pool, ConfiguratorLogic.UpdateDebtTokenInput({
+      asset: input.asset,
+      implementation: input.implementation,
+      name: input.name,
+      symbol: input.symbol,
+      params: input.params
+    }));
   }
 
   function dropAsset(address asset) external override onlyPoolAdmin {
@@ -98,15 +141,15 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function configureAssetAsCollateral(address asset, uint256 ltv, uint256 liquidationThreshold, uint256 liquidationBonus) external override onlyRiskOrPoolAdmins {
-    require(ltv <= liquidationThreshold, Errors.InvalidReserveParams());
+    if (ltv > liquidationThreshold) revert Errors.InvalidReserveParams();
     
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
 
     if (liquidationThreshold != 0) {
-      require(liquidationBonus > PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidReserveParams());
-      require(liquidationThreshold.percentMul(liquidationBonus) <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidReserveParams());
+      if (liquidationBonus <= PercentageMath.PERCENTAGE_FACTOR) revert Errors.InvalidReserveParams();
+      if (liquidationThreshold.percentMul(liquidationBonus) > PercentageMath.PERCENTAGE_FACTOR) revert Errors.InvalidReserveParams();
     } else {
-      require(liquidationBonus == 0, Errors.InvalidReserveParams());
+      if (liquidationBonus != 0) revert Errors.InvalidReserveParams();
       _checkNoSuppliers(asset);
     }
 
@@ -139,7 +182,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function setAssetFreeze(address asset, bool freeze) external override onlyRiskOrPoolOrEmergencyAdmins {
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-    require(freeze != currentConfig.getFrozen(), Errors.InvalidFreezeState());
+    if (freeze == currentConfig.getFrozen()) revert Errors.InvalidFreezeState();
     currentConfig.setFrozen(freeze);
 
     uint256 ltvSet;
@@ -164,7 +207,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function setAssetPause(address asset, bool paused, uint40 gracePeriod) public override onlyEmergencyOrPoolAdmin {
     if (!paused && gracePeriod != 0) {
-      require(gracePeriod <= MAX_GRACE_PERIOD, Errors.InvalidGracePeriod());
+      if (gracePeriod > MAX_GRACE_PERIOD) revert Errors.InvalidGracePeriod();
       uint40 until = uint40(block.timestamp) + gracePeriod;
       _pool.setLiquidationGracePeriod(asset, until);
       emit LiquidationGracePeriodChanged(asset, until);
@@ -186,7 +229,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setAssetFactor(address asset, uint256 newAssetFactor) external override onlyRiskOrPoolAdmins {
-    require(newAssetFactor <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidReserveFactor());
+    if (newAssetFactor > PercentageMath.PERCENTAGE_FACTOR) revert Errors.InvalidReserveFactor();
     
     _pool.syncIndexesState(asset);
     
@@ -198,6 +241,10 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     emit AssetFactorChanged(asset, oldAssetFactor, newAssetFactor);
     
     _pool.syncRatesState(asset);
+  }
+
+  function setAssetInterestRateData(address asset, bytes calldata rateData) external virtual override onlyRiskOrPoolAdmins {
+    emit AssetInterestRateDataChanged(asset, address(0), rateData);
   }
 
   function setBorrowCap(address asset, uint256 newBorrowCap) external override onlyRiskOrPoolAdmins {
@@ -217,7 +264,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   }
 
   function setLiquidationProtocolFee(address asset, uint256 newFee) external override onlyRiskOrPoolAdmins {
-    require(newFee <= PercentageMath.PERCENTAGE_FACTOR, Errors.InvalidLiquidationProtocolFee());
+    if (newFee > PercentageMath.PERCENTAGE_FACTOR) revert Errors.InvalidLiquidationProtocolFee();
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     uint256 oldFee = currentConfig.getLiquidationProtocolFee();
     currentConfig.setLiquidationProtocolFee(newFee);
@@ -254,43 +301,43 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     return 1;
   }
 
-  function getRevision() external pure virtual returns (uint256) {
+  function getRevision() internal pure virtual override returns (uint256) {
     return CONFIGURATOR_REVISION();
   }
 
   function _checkNoSuppliers(address asset) internal view {
     DataTypes.AssetDataLegacy memory reserveData = _pool.getAssetData(asset);
     uint256 totalSupplied = IERC20(reserveData.supplyTokenAddress).totalSupply();
-    require(totalSupplied == 0, Errors.AssetLiquidityNotZero());
+    if (totalSupplied != 0) revert Errors.AssetLiquidityNotZero();
   }
 
   function _checkNoBorrowers(address asset) internal view {
     DataTypes.AssetDataLegacy memory reserveData = _pool.getAssetData(asset);
     uint256 totalDebt = IERC20(reserveData.borrowTokenAddress).totalSupply();
-    require(totalDebt == 0, Errors.AssetDebtNotZero());
+    if (totalDebt != 0) revert Errors.AssetDebtNotZero();
   }
 
   function _onlyPoolAdmin() internal view {
-    require(IACLManager(_addressesProvider.getACLManager()).isPoolAdmin(msg.sender), Errors.CallerNotPoolAdmin());
+    if (!IACLManager(_addressesProvider.getACLManager()).isPoolAdmin(msg.sender)) revert Errors.CallerNotPoolAdmin();
   }
 
   function _onlyPoolOrEmergencyAdmin() internal view {
     IACLManager aclManager = IACLManager(_addressesProvider.getACLManager());
-    require(aclManager.isPoolAdmin(msg.sender) || aclManager.isEmergencyAdmin(msg.sender), Errors.CallerNotPoolOrEmergencyAdmin());
+    if (!aclManager.isPoolAdmin(msg.sender) && !aclManager.isEmergencyAdmin(msg.sender)) revert Errors.CallerNotPoolOrEmergencyAdmin();
   }
 
   function _onlyAssetListingOrPoolAdmins() internal view {
     IACLManager aclManager = IACLManager(_addressesProvider.getACLManager());
-    require(aclManager.isAssetListingAdmin(msg.sender) || aclManager.isPoolAdmin(msg.sender), Errors.CallerNotAssetListingOrPoolAdmin());
+    if (!aclManager.isAssetListingAdmin(msg.sender) && !aclManager.isPoolAdmin(msg.sender)) revert Errors.CallerNotAssetListingOrPoolAdmin();
   }
 
   function _onlyRiskOrPoolAdmins() internal view {
     IACLManager aclManager = IACLManager(_addressesProvider.getACLManager());
-    require(aclManager.isRiskAdmin(msg.sender) || aclManager.isPoolAdmin(msg.sender), Errors.CallerNotRiskOrPoolAdmin());
+    if (!aclManager.isRiskAdmin(msg.sender) && !aclManager.isPoolAdmin(msg.sender)) revert Errors.CallerNotRiskOrPoolAdmin();
   }
 
   function _onlyRiskOrPoolOrEmergencyAdmins() internal view {
     IACLManager aclManager = IACLManager(_addressesProvider.getACLManager());
-    require(aclManager.isRiskAdmin(msg.sender) || aclManager.isPoolAdmin(msg.sender) || aclManager.isEmergencyAdmin(msg.sender), Errors.CallerNotRiskOrPoolOrEmergencyAdmins());
+    if (!aclManager.isRiskAdmin(msg.sender) && !aclManager.isPoolAdmin(msg.sender) && !aclManager.isEmergencyAdmin(msg.sender)) revert Errors.CallerNotRiskOrPoolOrEmergencyAdmin();
   }
 }

@@ -31,27 +31,24 @@ library ValidationLogic {
   bytes32 public constant ISOLATED_COLLATERAL_SUPPLIER_ROLE = keccak256('ISOLATED_COLLATERAL_SUPPLIER');
 
   function validateSupply(DataTypes.AssetState memory assetState, DataTypes.PoolAssetData storage asset, uint256 scaledAmount, address onBehalfOf) internal view {
-    require(scaledAmount != 0, Errors.InvalidAmount());
+    if (scaledAmount == 0) revert Errors.InvalidAmount();
     (bool isActive, bool isFrozen, , bool isPaused) = assetState.assetConfiguration.getFlags();
-    require(isActive, Errors.AssetInactive());
-    require(!isPaused, Errors.AssetPaused());
-    require(!isFrozen, Errors.AssetFrozen());
-    require(onBehalfOf != assetState.supplyTokenAddress, Errors.SupplyToSupplyToken());
+    if (!isActive) revert Errors.AssetInactive();
+    if (isPaused) revert Errors.AssetPaused();
+    if (isFrozen) revert Errors.AssetFrozen();
+    if (onBehalfOf == assetState.supplyTokenAddress) revert Errors.SupplyToSupplyToken();
     uint256 supplyCap = assetState.assetConfiguration.getSupplyCap();
-    require(
-      supplyCap == 0 ||
-        ((IDeraSupplyToken(assetState.supplyTokenAddress).scaledTotalSupply() + scaledAmount + uint256(asset.accruedToTreasury)).getSupplyTokenBalance(assetState.nextLiquidityIndex)) <=
-        supplyCap * (10 ** assetState.assetConfiguration.getDecimals()),
-      Errors.SupplyCapExceeded()
-    );
+    if (supplyCap != 0 && ((IDeraSupplyToken(assetState.supplyTokenAddress).scaledTotalSupply() + scaledAmount + uint256(asset.accruedToTreasury)).getSupplyTokenBalance(assetState.nextLiquidityIndex)) > supplyCap * (10 ** assetState.assetConfiguration.getDecimals())) {
+      revert Errors.SupplyCapExceeded();
+    }
   }
 
   function validateWithdraw(DataTypes.AssetState memory assetState, uint256 scaledAmount, uint256 scaledUserBalance) internal pure {
-    require(scaledAmount != 0, Errors.InvalidAmount());
-    require(scaledAmount <= scaledUserBalance, Errors.NotEnoughAvailableUserBalance());
+    if (scaledAmount == 0) revert Errors.InvalidAmount();
+    if (scaledAmount > scaledUserBalance) revert Errors.NotEnoughAvailableUserBalance();
     (bool isActive, , , bool isPaused) = assetState.assetConfiguration.getFlags();
-    require(isActive, Errors.AssetInactive());
-    require(!isPaused, Errors.AssetPaused());
+    if (!isActive) revert Errors.AssetInactive();
+    if (isPaused) revert Errors.AssetPaused();
   }
 
   function validateBorrow(
@@ -59,53 +56,50 @@ library ValidationLogic {
     mapping(uint256 => address) storage assetsList,
     DataTypes.ValidateBorrowParams memory params
   ) internal view {
-    require(params.amountScaled != 0, Errors.InvalidAmount());
+    if (params.amountScaled == 0) revert Errors.InvalidAmount();
     uint256 amount = params.amountScaled.getBorrowTokenBalance(params.assetState.nextVariableBorrowIndex);
     (bool isActive, bool isFrozen, bool borrowingEnabled, bool isPaused) = params.assetState.assetConfiguration.getFlags();
-    require(isActive, Errors.AssetInactive());
-    require(!isPaused, Errors.AssetPaused());
-    require(!isFrozen, Errors.AssetFrozen());
-    require(borrowingEnabled, Errors.BorrowingNotEnabled());
-    require(params.priceOracleSentinel == address(0) || IPriceOracleSentinel(params.priceOracleSentinel).isBorrowAllowed(), Errors.PriceOracleSentinelCheckFailed());
-    require(params.interestRateMode == DataTypes.InterestRateMode.VARIABLE, Errors.InvalidInterestRateModeSelected());
+    if (!isActive) revert Errors.AssetInactive();
+    if (isPaused) revert Errors.AssetPaused();
+    if (isFrozen) revert Errors.AssetFrozen();
+    if (!borrowingEnabled) revert Errors.BorrowingNotEnabled();
+    if (params.priceOracleSentinel != address(0) && !IPriceOracleSentinel(params.priceOracleSentinel).isBorrowAllowed()) revert Errors.PriceOracleSentinelCheckFailed();
+    if (params.interestRateMode != DataTypes.InterestRateMode.VARIABLE) revert Errors.InvalidInterestRateModeSelected();
     uint256 borrowCap = params.assetState.assetConfiguration.getBorrowCap();
     if (borrowCap != 0) {
       uint256 totalDebt = (params.assetState.currScaledVariableDebt + params.amountScaled).getBorrowTokenBalance(params.assetState.nextVariableBorrowIndex);
-      require(totalDebt <= borrowCap * (10 ** params.assetState.assetConfiguration.getDecimals()), Errors.BorrowCapExceeded());
+      if (totalDebt > borrowCap * (10 ** params.assetState.assetConfiguration.getDecimals())) revert Errors.BorrowCapExceeded();
     }
   }
 
   function validateRepay(address user, DataTypes.AssetState memory assetState, uint256 amountSent, DataTypes.InterestRateMode interestRateMode, address onBehalfOf, uint256 debtScaled) internal pure {
-    require(amountSent != 0, Errors.InvalidAmount());
-    require(interestRateMode == DataTypes.InterestRateMode.VARIABLE, Errors.InvalidInterestRateModeSelected());
-    require(amountSent != type(uint256).max || user == onBehalfOf, Errors.NoExplicitAmountToRepayOnBehalf());
+    if (amountSent == 0) revert Errors.InvalidAmount();
+    if (interestRateMode != DataTypes.InterestRateMode.VARIABLE) revert Errors.InvalidInterestRateModeSelected();
+    if (amountSent == type(uint256).max && user != onBehalfOf) revert Errors.NoExplicitAmountToRepayOnBehalf();
     (bool isActive, , , bool isPaused) = assetState.assetConfiguration.getFlags();
-    require(isActive, Errors.AssetInactive());
-    require(!isPaused, Errors.AssetPaused());
-    require(debtScaled != 0, Errors.NoDebtOfSelectedType());
+    if (!isActive) revert Errors.AssetInactive();
+    if (isPaused) revert Errors.AssetPaused();
+    if (debtScaled == 0) revert Errors.NoDebtOfSelectedType();
   }
 
   function validateSetUseAssetAsCollateral(DataTypes.AssetConfigurationMap memory assetConfig) internal pure {
     (bool isActive, , , bool isPaused) = assetConfig.getFlags();
-    require(isActive, Errors.AssetInactive());
-    require(!isPaused, Errors.AssetPaused());
+    if (!isActive) revert Errors.AssetInactive();
+    if (isPaused) revert Errors.AssetPaused();
   }
 
   function validateLiquidationCall(DataTypes.UserConfigurationMap storage borrowerConfig, DataTypes.PoolAssetData storage collateralAsset, DataTypes.PoolAssetData storage debtAsset, DataTypes.ValidateLiquidationCallParams memory params) internal view {
-    require(params.borrower != params.liquidator, Errors.SelfLiquidation());
+    if (params.borrower == params.liquidator) revert Errors.SelfLiquidation();
     (bool collateralAssetActive, , , bool collateralAssetPaused) = collateralAsset.configuration.getFlags();
     (bool principalAssetActive, , , bool principalAssetPaused) = params.debtReserveCache.assetConfiguration.getFlags();
-    require(collateralAssetActive && principalAssetActive, Errors.AssetInactive());
-    require(!collateralAssetPaused && !principalAssetPaused, Errors.AssetPaused());
-    require(
-      params.priceOracleSentinel == address(0) || params.healthFactor < MINIMUM_HEALTH_FACTOR_LIQUIDATION_THRESHOLD || IPriceOracleSentinel(params.priceOracleSentinel).isLiquidationAllowed(),
-      Errors.PriceOracleSentinelCheckFailed()
-    );
-    require(collateralAsset.liquidationGracePeriodUntil < uint40(block.timestamp) && debtAsset.liquidationGracePeriodUntil < uint40(block.timestamp), Errors.LiquidationGraceSentinelCheckFailed());
-    require(params.healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorNotBelowThreshold());
+    if (!collateralAssetActive || !principalAssetActive) revert Errors.AssetInactive();
+    if (collateralAssetPaused || principalAssetPaused) revert Errors.AssetPaused();
+    if (params.priceOracleSentinel != address(0) && params.healthFactor >= MINIMUM_HEALTH_FACTOR_LIQUIDATION_THRESHOLD && !IPriceOracleSentinel(params.priceOracleSentinel).isLiquidationAllowed()) revert Errors.PriceOracleSentinelCheckFailed();
+    if (collateralAsset.liquidationGracePeriodUntil >= uint40(block.timestamp) || debtAsset.liquidationGracePeriodUntil >= uint40(block.timestamp)) revert Errors.LiquidationGraceSentinelCheckFailed();
+    if (params.healthFactor >= HEALTH_FACTOR_LIQUIDATION_THRESHOLD) revert Errors.HealthFactorNotBelowThreshold();
     bool isCollateralEnabled = collateralAsset.configuration.getLiquidationThreshold() != 0 && borrowerConfig.isUsingAsCollateral(collateralAsset.id);
-    require(isCollateralEnabled, Errors.CollateralCannotBeLiquidated());
-    require(params.totalDebt != 0, Errors.SpecifiedCurrencyNotBorrowedByUser());
+    if (!isCollateralEnabled) revert Errors.CollateralCannotBeLiquidated();
+    if (params.totalDebt == 0) revert Errors.SpecifiedCurrencyNotBorrowedByUser();
   }
 
   function validateHealthFactor(
@@ -120,7 +114,7 @@ library ValidationLogic {
       assetsList,
       DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle})
     );
-    require(healthFactor >= HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorLowerThanLiquidationThreshold());
+    if (healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD) revert Errors.HealthFactorLowerThanLiquidationThreshold();
     return (healthFactor, hasZeroLtvCollateral);
   }
 
@@ -136,9 +130,9 @@ library ValidationLogic {
       assetsList,
       DataTypes.CalculateUserAccountDataParams({userConfig: userConfig, user: user, oracle: oracle})
     );
-    require(currentLtv != 0, Errors.LtvValidationFailed());
-    require(healthFactor >= HEALTH_FACTOR_LIQUIDATION_THRESHOLD, Errors.HealthFactorLowerThanLiquidationThreshold());
-    require(userCollateralInBaseCurrency >= userDebtInBaseCurrency.percentDivCeil(currentLtv), Errors.CollateralCannotCoverNewBorrow());
+    if (currentLtv == 0) revert Errors.LtvValidationFailed();
+    if (healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD) revert Errors.HealthFactorLowerThanLiquidationThreshold();
+    if (userCollateralInBaseCurrency < userDebtInBaseCurrency.percentDivCeil(currentLtv)) revert Errors.CollateralCannotCoverNewBorrow();
   }
 
   function validateHFAndLtvzero(
@@ -150,16 +144,16 @@ library ValidationLogic {
     address oracle
   ) internal view {
     (, bool hasZeroLtvCollateral) = validateHealthFactor(poolAssets, assetsList, userConfig, from, oracle);
-    require(!hasZeroLtvCollateral || poolAssets[asset].configuration.getLtv() == 0, Errors.LtvValidationFailed());
+    if (hasZeroLtvCollateral && poolAssets[asset].configuration.getLtv() != 0) revert Errors.LtvValidationFailed();
   }
 
   function validateTransfer(DataTypes.PoolAssetData storage asset) internal view {
-    require(!asset.configuration.getPaused(), Errors.AssetPaused());
+    if (asset.configuration.getPaused()) revert Errors.AssetPaused();
   }
 
   function validateDropAsset(mapping(uint256 => address) storage assetsList, DataTypes.PoolAssetData storage asset, address assetAddress) internal view {
-    require(assetAddress != address(0), Errors.ZeroAddressNotValid());
-    require(asset.id != 0 || assetsList[0] == assetAddress, Errors.AssetNotListed());
+    if (assetAddress == address(0)) revert Errors.ZeroAddressNotValid();
+    if (asset.id == 0 && assetsList[0] != assetAddress) revert Errors.AssetNotListed();
   }
 
   function validateUseAsCollateral(

@@ -9,25 +9,14 @@
     "frontend"
   ],
   "scripts": {
-    "setup-env": "node setup-env.js",
-    "verify-setup": "node verify-setup.js",
     "deploy:hackathon": "node deploy-hackathon.js",
-    "quick-deploy": "./quick-deploy.sh",
-    "deploy:quick": "cd contracts && npx hardhat run scripts/deploy-complete.js --network testnet",
-    "deploy:hcs": "cd contracts && node scripts/create-hcs-topics.js",
-    "install:all": "npm install && npm run install:contracts && npm run install:backend && npm run install:frontend",
-    "install:contracts": "cd contracts && npm install",
-    "install:backend": "cd backend && npm install",
-    "install:frontend": "cd frontend && npm install",
-    "dev:backend": "cd backend && npm run dev",
+    "verify-setup": "node verify-setup.js",
+    "install:all": "npm install && cd contracts && npm install && cd ../frontend && npm install",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "test:contracts": "cd contracts && npm test",
-    "test:backend": "cd backend && npm test",
-    "test": "npm run test:contracts && npm run test:backend",
-    "deploy:contracts": "cd contracts && npm run deploy",
-    "build:frontend": "cd frontend && npm run build",
-    "build": "npm run build:frontend"
+    "start:hcs": "cd backend/hcs-event-service && npm run dev",
+    "start:staking": "cd backend/node-staking-service && npm run dev",
+    "start:backend:core": "concurrently \"npm run start:hcs\" \"npm run start:staking\"",
+    "build:frontend": "cd frontend && npm run build"
   },
   "keywords": [
     "defi",
@@ -41,6 +30,7 @@
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "dotenv": "^17.2.3"
+    "dotenv": "^16.3.1",
+    "readline": "^1.3.0"
   }
 }

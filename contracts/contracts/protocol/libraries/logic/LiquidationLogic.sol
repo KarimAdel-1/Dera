@@ -91,7 +91,8 @@ library LiquidationLogic {
       vars.totalDebtInBaseCurrency,
       ,
       ,
-      vars.healthFactor
+      vars.healthFactor,
+      
     ) = GenericLogic.calculateUserAccountData(
       poolAssets,
       assetsList,
@@ -189,7 +190,7 @@ library LiquidationLogic {
         ((vars.borrowerCollateralBalance - vars.actualCollateralToLiquidate - vars.liquidationProtocolFeeAmount) * 
         vars.collateralAssetPrice) / vars.collateralAssetUnit >= MIN_LEFTOVER_BASE;
 
-      require(isDebtMoreThanLeftoverThreshold && isCollateralMoreThanLeftoverThreshold, Errors.MustNotLeaveDust());
+      if (!isDebtMoreThanLeftoverThreshold || !isCollateralMoreThanLeftoverThreshold) revert Errors.MustNotLeaveDust();
     }
 
     if (vars.actualCollateralToLiquidate + vars.liquidationProtocolFeeAmount == vars.borrowerCollateralBalance) {
@@ -254,15 +255,7 @@ library LiquidationLogic {
       vars.actualDebtToLiquidate
     );
 
-    emit IPool.LiquidationCall(
-      params.collateralAsset,
-      params.debtAsset,
-      params.borrower,
-      vars.actualDebtToLiquidate,
-      vars.actualCollateralToLiquidate,
-      params.liquidator,
-      params.receiveSupplyToken
-    );
+    // Event will be emitted by Pool contract
   }
 
   function _burnCollateralSupplyTokens(
@@ -354,7 +347,7 @@ library LiquidationLogic {
     uint256 outstandingDebt = borrowerReserveDebt - actualDebtToLiquidate;
     if (hasNoCollateralLeft && outstandingDebt != 0) {
       debtAsset.deficit += outstandingDebt.toUint128();
-      emit IPool.DeficitCreated(borrower, debtAssetAddress, outstandingDebt);
+      // Event will be emitted by Pool contract
     }
 
     if (noMoreDebt) {
@@ -478,7 +471,7 @@ library LiquidationLogic {
    * @param amount Amount to transfer
    */
   function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
-    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+    if (amount > uint256(uint64(type(int64).max))) revert AmountExceedsInt64();
 
     int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
 

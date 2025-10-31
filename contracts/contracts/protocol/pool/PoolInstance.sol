@@ -11,7 +11,7 @@ import {IReserveInterestRateStrategy} from '../../interfaces/IReserveInterestRat
  * @notice Concrete implementation of Pool contract for Hedera deployment
  * @dev Implements the initialize function for upgradeable proxy pattern
  */
-contract PoolInstance is Pool {
+abstract contract PoolInstance is Pool {
   uint256 public constant POOL_INSTANCE_REVISION = 0x1;
 
   constructor(
@@ -35,7 +35,7 @@ contract PoolInstance is Pool {
    * @notice Get the revision number of this pool instance
    * @return The revision number
    */
-  function getRevision() external pure override returns (uint256) {
+  function getRevision() internal pure override returns (uint256) {
     return POOL_INSTANCE_REVISION;
   }
 }

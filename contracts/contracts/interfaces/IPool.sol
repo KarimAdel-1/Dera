@@ -26,11 +26,11 @@ interface IPool {
   event PositionManagerApproved(address indexed user, address indexed positionManager);
   event PositionManagerRevoked(address indexed user, address indexed positionManager);
 
-  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+  function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external payable;
   function supplyWithPermit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS) external;
   function withdraw(address asset, uint256 amount, address to) external returns (uint256);
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
-  function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256);
+  function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external payable returns (uint256);
   function repayWithPermit(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS) external returns (uint256);
   function repayWithSupplyTokens(address asset, uint256 amount, uint256 interestRateMode) external returns (uint256);
   function setUserUseAssetAsCollateral(address asset, bool useAsCollateral) external;

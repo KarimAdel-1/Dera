@@ -95,15 +95,7 @@ library BorrowLogic {
       params.oracle
     );
 
-    emit IPool.Borrow(
-      params.asset,
-      params.user,
-      params.onBehalfOf,
-      params.amount,
-      DataTypes.InterestRateMode.VARIABLE,
-      asset.currentVariableBorrowRate,
-      params.referralCode
-    );
+    // Event will be emitted by Pool contract
   }
 
   function executeRepay(
@@ -131,9 +123,15 @@ library BorrowLogic {
     }
 
     // Transfer tokens from repayer to dToken contract via HTS (if not using dTokens)
-    // CRITICAL: User must be associated with the HTS token before this call
     if (!params.useSupplyTokens) {
-      _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, paybackAmount);
+      if (params.asset != address(0)) {
+        // CRITICAL: User must be associated with the HTS token before this call
+        _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, paybackAmount);
+      } else {
+        // For HBAR repay, forward the received msg.value to the dToken contract
+        (bool success, ) = payable(assetState.supplyTokenAddress).call{value: paybackAmount}("");
+        if (!success) revert("HBAR repay transfer to dToken failed");
+      }
     }
 
     bool noMoreDebt;
@@ -179,7 +177,7 @@ library BorrowLogic {
       }
     }
 
-    emit IPool.Repay(params.asset, params.onBehalfOf, params.user, paybackAmount, params.useSupplyTokens);
+    // Event will be emitted by Pool contract
 
     return paybackAmount;
   }
@@ -195,7 +193,7 @@ library BorrowLogic {
    * @param amount Amount to transfer
    */
   function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
-    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+    if (amount > uint256(uint64(type(int64).max))) revert AmountExceedsInt64();
 
     int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
 

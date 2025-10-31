@@ -53,7 +53,7 @@ function execCommand(command, cwd = process.cwd(), silent = false) {
 }
 
 function checkPrerequisites() {
-  log('\n📋 Checking Prerequisites...', 'cyan');
+  log('\nStep 1/7: 📋 Checking Prerequisites...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   // Check Node.js version
@@ -108,7 +108,6 @@ async function promptUser(question) {
     input: process.stdin,
     output: process.stdout
   });
-
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       rl.close();
@@ -118,12 +117,12 @@ async function promptUser(question) {
 }
 
 async function installDependencies() {
-  log('\n📦 Installing Dependencies...', 'cyan');
+  log('\nStep 2/7: 📦 Installing Dependencies...', 'cyan');
   log('━'.repeat(60), 'cyan');
-  log('This may take 2-3 minutes...', 'yellow');
+  log('This may take a couple of minutes. Progress below:', 'yellow');
 
   // Install root dependencies
-  log('\n📍 Installing root dependencies...', 'blue');
+  log('> Installing root dependencies...', 'blue');
   const rootInstall = execCommand('npm install', process.cwd());
   if (!rootInstall.success) {
     log('❌ Failed to install root dependencies', 'red');
@@ -131,7 +130,7 @@ async function installDependencies() {
   }
 
   // Install contracts dependencies
-  log('\n📍 Installing contract dependencies...', 'blue');
+  log('> Installing contract dependencies...', 'blue');
   const contractsPath = path.join(__dirname, 'contracts');
   const contractsInstall = execCommand('npm install', contractsPath);
   if (!contractsInstall.success) {
@@ -140,7 +139,7 @@ async function installDependencies() {
   }
 
   // Install frontend dependencies
-  log('\n📍 Installing frontend dependencies...', 'blue');
+  log('> Installing frontend dependencies...', 'blue');
   const frontendPath = path.join(__dirname, 'frontend');
   const frontendInstall = execCommand('npm install', frontendPath);
   if (!frontendInstall.success) {
@@ -148,15 +147,21 @@ async function installDependencies() {
     return false;
   }
 
-  log('\n✅ All dependencies installed successfully!', 'green');
+  log('✅ All dependencies installed successfully!', 'green');
   return true;
 }
 
 async function compileContracts() {
-  log('\n🔨 Compiling Smart Contracts...', 'cyan');
+  log('\nStep 3/7: 🔨 Compiling Smart Contracts...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const contractsPath = path.join(__dirname, 'contracts');
+  
+  // Clean cache for fresh compilation
+  log('> Cleaning previous build artifacts...', 'blue');
+  execCommand('npx hardhat clean', contractsPath, true);
+  
+  log('> Compiling contracts...', 'blue');
   const compile = execCommand('npx hardhat compile', contractsPath);
 
   if (!compile.success) {
@@ -169,7 +174,7 @@ async function compileContracts() {
 }
 
 async function deployContracts() {
-  log('\n🚀 Deploying Core Contracts to Hedera Testnet...', 'cyan');
+  log('\nStep 4/7: 🚀 Deploying Contracts to Hedera Testnet...', 'cyan');
   log('━'.repeat(60), 'cyan');
   log('This will take 3-5 minutes. Please be patient...', 'yellow');
 
@@ -197,7 +202,7 @@ async function deployContracts() {
 }
 
 async function createHCSTopics() {
-  log('\n📡 Creating HCS Topics for Event Logging...', 'cyan');
+  log('\nStep 5/7: 📡 Creating HCS Topics...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const contractsPath = path.join(__dirname, 'contracts');
@@ -219,8 +224,18 @@ async function createHCSTopics() {
   return true;
 }
 
+
+
+async function initializeWHBAR() {
+  log('\nStep 6/7: 🔧 Skipping WHBAR Initialization...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('⚠️  WHBAR initialization skipped - protocol ready with USDC', 'yellow');
+  log('   To add WHBAR later: npm run init:whbar', 'yellow');
+  return true;
+}
+
 async function configureFrontend() {
-  log('\n⚙️  Configuring Frontend...', 'cyan');
+  log('\nStep 7/7: ⚙️  Configuring Frontend...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const frontendPath = path.join(__dirname, 'frontend');
@@ -245,34 +260,48 @@ async function configureFrontend() {
 
     let envContent = fs.readFileSync(envLocalPath, 'utf8');
 
+    // Helper function to update or append env variable
+    const updateEnvVar = (key, value) => {
+      const regex = new RegExp(`^${key}=.*$`, 'gm');
+      if (envContent.match(regex)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        envContent += `\n${key}=${value}`;
+      }
+    };
+
     // Update contract addresses
     if (deploymentInfo.addresses) {
       Object.entries(deploymentInfo.addresses).forEach(([key, value]) => {
-        const envKey = `NEXT_PUBLIC_${key}`;
-        const regex = new RegExp(`${envKey}=.*`, 'g');
-        if (envContent.match(regex)) {
-          envContent = envContent.replace(regex, `${envKey}=${value}`);
-        } else {
-          envContent += `\n${envKey}=${value}`;
-        }
+        updateEnvVar(`NEXT_PUBLIC_${key}`, value);
       });
     }
 
     // Update HCS topic IDs
     if (topicsInfo && topicsInfo.topics) {
       Object.entries(topicsInfo.topics).forEach(([key, value]) => {
-        const envKey = `NEXT_PUBLIC_HCS_${key}_TOPIC`;
-        const regex = new RegExp(`${envKey}=.*`, 'g');
-        if (envContent.match(regex)) {
-          envContent = envContent.replace(regex, `${envKey}=${value}`);
-        } else {
-          envContent += `\n${envKey}=${value}`;
-        }
+        updateEnvVar(`NEXT_PUBLIC_HCS_${key}_TOPIC`, value);
       });
     }
 
+    // Ensure critical env vars exist (preserve if already set)
+    const criticalVars = [
+      'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID',
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'SUPABASE_SERVICE_KEY'
+    ];
+
+    criticalVars.forEach(varName => {
+      const regex = new RegExp(`^${varName}=`, 'gm');
+      if (!envContent.match(regex)) {
+        // Add placeholder if missing
+        envContent += `\n${varName}=`;
+      }
+    });
+
     fs.writeFileSync(envLocalPath, envContent);
-    log('✅ Frontend environment configured', 'green');
+    log('✅ Frontend environment configured (existing values preserved)', 'green');
   }
 
   return true;
@@ -291,13 +320,11 @@ function displayDeploymentSummary() {
 
     log('\n📋 DEPLOYED CONTRACT ADDRESSES:', 'cyan');
     log('━'.repeat(60), 'cyan');
-
     if (deploymentInfo.addresses) {
       Object.entries(deploymentInfo.addresses).forEach(([name, address]) => {
         log(`   ${name.padEnd(30)} ${address}`, 'white');
       });
     }
-
     log('\n🔗 HASHSCAN LINKS (View on Explorer):', 'cyan');
     log('━'.repeat(60), 'cyan');
     if (deploymentInfo.addresses) {
@@ -310,10 +337,8 @@ function displayDeploymentSummary() {
 
   if (fs.existsSync(topicsPath)) {
     const topicsInfo = JSON.parse(fs.readFileSync(topicsPath, 'utf8'));
-
     log('\n📡 HCS TOPIC IDs:', 'cyan');
     log('━'.repeat(60), 'cyan');
-
     if (topicsInfo.topics) {
       Object.entries(topicsInfo.topics).forEach(([name, topicId]) => {
         log(`   ${name.padEnd(30)} ${topicId}`, 'white');
@@ -346,6 +371,8 @@ function displayDeploymentSummary() {
   log('   - HCS provides immutable audit log of all operations', 'white');
   log('   - Mirror Node API available for historical queries', 'white');
   log('   - Test HBAR available from: https://portal.hedera.com/', 'white');
+  log('   - Need help? Check docs or ask a team member!', 'white');
+  log('   - 🚀 Enjoy exploring Dera Protocol!', 'yellow');
 
   log('\n✅ HACKATHON DEPLOYMENT SUCCESSFUL!', 'green');
   log('━'.repeat(60), 'green');
@@ -401,7 +428,13 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 5: Configure frontend
+  // Step 5: Initialize WHBAR
+  if (!await initializeWHBAR()) {
+    log('\n❌ Deployment failed during WHBAR initialization', 'red');
+    process.exit(1);
+  }
+
+  // Step 6: Configure frontend
   if (!await configureFrontend()) {
     log('\n❌ Deployment failed during frontend configuration', 'red');
     process.exit(1);
@@ -414,7 +447,8 @@ async function main() {
   displayDeploymentSummary();
 
   log(`\n⏱️  Total deployment time: ${duration} seconds`, 'cyan');
-  log('\n🎉 Thank you for checking out Dera Protocol!', 'magenta');
+  log('\n🎉 Thank you for judging and exploring Dera Protocol!', 'magenta');
+  log('   💪 Have fun! If you have feedback, it helps us a lot. 🙏', 'yellow');
 }
 
 // Run main function

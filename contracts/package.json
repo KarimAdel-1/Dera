@@ -4,16 +4,15 @@
   "description": "Smart contracts for Dera Protocol on Hedera",
   "scripts": {
     "test": "hardhat test",
-    "test:unit": "hardhat test test/unit/**/*.test.js",
-    "test:integration": "hardhat test test/integration/**/*.test.js",
-    "test:coverage": "hardhat coverage",
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy-complete.js --network testnet",
-    "deploy:testnet": "hardhat run scripts/deploy-complete.js --network testnet",
+    "deploy:hackathon": "node ../deploy-hackathon.js",
     "deploy:hcs": "node scripts/create-hcs-topics.js",
-    "verify": "hardhat run scripts/verify-deployment.js --network testnet",
-    "export-abis": "node scripts/export-missing-abis.js",
-    "postcompile": "npm run export-abis"
+    "init:whbar": "hardhat run scripts/init-whbar-fixed.js --network testnet",
+    "init:usdc": "hardhat run scripts/init-usdc.js --network testnet",
+    "test:whbar": "hardhat run scripts/test-whbar-supply.js --network testnet",
+    "init:hbar": "hardhat run scripts/init-hbar.js --network testnet",
+    "test:hbar": "hardhat run scripts/test-hbar-supply.js --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
@@ -27,7 +26,7 @@
     "solidity-coverage": "^0.8.5"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.39.0",
+    "@hashgraph/sdk": "^2.76.0",
     "@openzeppelin/contracts": "4.9.6",
     "@openzeppelin/contracts-upgradeable": "4.9.6",
     "dotenv": "^16.3.1"

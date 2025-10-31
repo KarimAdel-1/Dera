@@ -1,0 +1,12 @@
+{
+  "network": "testnet",
+  "created": "2025-10-31T20:03:54.873Z",
+  "topics": {
+    "SUPPLY": "0.0.7172677",
+    "WITHDRAW": "0.0.7172678",
+    "BORROW": "0.0.7172679",
+    "REPAY": "0.0.7172680",
+    "LIQUIDATION": "0.0.7172681"
+  },
+  "note": "Real HCS topics created via Hedera SDK"
+}

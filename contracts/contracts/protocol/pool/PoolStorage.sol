@@ -76,7 +76,7 @@ contract PoolStorage {
   // Mapping to check if a user is registered (for gas-efficient lookups)
   mapping(address => bool) internal _isRegisteredUser;
 
-  function getRevision() external pure virtual returns (uint256) {
+  function getRevision() internal pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }
 }

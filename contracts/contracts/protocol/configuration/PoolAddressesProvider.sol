@@ -56,6 +56,13 @@ contract PoolAddressesProvider is Ownable, IPoolAddressesProvider {
     emit AddressSet(id, oldAddress, newAddress);
   }
 
+  function setAddressAsProxy(bytes32 id, address newImplementationAddress) external override onlyOwner {
+    require(newImplementationAddress != address(0), "Invalid address");
+    address oldAddress = _addresses[id];
+    _addresses[id] = newImplementationAddress;
+    emit AddressSetAsProxy(id, address(0), oldAddress, newImplementationAddress);
+  }
+
   function getPool() external view override returns (address) {
     return getAddress(POOL);
   }

@@ -3,11 +3,14 @@ pragma solidity ^0.8.19;
 
 import {IPool} from '../../../interfaces/IPool.sol';
 import {IPoolConfigurator} from '../../../interfaces/IPoolConfigurator.sol';
+import {AssetConfiguration} from '../configuration/AssetConfiguration.sol';
 import {IInitializableDeraSupplyToken} from '../../../interfaces/IInitializableDeraSupplyToken.sol';
 import {IInitializableDeraBorrowToken} from '../../../interfaces/IInitializableDeraBorrowToken.sol';
 import {IReserveInterestRateStrategy} from '../../../interfaces/IReserveInterestRateStrategy.sol';
 import {DataTypes} from '../types/DataTypes.sol';
-import {IERC20} from '../../../interfaces/IERC20.sol';
+import {Errors} from '../helpers/Errors.sol';
+import {Clones} from '@openzeppelin/contracts/proxy/Clones.sol';
+
 
 /**
  * @title ConfiguratorLogic
@@ -54,32 +57,27 @@ library ConfiguratorLogic {
   }
 
   event AssetInitialized(address indexed asset, address indexed dToken, address variableDebtToken, address interestRateStrategyAddress);
+  event ProxiesInitialized(address indexed asset, address indexed dToken, address variableDebtToken);
   event SupplyTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
   event BorrowTokenUpgraded(address indexed asset, address indexed proxy, address indexed implementation);
 
   function executeInitAsset(IPool pool, InitAssetInput calldata input) external {
-    require(input.underlyingAssetDecimals > 5, 'INVALID_DECIMALS');
+    if (input.underlyingAssetDecimals == 0 || input.underlyingAssetDecimals > 30) revert Errors.InvalidDecimals();
 
     address dTokenProxyAddress = _initTokenWithProxy(input.supplyTokenImpl, abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.supplyTokenName, input.supplyTokenSymbol, input.params));
     address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, abi.encodeWithSelector(IInitializableDeraBorrowToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.variableDebtTokenName, input.variableDebtTokenSymbol, input.params));
-
-    pool.initAsset(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
-
-    DataTypes.AssetConfigurationMap memory currentConfig;
-    currentConfig.data = 0;
-    currentConfig = _setDecimals(currentConfig, input.underlyingAssetDecimals);
-    currentConfig = _setActive(currentConfig, true);
-    currentConfig = _setPaused(currentConfig, false);
-    currentConfig = _setFrozen(currentConfig, false);
-
-    pool.setConfiguration(input.underlyingAsset, currentConfig);
-
+    // Do NOT call pool.initAsset or pool.setConfiguration here — deploying and initializing
+    // token proxies is gas-heavy and when combined with pool registration in a single
+    // transaction can exceed gas/stack limits on Hedera. Split the flow: callers should
+    // call `finalizeInitAsset` separately to register the asset in the Pool.
+    emit ProxiesInitialized(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress);
     emit AssetInitialized(input.underlyingAsset, dTokenProxyAddress, variableDebtTokenProxyAddress, input.interestRateStrategyAddress);
   }
 
   function executeUpdateSupplyToken(IPool pool, UpdateSupplyTokenInput calldata input) external {
     address supplyTokenAddress = pool.getAssetData(input.asset).supplyTokenAddress;
-    uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
+    DataTypes.AssetConfigurationMap memory config = pool.getConfiguration(input.asset);
+    (, , , uint256 decimals, ) = AssetConfiguration.getParams(config);
 
     bytes memory encodedCall = abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
     _upgradeTokenImplementation(supplyTokenAddress, input.implementation, encodedCall);
@@ -89,7 +87,8 @@ library ConfiguratorLogic {
 
   function executeUpdateBorrowToken(IPool pool, UpdateDebtTokenInput calldata input) external {
     address borrowTokenAddress = pool.getAssetData(input.asset).borrowTokenAddress;
-    uint256 decimals = pool.getConfiguration(input.asset).getDecimals();
+    DataTypes.AssetConfigurationMap memory config = pool.getConfiguration(input.asset);
+    (, , , uint256 decimals, ) = AssetConfiguration.getParams(config);
 
     bytes memory encodedCall = abi.encodeWithSelector(IInitializableDeraBorrowToken.initialize.selector, pool, input.asset, decimals, input.name, input.symbol, input.params);
     _upgradeTokenImplementation(borrowTokenAddress, input.implementation, encodedCall);
@@ -98,20 +97,16 @@ library ConfiguratorLogic {
   }
 
   function _initTokenWithProxy(address implementation, bytes memory initParams) internal returns (address) {
-    bytes memory bytecode = abi.encodePacked(type(MinimalProxy).creationCode, abi.encode(implementation));
-    address proxy;
-    assembly {
-      proxy := create(0, add(bytecode, 32), mload(bytecode))
-    }
-    require(proxy != address(0), 'PROXY_CREATION_FAILED');
+    address proxy = Clones.clone(implementation);
+    if (proxy == address(0)) revert Errors.ProxyCreationFailed();
     (bool success, ) = proxy.call(initParams);
-    require(success, 'INITIALIZATION_FAILED');
+    if (!success) revert Errors.InitializationFailed();
     return proxy;
   }
 
   function _upgradeTokenImplementation(address proxyAddress, address implementation, bytes memory initParams) internal {
     (bool success, ) = proxyAddress.call(abi.encodeWithSignature('upgradeToAndCall(address,bytes)', implementation, initParams));
-    require(success, 'UPGRADE_FAILED');
+    if (!success) revert Errors.UpgradeFailed();
   }
 
   function _setDecimals(DataTypes.AssetConfigurationMap memory config, uint256 decimals) internal pure returns (DataTypes.AssetConfigurationMap memory) {
@@ -135,22 +130,4 @@ library ConfiguratorLogic {
   }
 }
 
-contract MinimalProxy {
-  address public immutable implementation;
 
-  constructor(address _implementation) {
-    implementation = _implementation;
-  }
-
-  fallback() external payable {
-    address impl = implementation;
-    assembly {
-      calldatacopy(0, 0, calldatasize())
-      let result := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
-      returndatacopy(0, 0, returndatasize())
-      switch result
-      case 0 { revert(0, returndatasize()) }
-      default { return(0, returndatasize()) }
-    }
-  }
-}

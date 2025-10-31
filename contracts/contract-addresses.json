@@ -1,0 +1,44 @@
+{
+  "HBAR": {
+    "token": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "accountId": "0.0.0"
+    },
+    "supplyToken": {
+      "address": "",
+      "accountId": ""
+    },
+    "variableDebt": {
+      "address": "",
+      "accountId": ""
+    }
+  },
+  "USDC": {
+    "token": {
+      "address": "0x000000000000000000000000000000000006f89a",
+      "accountId": "0.0.456858"
+    },
+    "supplyToken": {
+      "address": "",
+      "accountId": ""
+    },
+    "variableDebt": {
+      "address": "",
+      "accountId": ""
+    }
+  },
+  "SAUCE": {
+    "token": {
+      "address": "0x00000000000000000000000000000000000b2ad5",
+      "accountId": "0.0.731861"
+    },
+    "supplyToken": {
+      "address": "",
+      "accountId": ""
+    },
+    "variableDebt": {
+      "address": "",
+      "accountId": ""
+    }
+  }
+}

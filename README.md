@@ -104,7 +104,7 @@ We integrated HTS to leverage native token operations on Hedera because it provi
 
 **Implementation:**
 - **Contract Integration:** `Pool.sol` uses HTS precompile interface at `0x167`
-- **Supported Assets:** HBAR (native), USDC, USDT, and any HTS tokens
+- **Supported Assets:** HBAR (native), USDC, SAUCE, and any HTS tokens
 - **Operations:** Supply, withdraw, borrow, repay with automatic balance management
 
 **Transaction Types Executed:**
@@ -419,10 +419,20 @@ NEXT_PUBLIC_POOL_ADDRESS=0x... # From deployment-info.json
 NEXT_PUBLIC_ORACLE_ADDRESS=0x...
 NEXT_PUBLIC_ANALYTICS_ADDRESS=0x...
 NEXT_PUBLIC_HCS_SUPPLY_TOPIC=0.0.xxxxx # From hcs-topics.json
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id # Get from cloud.walletconnect.com
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
 # ... (all other addresses auto-populated)
 ```
 
+**Note:** WalletConnect Project ID is required for HashPack wallet connection. Get one free at https://cloud.walletconnect.com/. Supabase credentials are optional for user session persistence.
+
 **Frontend runs at:** `http://localhost:3000`
+
+**Testing Features:**
+- **Mock Mode:** Test all features without wallet connection
+- **Live Mode:** Connect HashPack for real blockchain transactions
+- All UI features work in both modes for easy testing
 
 ---
 
@@ -504,8 +514,8 @@ This script runs all steps 1-5 automatically with progress indicators.
 │  │  │              │  │              │  │              │        │ │
 │  │  │ • HBAR       │  │ • Supply     │  │ • Consensus  │        │ │
 │  │  │ • USDC       │  │ • Withdraw   │  │   Nodes      │        │ │
-│  │  │ • USDT       │  │ • Borrow     │  │ • 6-8% APY   │        │ │
-│  │  │ • dTokens    │  │ • Repay      │  │ • Auto       │        │ │
+│  │  │ • dTokens    │  │ • Borrow     │  │ • 6-8% APY   │        │ │
+│  │  │              │  │ • Repay      │  │ • Auto       │        │ │
 │  │  │              │  │ • Liquidate  │  │   Rewards    │        │ │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘        │ │
 │  │                                                                  │ │
@@ -515,7 +525,7 @@ This script runs all steps 1-5 automatically with progress indicators.
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │                    MIRROR NODE API                              │ │
 │  │         (https://testnet.mirrornode.hedera.com)                 │ │
-│  │                                                                  │ │
+│  │                                                                 │ │
 │  │  • Query historical transactions                                │ │
 │  │  • Read HCS messages                                            │ │
 │  │  • Fetch account balances                                       │ │
@@ -624,7 +634,6 @@ All IDs below are from the reference deployment on Hedera Testnet. When you depl
 | Token | Token ID | Symbol | Decimals |
 |-------|----------|--------|----------|
 | USDC (Testnet) | `0.0.456858` | USDC | 6 |
-| USDT (Testnet) | `0.0.429274` | USDT | 6 |
 | HBAR | Native | HBAR | 8 |
 
 ---
@@ -646,11 +655,9 @@ npm run dev
 - **Tech Stack:** Next.js 15, React 18, TailwindCSS, ethers.js v6
 
 **Pages:**
-- `/` - Dashboard with TVL, markets overview
-- `/supply` - Supply assets and earn interest
-- `/borrow` - Borrow against collateral
-- `/staking` - Stake assets and view rewards
-- `/dashboard` - User portfolio and positions
+- `/` - Landing page
+- `/connect` - wallet connect page 
+- `/dashboard` - User portfolio and Dashboard
 
 ### Backend Services (Optional but Recommended)
 
@@ -750,35 +757,51 @@ For hackathon judges and mentors to verify the deployment, **test credentials ar
 
 ## 🧪 Testing the Protocol
 
-### Quick Test Flow (5 minutes)
+### Quick Test Flow (2 minutes)
 
-1. **Connect Wallet**
+**UI Testing Mode (No Wallet Required):**
+
+1. **Start Frontend**
    - Open `http://localhost:3000`
-   - Click "Connect Wallet"
-   - Approve HashPack connection
+   - Navigate to Dashboard → Dera Protocol tab
 
-2. **Get Test HBAR**
-   - Visit [Hedera Portal](https://portal.hedera.com/)
-   - Request 100 HBAR from faucet
-   - Wait ~30 seconds for deposit
-
-3. **Supply HBAR**
-   - Navigate to `/supply`
+2. **Test Supply Feature**
+   - Click "Supply" on any asset (HBAR, USDC, SAUCE)
    - Enter amount (e.g., 10 HBAR)
-   - Approve transaction in HashPack
-   - Confirm transaction (~3-5 seconds)
-   - View updated balance and APY
+   - Click "Supply" - transaction simulates instantly
+   - View updated balance in "Your Positions" tab
 
-4. **Borrow Against Collateral**
-   - Navigate to `/borrow`
-   - Enter borrow amount (up to 80% of collateral value)
-   - Approve transaction
-   - View borrowed amount and debt
+3. **Test Borrow Feature**
+   - Click "Borrow" on any asset
+   - Enter borrow amount
+   - Click "Borrow" - transaction simulates instantly
+   - View borrowed amount in "Your Positions" tab
 
-5. **Check HCS Events**
-   - View transaction on HashScan
-   - Click HCS topic link from frontend
-   - See immutable event log on topic
+4. **Test Collateral Toggle**
+   - Go to "Your Positions" tab
+   - Toggle "Use as Collateral" on supplied assets
+   - See collateral status update instantly
+
+5. **View Transaction History**
+   - All mock transactions appear in transaction history
+   - Each shows status "success (mock)"
+
+**Live Testing with Wallet (Optional):**
+
+1. **Connect HashPack Wallet**
+   - Click "Connect Wallet" button
+   - Approve HashPack connection
+   - Get test HBAR from [Hedera Portal](https://portal.hedera.com/)
+
+2. **Execute Real Transactions**
+   - Supply/Borrow with real blockchain transactions
+   - Transactions cost ~$0.05-0.10 on Hedera Testnet
+   - View on HashScan explorer
+
+3. **Check HCS Events**
+   - Navigate to "HCS Events" tab
+   - View immutable event logs from HCS topics
+   - Click HashScan links to verify on-chain
 
 ---
 
@@ -966,7 +989,8 @@ Supply APY:
 - **Solution:** Ensure your account has at least 100 HBAR. Request from faucet at portal.hedera.com
 
 **Issue:** Frontend doesn't connect to wallet
-- **Solution:** Ensure HashPack extension is installed and unlocked. Try refreshing the page.
+- **Solution:** Ensure HashPack extension is installed and unlocked. Add WalletConnect Project ID to `frontend/.env.local` (get free from https://cloud.walletconnect.com/). Try refreshing the page.
+- **Alternative:** Use mock mode to test UI without wallet connection.
 
 **Issue:** HCS topic creation fails
 - **Solution:** Check that HEDERA_OPERATOR_KEY is correct. Try running `npm run deploy:hcs` again.

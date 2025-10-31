@@ -41,12 +41,12 @@ abstract contract IncentivizedERC20 is Context, IERC20Metadata {
 
   modifier onlyPoolAdmin() {
     IACLManager aclManager = IACLManager(_addressesProvider.getACLManager());
-    require(aclManager.isPoolAdmin(_msgSender()), Errors.CallerNotPoolAdmin());
+    if (!aclManager.isPoolAdmin(_msgSender())) revert Errors.CallerNotPoolAdmin();
     _;
   }
 
   modifier onlyPool() {
-    require(_msgSender() == address(POOL), Errors.CallerMustBePool());
+    if (_msgSender() != address(POOL)) revert Errors.CallerMustBePool();
     _;
   }
 

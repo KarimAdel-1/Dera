@@ -50,28 +50,63 @@ library PoolLogic {
   error GracePeriodTooLong();
   error GracePeriodInPast();
 
+  // Temporary debug events
+  event DebugPoolInitStart(address asset, address supplyTokenAddress, address variableDebtAddress);
+  event DebugPoolInitAfterInit(address asset, address supplyTokenAddress, address variableDebtAddress);
+  event DebugPoolInitAssignedId(address asset, uint16 id);
+
   function executeInitAsset(
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     DataTypes.InitPoolAssetParams memory params
   ) external returns (bool) {
-    require(Address.isContract(params.asset), Errors.NotContract());
+    emit DebugPoolInitStart(params.asset, params.supplyTokenAddress, params.variableDebtAddress);
+    
+    // Skip contract validation for HBAR (address(0)) as it's the native currency
+    if (params.asset != address(0) && !Address.isContract(params.asset)) revert Errors.NotContract();
+    
+    // Check if asset already exists
+    bool assetAlreadyAdded = poolAssets[params.asset].id != 0;
+    
+    // Special handling for HBAR (address(0)) - only consider it added if explicitly set
+    if (params.asset == address(0)) {
+      // For HBAR, check if assetsList[0] is already set to address(0) AND has been initialized
+      assetAlreadyAdded = (assetsList[0] == address(0) && poolAssets[address(0)].supplyTokenAddress != address(0));
+    } else {
+      // For regular tokens, check if already in the list
+      if (!assetAlreadyAdded) {
+        for (uint16 i = 0; i < params.assetsCount; i++) {
+          if (assetsList[i] == params.asset) {
+            assetAlreadyAdded = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (assetAlreadyAdded) revert Errors.AssetAlreadyAdded();
+    
+    // Initialize the asset
     poolAssets[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
+    emit DebugPoolInitAfterInit(params.asset, params.supplyTokenAddress, params.variableDebtAddress);
 
-    bool assetAlreadyAdded = poolAssets[params.asset].id != 0 || assetsList[0] == params.asset;
-    require(!assetAlreadyAdded, Errors.AssetAlreadyAdded());
-
+    // Find an empty slot or add to the end
     for (uint16 i = 0; i < params.assetsCount; i++) {
-      if (assetsList[i] == address(0)) {
+      if (assetsList[i] == address(0) && params.asset != address(0)) {
+        // Found empty slot for non-HBAR asset
         poolAssets[params.asset].id = i;
         assetsList[i] = params.asset;
+        emit DebugPoolInitAssignedId(params.asset, i);
         return false;
       }
     }
 
-    require(params.assetsCount < params.maxNumberAssets, Errors.NoMoreReservesAllowed());
+    // No empty slot found or this is HBAR, add to the end
+    if (params.assetsCount >= params.maxNumberAssets) revert Errors.NoMoreReservesAllowed();
+    
     poolAssets[params.asset].id = params.assetsCount;
     assetsList[params.assetsCount] = params.asset;
+    emit DebugPoolInitAssignedId(params.asset, params.assetsCount);
     return true;
   }
 
@@ -97,7 +132,7 @@ library PoolLogic {
    * @dev Uses HTS precompile for native Hedera tokens
    */
   function executeRescueTokens(address token, address to, uint256 amount) external {
-    require(amount <= uint256(type(int64).max), "Amount exceeds int64");
+    require(amount <= uint256(uint64(type(int64).max)), "Amount exceeds int64");
     int64 result = HTS.transferToken(token, address(this), to, int64(uint64(amount)));
     if (result != 0) revert HTSTransferFailed(token, result);
   }
@@ -122,7 +157,7 @@ library PoolLogic {
         uint256 amountToMint = accruedToTreasury.getSupplyTokenBalance(normalizedIncome);
         IDeraSupplyToken(asset.supplyTokenAddress).mintToTreasury(accruedToTreasury, normalizedIncome);
 
-        emit IPool.MintedToTreasury(assetAddress, amountToMint);
+        // Event will be emitted by Pool contract
       }
     }
   }
@@ -144,7 +179,7 @@ library PoolLogic {
     if (until < block.timestamp) revert GracePeriodInPast();
     
     poolAssets[asset].liquidationGracePeriodUntil = until;
-    emit IPool.LiquidationGracePeriodUpdated(asset, until);
+    // Event will be emitted by Pool contract
   }
 
   function executeDropAsset(
@@ -152,9 +187,9 @@ library PoolLogic {
     mapping(uint256 => address) storage assetsList,
     address asset
   ) external {
-    DataTypes.PoolAssetData storage asset = poolAssets[asset];
-    ValidationLogic.validateDropAsset(assetsList, asset, asset);
-    assetsList[poolAssets[asset].id] = address(0);
+    DataTypes.PoolAssetData storage assetData = poolAssets[asset];
+    ValidationLogic.validateDropAsset(assetsList, assetData, asset);
+    assetsList[assetData.id] = address(0);
     delete poolAssets[asset];
   }
 
@@ -179,7 +214,8 @@ library PoolLogic {
       totalDebtBase,
       ltv,
       currentLiquidationThreshold,
-      healthFactor
+      healthFactor,
+      
     ) = GenericLogic.calculateUserAccountData(poolAssets, assetsList, params);
 
     availableBorrowsBase = GenericLogic.calculateAvailableBorrows(totalCollateralBase, totalDebtBase, ltv);

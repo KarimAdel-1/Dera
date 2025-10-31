@@ -19,7 +19,7 @@ library UserConfiguration {
 
   function setBorrowing(DataTypes.UserConfigurationMap storage self, uint256 assetIndex, bool borrowing) internal {
     unchecked {
-      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      if (assetIndex >= AssetConfiguration.MAX_RESERVES_COUNT) revert Errors.InvalidReserveIndex();
       uint256 bit = 1 << (assetIndex << 1);
       if (borrowing) {
         self.data |= bit;
@@ -31,35 +31,35 @@ library UserConfiguration {
 
   function setUsingAsCollateral(DataTypes.UserConfigurationMap storage self, uint256 assetIndex, address asset, address user, bool usingAsCollateral) internal {
     unchecked {
-      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      if (assetIndex >= AssetConfiguration.MAX_RESERVES_COUNT) revert Errors.InvalidReserveIndex();
       uint256 bit = 1 << ((assetIndex << 1) + 1);
       if (usingAsCollateral) {
         self.data |= bit;
-        emit IPool.AssetUsedAsCollateralEnabled(asset, user);
+        // Event will be emitted by Pool contract
       } else {
         self.data &= ~bit;
-        emit IPool.AssetUsedAsCollateralDisabled(asset, user);
+        // Event will be emitted by Pool contract
       }
     }
   }
 
   function isUsingAsCollateralOrBorrowing(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      if (assetIndex >= AssetConfiguration.MAX_RESERVES_COUNT) revert Errors.InvalidReserveIndex();
       return (self.data >> (assetIndex << 1)) & 3 != 0;
     }
   }
 
   function isBorrowing(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      if (assetIndex >= AssetConfiguration.MAX_RESERVES_COUNT) revert Errors.InvalidReserveIndex();
       return (self.data >> (assetIndex << 1)) & 1 != 0;
     }
   }
 
   function isUsingAsCollateral(DataTypes.UserConfigurationMap memory self, uint256 assetIndex) internal pure returns (bool) {
     unchecked {
-      require(assetIndex < AssetConfiguration.MAX_RESERVES_COUNT, Errors.InvalidReserveIndex());
+      if (assetIndex >= AssetConfiguration.MAX_RESERVES_COUNT) revert Errors.InvalidReserveIndex();
       return (self.data >> ((assetIndex << 1) + 1)) & 1 != 0;
     }
   }

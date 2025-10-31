@@ -36,7 +36,7 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
 
   address internal _underlyingAsset;
 
-  constructor(IPool pool, address rewardsController) ScaledBalanceTokenBase(pool, 'DBT_IMPL', 'DBT_IMPL', 0, rewardsController) {}
+  constructor(IPool pool) ScaledBalanceTokenBase(pool, 'DBT_IMPL', 'DBT_IMPL', 0) {}
 
   function initialize(IPool initializingPool, address underlyingAsset, uint8 borrowTokenDecimals, string memory borrowTokenName, string memory borrowTokenSymbol, bytes calldata params) external virtual;
 
@@ -45,7 +45,7 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function mint(address user, address onBehalfOf, uint256 amount, uint256 scaledAmount, uint256 index) external virtual override onlyPool returns (uint256) {
-    require(user == onBehalfOf, Errors.OperationNotSupported());
+    if (user != onBehalfOf) revert Errors.OperationNotSupported();
     
     _mintScaled({
       caller: user,
@@ -107,7 +107,7 @@ abstract contract DeraBorrowToken is VersionedInitializable, ScaledBalanceTokenB
     return 1;
   }
 
-  function getRevision() external pure virtual returns (uint256) {
+  function getRevision() internal pure virtual override returns (uint256) {
     return DEBT_TOKEN_REVISION();
   }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import {IPoolAddressesProvider} from '../interfaces/IPoolAddressesProvider.sol';
 import {IPool} from '../interfaces/IPool.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {IPriceOracleGetter} from '../interfaces/IPriceOracleGetter.sol';
 import {IDeraSupplyToken} from '../interfaces/IDeraSupplyToken.sol';
 import {IDeraBorrowToken} from '../interfaces/IDeraBorrowToken.sol';
@@ -150,7 +151,7 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address assetAddress = reserves[i];
-      DataTypes.PoolAssetData memory assetData = pool.getAssetData(assetAddress);
+      DataTypes.AssetDataLegacy memory assetData = pool.getAssetData(assetAddress);
 
       uint256 balance = IDeraSupplyToken(assetData.supplyTokenAddress).balanceOf(user);
       if (balance > 0) {
@@ -180,9 +181,9 @@ contract LiquidationDataProvider {
 
     for (uint256 i = 0; i < reserves.length; i++) {
       address assetAddress = reserves[i];
-      DataTypes.PoolAssetData memory assetData = pool.getAssetData(assetAddress);
+      DataTypes.AssetDataLegacy memory assetData = pool.getAssetData(assetAddress);
 
-      uint256 debt = IDeraBorrowToken(assetData.borrowTokenAddress).balanceOf(user);
+      uint256 debt = IERC20(assetData.borrowTokenAddress).balanceOf(user);
       if (debt > 0) {
         uint256 price = oracle.getAssetPrice(assetAddress);
         uint256 value = debt.wadMul(price);

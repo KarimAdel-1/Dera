@@ -35,6 +35,7 @@ library SupplyLogic {
   // Custom errors for HTS operations
   error HTSTransferFailed(int64 responseCode);
   error AmountExceedsInt64();
+  error HBARTransferFailed();
 
   function executeSupply(
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
@@ -50,9 +51,16 @@ library SupplyLogic {
 
     ValidationLogic.validateSupply(assetState, asset, scaledAmount, params.onBehalfOf);
 
-    // Transfer underlying asset from user to dToken contract via HTS
-    // CRITICAL: User must be associated with the HTS token before this call
-    _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, params.amount);
+    // Transfer underlying asset from user to dToken contract via HTS.
+    // For native HBAR (asset == address(0)) the funds are sent via msg.value to the Pool
+    if (params.asset != address(0)) {
+      // CRITICAL: User must be associated with the HTS token before this call
+      _safeHTSTransferFrom(params.asset, params.user, assetState.supplyTokenAddress, params.amount);
+    } else {
+      // For HBAR, forward the received msg.value to the dToken contract
+      (bool success, ) = payable(assetState.supplyTokenAddress).call{value: params.amount}("");
+      if (!success) revert("HBAR transfer to dToken failed");
+    }
 
     asset.updateInterestRatesAndVirtualBalance(
       assetState,
@@ -84,7 +92,7 @@ library SupplyLogic {
       }
     }
 
-    emit IPool.Supply(params.asset, params.user, params.onBehalfOf, params.amount, params.referralCode);
+    // Event will be emitted by Pool contract
   }
 
   function executeWithdraw(
@@ -97,7 +105,7 @@ library SupplyLogic {
     DataTypes.PoolAssetData storage asset = poolAssets[params.asset];
     DataTypes.AssetState memory assetState = asset.cache();
 
-    require(params.to != assetState.supplyTokenAddress, Errors.WithdrawToSupplyToken());
+    if (params.to == assetState.supplyTokenAddress) revert Errors.WithdrawToSupplyToken();
 
     asset.updateState(assetState);
 
@@ -147,7 +155,7 @@ library SupplyLogic {
       }
     }
 
-    emit IPool.Withdraw(params.asset, params.user, params.to, amountToWithdraw);
+    // Event will be emitted by Pool contract
 
     return amountToWithdraw;
   }
@@ -210,25 +218,21 @@ library SupplyLogic {
     address user,
     address asset,
     bool useAsCollateral,
-    address priceOracle,
-    uint8 
+    address priceOracle
   ) external {
-    DataTypes.PoolAssetData storage asset = poolAssets[asset];
-    DataTypes.AssetConfigurationMap memory reserveConfigCached = asset.configuration;
+    DataTypes.PoolAssetData storage assetData = poolAssets[asset];
+    DataTypes.AssetConfigurationMap memory reserveConfigCached = assetData.configuration;
 
     ValidationLogic.validateSetUseAssetAsCollateral(reserveConfigCached);
 
-    if (useAsCollateral == userConfig.isUsingAsCollateral(asset.id)) return;
+    if (useAsCollateral == userConfig.isUsingAsCollateral(assetData.id)) return;
 
     if (useAsCollateral) {
-      require(IDeraSupplyToken(asset.supplyTokenAddress).scaledBalanceOf(user) != 0, Errors.UnderlyingBalanceZero());
-      require(
-        ValidationLogic.validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfigCached),
-        Errors.LtvValidationFailed()
-      );
-      userConfig.setUsingAsCollateral(asset.id, asset, user, true);
+      if (IDeraSupplyToken(assetData.supplyTokenAddress).scaledBalanceOf(user) == 0) revert Errors.UnderlyingBalanceZero();
+      if (!ValidationLogic.validateUseAsCollateral(poolAssets, assetsList, userConfig, reserveConfigCached)) revert Errors.LtvValidationFailed();
+      userConfig.setUsingAsCollateral(assetData.id, asset, user, true);
     } else {
-      userConfig.setUsingAsCollateral(asset.id, asset, user, false);
+      userConfig.setUsingAsCollateral(assetData.id, asset, user, false);
       ValidationLogic.validateHFAndLtvzero(
         poolAssets,
         assetsList,
@@ -251,7 +255,7 @@ library SupplyLogic {
    * @param amount Amount to transfer
    */
   function _safeHTSTransferFrom(address token, address from, address to, uint256 amount) internal {
-    if (amount > uint256(type(int64).max)) revert AmountExceedsInt64();
+    if (amount > uint256(uint64(type(int64).max))) revert AmountExceedsInt64();
 
     int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
 

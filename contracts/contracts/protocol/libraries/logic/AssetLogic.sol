@@ -53,7 +53,7 @@ library AssetLogic {
   }
 
   function init(DataTypes.PoolAssetData storage asset, address supplyTokenAddress, address borrowTokenAddress) internal {
-    require(asset.supplyTokenAddress == address(0), Errors.AssetAlreadyInitialized());
+    if (asset.supplyTokenAddress != address(0)) revert Errors.AssetAlreadyInitialized();
     asset.liquidityIndex = uint128(WadRayMath.RAY);
     asset.variableBorrowIndex = uint128(WadRayMath.RAY);
     asset.supplyTokenAddress = supplyTokenAddress;
@@ -82,7 +82,7 @@ library AssetLogic {
     if (liquidityTaken > 0) {
       asset.virtualUnderlyingBalance -= uint128(liquidityTaken);
     }
-    emit IPool.AssetDataUpdated(assetAddress, nextLiquidityRate, 0, nextVariableRate, assetState.nextLiquidityIndex, assetState.nextVariableBorrowIndex);
+    // Event will be emitted by Pool contract
   }
 
   function _accrueToTreasury(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState) internal {

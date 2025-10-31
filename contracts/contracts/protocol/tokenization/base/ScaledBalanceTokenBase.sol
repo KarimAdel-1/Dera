@@ -53,7 +53,7 @@ abstract contract ScaledBalanceTokenBase is MintableIncentivizedERC20, IScaledBa
   }
 
   function _mintScaled(address caller, address onBehalfOf, uint256 amountScaled, uint256 index, function(uint256, uint256) internal pure returns (uint256) getTokenBalance) internal returns (bool) {
-    require(amountScaled != 0, Errors.InvalidMintAmount());
+    if (amountScaled == 0) revert Errors.InvalidMintAmount();
 
     uint256 scaledBalance = super.balanceOf(onBehalfOf);
     uint256 nextBalance = getTokenBalance(amountScaled + scaledBalance, index);
@@ -72,7 +72,7 @@ abstract contract ScaledBalanceTokenBase is MintableIncentivizedERC20, IScaledBa
   }
 
   function _burnScaled(address user, address target, uint256 amountScaled, uint256 index, function(uint256, uint256) internal pure returns (uint256) getTokenBalance) internal returns (bool) {
-    require(amountScaled != 0, Errors.InvalidBurnAmount());
+    if (amountScaled == 0) revert Errors.InvalidBurnAmount();
 
     uint256 scaledBalance = super.balanceOf(user);
     uint256 nextBalance = getTokenBalance(scaledBalance - amountScaled, index);

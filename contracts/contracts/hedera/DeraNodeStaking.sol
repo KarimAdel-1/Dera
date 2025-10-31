@@ -228,9 +228,8 @@ contract DeraNodeStaking {
    * @notice Claim staking rewards for a user
    * @dev Users call this to claim their share of staking rewards
    * @param asset Asset for which to claim rewards
-   * @param user User address
    */
-  function claimStakingRewards(address asset, address user) external returns (uint256) {
+  function claimStakingRewards(address asset, address /* user */) external view returns (uint256) {
     AssetStakingConfig storage config = assetStakingConfigs[asset];
     if (!config.enabled) revert StakingNotEnabled();
 

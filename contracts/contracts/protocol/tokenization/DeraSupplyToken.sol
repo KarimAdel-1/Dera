@@ -55,8 +55,8 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   address public immutable TREASURY;
   address internal _underlyingAsset;
 
-  constructor(IPool pool, address rewardsController, address treasury) ScaledBalanceTokenBase(pool, 'DST_IMPL', 'DST_IMPL', 0, rewardsController) {
-    require(treasury != address(0), Errors.ZeroAddressNotValid());
+  constructor(IPool pool, address treasury) ScaledBalanceTokenBase(pool, 'DST_IMPL', 'DST_IMPL', 0) {
+    if (treasury == address(0)) revert Errors.ZeroAddressNotValid();
     TREASURY = treasury;
     _chainId = block.chainid;
     _domainSeparator = _calculateDomainSeparator();
@@ -128,16 +128,22 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function transferUnderlyingTo(address target, uint256 amount) external virtual override onlyPool {
-    // HTS native transfer
+    // HTS native transfer or native HBAR transfer
+    if (_underlyingAsset == address(0)) {
+      // native HBAR
+  (bool success, ) = payable(target).call{value: amount}("");
+  if (!success) revert("HBAR_TRANSFER_FAILED");
+      return;
+    }
     _safeHTSTransfer(_underlyingAsset, address(this), target, amount);
   }
 
   function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external override {
-    require(owner != address(0), Errors.ZeroAddressNotValid());
-    require(block.timestamp <= deadline, Errors.InvalidExpiration());
+    if (owner == address(0)) revert Errors.ZeroAddressNotValid();
+    if (block.timestamp > deadline) revert Errors.InvalidExpiration();
     uint256 currentValidNonce = _nonces[owner];
     bytes32 digest = keccak256(abi.encodePacked('\x19\x01', DOMAIN_SEPARATOR(), keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, currentValidNonce, deadline))));
-    require(owner == ECDSA.recover(digest, v, r, s), Errors.InvalidSignature());
+    if (owner != ECDSA.recover(digest, v, r, s)) revert Errors.InvalidSignature();
     _nonces[owner] = currentValidNonce + 1;
     _approve(owner, spender, value);
   }
@@ -224,22 +230,39 @@ abstract contract DeraSupplyToken is VersionedInitializable, ScaledBalanceTokenB
   }
 
   function rescueTokens(address token, address to, uint256 amount) external override onlyPoolAdmin {
-    require(token != _underlyingAsset, Errors.UnderlyingCannotBeRescued());
+    if (token == _underlyingAsset) revert Errors.UnderlyingCannotBeRescued();
     // HTS native transfer
     _safeHTSTransfer(token, address(this), to, amount);
   }
 
   function _safeHTSTransfer(address token, address from, address to, uint256 amount) internal {
-    require(amount <= uint256(type(int64).max), "Amount exceeds int64");
+    if (amount > uint256(uint64(type(int64).max))) revert("Amount exceeds int64");
+    if (token == address(0)) {
+      // native HBAR transfer from this contract
+      (bool success, ) = payable(to).call{value: amount}("");
+      if (!success) revert("HBAR transfer failed");
+      return;
+    }
     int64 result = HTS.transferToken(token, from, to, int64(uint64(amount)));
-    require(result == 0, "HTS transfer failed");
+    if (result != 0) revert("HTS transfer failed");
   }
 
   function SUPPLY_TOKEN_REVISION() public pure virtual returns (uint256) {
     return 1;
   }
 
-  function getRevision() external pure virtual returns (uint256) {
+  function getRevision() internal pure virtual override returns (uint256) {
     return SUPPLY_TOKEN_REVISION();
+  }
+  
+  // Allow contract to receive HBAR for native HBAR support
+  receive() external payable {
+    // Only allow HBAR deposits if this is the HBAR dToken
+    if (_underlyingAsset != address(0)) revert("Not HBAR dToken");
+  }
+  
+  fallback() external payable {
+    // Only allow HBAR deposits if this is the HBAR dToken
+    if (_underlyingAsset != address(0)) revert("Not HBAR dToken");
   }
 }
