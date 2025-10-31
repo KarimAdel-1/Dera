@@ -9,7 +9,10 @@ async function loadHashConnect() {
     // Return mock objects for server-side
     return {
       HashConnect: null,
-      HashConnectConnectionState: { Disconnected: 'Disconnected', Paired: 'Paired' },
+      HashConnectConnectionState: {
+        Disconnected: 'Disconnected',
+        Paired: 'Paired',
+      },
       LedgerId: null,
     };
   }
@@ -43,14 +46,20 @@ class HashPackService {
     };
     this.state = 'Disconnected';
     this.pairingData = null;
-    this.projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'c4f79cc821944d9680842e34466bfbd';
+    this.projectId =
+      process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+      'c4f79cc821944d9680842e34466bfbd';
     this.eventListenersSetup = false;
   }
 
   async initialize(forceNew = false) {
     try {
       // Load HashConnect dynamically
-      const { HashConnect: HC, HashConnectConnectionState: State, LedgerId: Ledger } = await loadHashConnect();
+      const {
+        HashConnect: HC,
+        HashConnectConnectionState: State,
+        LedgerId: Ledger,
+      } = await loadHashConnect();
 
       if (!HC) {
         console.log('HashConnect not available on server-side');
@@ -95,7 +104,10 @@ class HashPackService {
       if (pairings.length > 0) {
         this.pairingData = pairings[0];
         this.state = HashConnectConnectionState?.Paired || 'Paired';
-        console.log('✅ Restored pairing from localStorage:', this.pairingData.accountIds);
+        console.log(
+          '✅ Restored pairing from localStorage:',
+          this.pairingData.accountIds
+        );
       }
 
       return true;
@@ -121,13 +133,18 @@ class HashPackService {
         return;
       }
 
-      console.log(`Found ${allPairings.length} existing pairings, checking for orphaned ones...`);
+      console.log(
+        `Found ${allPairings.length} existing pairings, checking for orphaned ones...`
+      );
 
       // If we have pairings but no active connection, they're likely orphaned
-      const isConnected = this.state === (HashConnectConnectionState?.Paired || 'Paired');
+      const isConnected =
+        this.state === (HashConnectConnectionState?.Paired || 'Paired');
 
       if (allPairings.length > 0 && !isConnected) {
-        console.log('Found orphaned pairings (pairings exist but not connected), cleaning up...');
+        console.log(
+          'Found orphaned pairings (pairings exist but not connected), cleaning up...'
+        );
 
         for (const pairing of allPairings) {
           if (pairing?.topic) {
@@ -144,7 +161,9 @@ class HashPackService {
         this.clearAllWalletConnectData();
         console.log('Orphaned pairings cleaned up');
       } else if (isConnected) {
-        console.log('Active connection found, no orphaned pairings to clean up');
+        console.log(
+          'Active connection found, no orphaned pairings to clean up'
+        );
       }
     } catch (error) {
       console.error('Error cleaning up orphaned pairings:', error);
@@ -167,7 +186,7 @@ class HashPackService {
       if (pairings.length > 0) {
         this.pairingData = {
           ...newPairing,
-          topic: pairings[0].topic
+          topic: pairings[0].topic,
         };
         console.log('✅ Pairing data set with topic:', this.pairingData.topic);
       } else {
@@ -178,16 +197,18 @@ class HashPackService {
     // Listen for disconnection events
     this.hashconnect.disconnectionEvent.on((data) => {
       console.log('Disconnection event:', data);
-      
+
       // Emit custom event for wallet disconnection
       if (this.pairingData?.accountIds) {
-        this.pairingData.accountIds.forEach(accountId => {
-          window.dispatchEvent(new CustomEvent('hashpackDisconnected', {
-            detail: { address: accountId, walletType: 'hashpack' }
-          }));
+        this.pairingData.accountIds.forEach((accountId) => {
+          window.dispatchEvent(
+            new CustomEvent('hashpackDisconnected', {
+              detail: { address: accountId, walletType: 'hashpack' },
+            })
+          );
         });
       }
-      
+
       this.pairingData = null;
       this.state = HashConnectConnectionState?.Disconnected || 'Disconnected';
     });
@@ -216,13 +237,16 @@ class HashPackService {
       }
 
       // Check if there's an existing pairing - either by topic OR by state being "Paired"
-      const isPaired = this.state === (HashConnectConnectionState?.Paired || 'Paired');
+      const isPaired =
+        this.state === (HashConnectConnectionState?.Paired || 'Paired');
       const hasPairingTopic = this.pairingData?.topic;
 
       // Always cleanup if we have an active pairing in our app
       // This prevents pairing accumulation
       if (isPaired || hasPairingTopic) {
-        console.log('⚠️ Existing active pairing detected - performing cleanup...');
+        console.log(
+          '⚠️ Existing active pairing detected - performing cleanup...'
+        );
         console.log('State:', this.state, 'Has topic:', !!hasPairingTopic);
         const oldTopic = this.pairingData?.topic;
 
@@ -230,7 +254,9 @@ class HashPackService {
         try {
           // Get all active pairings from HashConnect
           const allPairings = this.hashconnect.hcData?.pairingData || [];
-          console.log(`Found ${allPairings.length} active pairings to disconnect`);
+          console.log(
+            `Found ${allPairings.length} active pairings to disconnect`
+          );
 
           // Disconnect each one
           for (const pairing of allPairings) {
@@ -240,26 +266,37 @@ class HashPackService {
                 await this.hashconnect.disconnect(pairing.topic);
                 console.log('Pairing disconnected successfully');
               } catch (disconnectError) {
-                console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+                console.warn(
+                  'Error during disconnect (continuing cleanup):',
+                  disconnectError
+                );
               }
             }
           }
 
           // Also disconnect the current topic if it exists and wasn't in the list
-          if (oldTopic && !allPairings.some(p => p.topic === oldTopic)) {
+          if (oldTopic && !allPairings.some((p) => p.topic === oldTopic)) {
             try {
               console.log('Disconnecting current topic:', oldTopic);
               await this.hashconnect.disconnect(oldTopic);
             } catch (disconnectError) {
-              console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+              console.warn(
+                'Error during disconnect (continuing cleanup):',
+                disconnectError
+              );
             }
           }
 
           if (allPairings.length === 0 && !oldTopic) {
-            console.log('No topics to disconnect, but state is Paired - clearing state');
+            console.log(
+              'No topics to disconnect, but state is Paired - clearing state'
+            );
           }
         } catch (error) {
-          console.warn('Error getting/disconnecting pairings (continuing cleanup):', error);
+          console.warn(
+            'Error getting/disconnecting pairings (continuing cleanup):',
+            error
+          );
         }
 
         try {
@@ -304,7 +341,10 @@ class HashPackService {
       console.log('Opening pairing modal...');
       console.log('Current HashConnect state:', this.state);
       console.log('Current pairingData:', this.pairingData);
-      console.log('HashConnect instance ID:', this.hashconnect ? 'exists' : 'null');
+      console.log(
+        'HashConnect instance ID:',
+        this.hashconnect ? 'exists' : 'null'
+      );
 
       // Open pairing modal with fresh HashConnect instance
       this.hashconnect.openPairingModal();
@@ -349,7 +389,7 @@ class HashPackService {
           // Get the topic from HashConnect's internal data
           const pairings = this.hashconnect.hcData?.pairingData || [];
           const topic = pairings.length > 0 ? pairings[0].topic : null;
-          
+
           console.log('Topic from hcData:', topic);
 
           // Return all accounts from the paired wallet
@@ -363,13 +403,13 @@ class HashPackService {
 
           this.pairingData = {
             ...pairingData,
-            topic
+            topic,
           };
 
           // Save session to database for persistence across localStorage clears
           // Only save if we have a topic
           if (topic) {
-            this.saveSessionToDatabase(this.pairingData).catch(err => {
+            this.saveSessionToDatabase(this.pairingData).catch((err) => {
               console.warn('Failed to save session to database:', err);
             });
           } else {
@@ -401,7 +441,10 @@ class HashPackService {
           await this.hashconnect.disconnect(topicToDeactivate);
           console.log('Successfully disconnected from HashPack');
         } catch (disconnectError) {
-          console.warn('Error during disconnect (continuing cleanup):', disconnectError);
+          console.warn(
+            'Error during disconnect (continuing cleanup):',
+            disconnectError
+          );
         }
 
         // Close any open pairing modals
@@ -412,7 +455,7 @@ class HashPackService {
         }
 
         // Deactivate session in database
-        this.deactivateSessionInDatabase(topicToDeactivate).catch(err => {
+        this.deactivateSessionInDatabase(topicToDeactivate).catch((err) => {
           console.warn('Failed to deactivate session in database:', err);
         });
       }
@@ -457,7 +500,11 @@ class HashPackService {
               await this.hashconnect.disconnect(pairing.topic);
               console.log('Disconnected topic:', pairing.topic);
             } catch (err) {
-              console.warn('Error disconnecting topic (continuing):', pairing.topic, err);
+              console.warn(
+                'Error disconnecting topic (continuing):',
+                pairing.topic,
+                err
+              );
             }
           }
         }
@@ -500,11 +547,17 @@ class HashPackService {
 
       // Get signer
       const signer = this.hashconnect.getSigner(accountId);
-      
-      console.log('sendTransaction called with:', { accountId, hasPairingData: !!this.pairingData, signerExists: !!signer });
-      
+
+      console.log('sendTransaction called with:', {
+        accountId,
+        hasPairingData: !!this.pairingData,
+        signerExists: !!signer,
+      });
+
       if (!signer) {
-        throw new Error('HashPack session expired. Please reconnect your wallet.');
+        throw new Error(
+          'HashPack session expired. Please reconnect your wallet.'
+        );
       }
 
       // Freeze with signer's client and execute
@@ -642,7 +695,9 @@ class HashPackService {
   clearAllWalletConnectData() {
     if (typeof window === 'undefined') return;
 
-    console.log('Clearing ALL WalletConnect and HashConnect data from localStorage...');
+    console.log(
+      'Clearing ALL WalletConnect and HashConnect data from localStorage...'
+    );
 
     try {
       const allKeys = Object.keys(localStorage);
@@ -669,7 +724,9 @@ class HashPackService {
         );
       });
 
-      console.log(`Found ${keysToRemove.length} WalletConnect/HashConnect keys to remove`);
+      console.log(
+        `Found ${keysToRemove.length} WalletConnect/HashConnect keys to remove`
+      );
 
       if (keysToRemove.length > 0) {
         console.log('Keys to remove:', keysToRemove);
@@ -683,7 +740,9 @@ class HashPackService {
         }
       });
 
-      console.log(`Successfully cleared ${keysToRemove.length} WalletConnect/HashConnect items`);
+      console.log(
+        `Successfully cleared ${keysToRemove.length} WalletConnect/HashConnect items`
+      );
     } catch (error) {
       console.error('Error clearing WalletConnect data:', error);
     }
@@ -719,11 +778,13 @@ class HashPackService {
       const wcData = {};
       const allKeys = Object.keys(localStorage);
 
-      allKeys.forEach(key => {
-        if (key.startsWith('wc@2:') ||
-            key.startsWith('wc_') ||
-            key.startsWith('hashconnect') ||
-            key.includes('walletconnect')) {
+      allKeys.forEach((key) => {
+        if (
+          key.startsWith('wc@2:') ||
+          key.startsWith('wc_') ||
+          key.startsWith('hashconnect') ||
+          key.includes('walletconnect')
+        ) {
           try {
             wcData[key] = localStorage.getItem(key);
           } catch (e) {
@@ -732,7 +793,9 @@ class HashPackService {
         }
       });
 
-      console.log(`📦 Backed up ${Object.keys(wcData).length} localStorage keys`);
+      console.log(
+        `📦 Backed up ${Object.keys(wcData).length} localStorage keys`
+      );
 
       // Save to database
       const { supabaseService } = await import('./supabaseService');
@@ -742,7 +805,7 @@ class HashPackService {
         network: pairingData.network,
         expiry: pairingData.expiry,
         symKey: JSON.stringify(wcData), // Store all localStorage data as JSON
-        relay: pairingData.relay
+        relay: pairingData.relay,
       };
 
       await supabaseService.saveWalletConnectSession(
@@ -768,7 +831,10 @@ class HashPackService {
       console.log('🔄 Attempting to restore session from database...');
 
       const { supabaseService } = await import('./supabaseService');
-      const session = await supabaseService.getWalletConnectSession(userId, walletAddress);
+      const session = await supabaseService.getWalletConnectSession(
+        userId,
+        walletAddress
+      );
 
       if (!session || !session.sym_key) {
         console.log('ℹ️ No session found in database to restore');
@@ -789,7 +855,9 @@ class HashPackService {
         return false;
       }
 
-      console.log(`🔄 Restoring ${Object.keys(wcData).length} localStorage keys...`);
+      console.log(
+        `🔄 Restoring ${Object.keys(wcData).length} localStorage keys...`
+      );
 
       // Restore all WalletConnect data to localStorage
       Object.entries(wcData).forEach(([key, value]) => {
@@ -817,10 +885,11 @@ class HashPackService {
 
     // Check if localStorage has any WalletConnect data
     const allKeys = Object.keys(localStorage);
-    const hasWCData = allKeys.some(key =>
-      key.startsWith('wc@2:') ||
-      key.startsWith('wc_') ||
-      key.startsWith('hashconnect')
+    const hasWCData = allKeys.some(
+      (key) =>
+        key.startsWith('wc@2:') ||
+        key.startsWith('wc_') ||
+        key.startsWith('hashconnect')
     );
 
     return !hasWCData; // Should restore if no WC data in localStorage

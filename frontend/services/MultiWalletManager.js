@@ -10,7 +10,7 @@ class MultiWalletManager {
   // Register wallet from Redux (called after wallet connects)
   registerWallet(accountId) {
     if (this.sessions.has(accountId)) return;
-    
+
     this.sessions.set(accountId, {
       accountId,
       network: 'testnet',
@@ -23,7 +23,7 @@ class MultiWalletManager {
 
   async connectWallet() {
     const accounts = await hashpackService.connectWallet();
-    
+
     for (const account of accounts) {
       this.sessions.set(account.accountId, {
         accountId: account.accountId,
@@ -35,7 +35,7 @@ class MultiWalletManager {
       }
     }
 
-    return accounts.map(a => a.accountId);
+    return accounts.map((a) => a.accountId);
   }
 
   listConnectedWallets() {

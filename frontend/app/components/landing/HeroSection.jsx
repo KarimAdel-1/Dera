@@ -29,18 +29,20 @@ export function HeroSection() {
         style={{
           backgroundImage: [
             // Main central dome/band (slightly below center)
-            'radial-gradient(80% 55% at 50% 52%, rgba(252,166,154,0.45) 0%, rgba(214,76,82,0.46) 27%, rgba(61,36,47,0.38) 47%, rgba(39,38,67,0.45) 60%, rgba(8,8,12,0.92) 78%, rgba(0,0,0,1) 88%)',
+            'radial-gradient(80% 55% at 50% 52%, rgba(254,120,0,0.45) 0%, rgba(254,78,0,0.46) 27%, rgba(120,40,0,0.38) 47%, rgba(60,30,10,0.45) 60%, rgba(20,10,5,0.85) 78%, rgba(0,0,0,1) 88%)',
+
             // Warm sweep from top-left
-            'radial-gradient(85% 60% at 14% 0%, rgba(255,193,171,0.65) 0%, rgba(233,109,99,0.58) 30%, rgba(48,24,28,0.0) 64%)',
-            // Cool rim on top-right
-            'radial-gradient(70% 50% at 86% 22%, rgba(88,112,255,0.40) 0%, rgba(16,18,28,0.0) 55%)',
+            'radial-gradient(85% 60% at 14% 0%, rgba(255,180,120,0.65) 0%, rgba(254,100,0,0.58) 30%, rgba(48,24,0,0.0) 64%)',
+
+            // Warm rim on top-right (replacing blue tint with orange glow)
+            'radial-gradient(70% 50% at 86% 22%, rgba(255,120,60,0.40) 0%, rgba(16,8,0,0.0) 55%)',
+
             // Soft top vignette
             'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0) 40%)',
           ].join(','),
           backgroundColor: '#000',
         }}
       />
-
       {/* Vignette corners for extra contrast */}
       <div
         aria-hidden
@@ -105,41 +107,44 @@ export function HeroSection() {
       <div className="relative z-10 mx-auto grid w-full max-w-5xl place-items-center px-6 py-16 md:py-24 lg:py-28">
         {/* We set opacity to 0 and apply the animation class to trigger the fade-in effect */}
         <div
-          className={`mx-auto text-center ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}
+          className={`mx-auto text-center ${
+            isMounted ? 'animate-fadeInUp' : 'opacity-0'
+          }`}
         >
           <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider text-white/70 ring-1 ring-white/10 backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-white/70" /> web3
-            toolkit
+            <span className="h-1.5 w-1.5 rounded-full bg-white/70" /> Hedera
+            DeFi
           </span>
           {/* Stagger animations with inline animation-delay */}
           <h1
             style={{ animationDelay: '200ms' }}
-            className={`mt-6 text-4xl font-bold tracking-tight md:text-6xl ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}
+            className={`mt-6 text-4xl font-bold tracking-tight md:text-6xl ${
+              isMounted ? 'animate-fadeInUp' : 'opacity-0'
+            }`}
           >
-            Create and connect your world on web3
+            Decentralized Lending on Hedera
           </h1>
           <p
             style={{ animationDelay: '300ms' }}
-            className={`mx-auto mt-5 max-w-2xl text-balance text-white/80 md:text-lg ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}
+            className={`mx-auto mt-5 max-w-2xl text-balance text-white/80 md:text-lg ${
+              isMounted ? 'animate-fadeInUp' : 'opacity-0'
+            }`}
           >
-            The essential toolkit for sharing and funding anything—from your
-            latest idea to the next big DAO.
+            Supply assets to earn interest, borrow against collateral, and
+            benefit from dual yield through DeFi + Hedera node staking rewards.
+            Low fees, fast finality, and transparent operations.
           </p>
           <div
             style={{ animationDelay: '400ms' }}
-            className={`mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}
+            className={`mt-8 flex flex-col items-center justify-center ${
+              isMounted ? 'animate-fadeInUp' : 'opacity-0'
+            }`}
           >
             <a
-              href="#"
-              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black shadow transition hover:bg-white/90"
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-lg transition hover:bg-white/90 hover:scale-105"
             >
-              Try Molithra
-            </a>
-            <a
-              href="#"
-              className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90 backdrop-blur hover:border-white/40"
-            >
-              Read More
+              Launch App
             </a>
           </div>
         </div>
@@ -189,7 +194,9 @@ export function HeroSection() {
                 // Animate height from 0% to its target value when isMounted is true.
                 height: isMounted ? `${h}%` : '0%',
                 // Stagger the animation delay to create a wave effect from the center out.
-                transitionDelay: `${Math.abs(i - Math.floor(pillars.length / 2)) * 60}ms`,
+                transitionDelay: `${
+                  Math.abs(i - Math.floor(pillars.length / 2)) * 60
+                }ms`,
               }}
             />
           ))}

@@ -1,8 +1,4 @@
-const path = require('path');
-const dotenv = require('dotenv');
-
-// Load environment variables from parent directory's .env file
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Environment variables are loaded from .env.local automatically by Next.js
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -26,21 +22,12 @@ const nextConfig = {
 
     // For server-side, ignore these modules completely
     if (isServer) {
-      // Add externals to prevent bundling hashconnect on server
-      const externals = config.externals || [];
-      config.externals = [
-        ...externals,
-        function({ request }, callback) {
-          // Externalize hashconnect and hedera-wallet-connect on server
-          if (
-            /^hashconnect/.test(request) ||
-            /^@hashgraph\/hedera-wallet-connect/.test(request)
-          ) {
-            return callback(null, 'commonjs ' + request);
-          }
-          callback();
-        }
-      ];
+      // Externalize problematic packages
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@hashgraph/sdk': 'commonjs @hashgraph/sdk',
+        '@bladelabs/blade-web3.js': 'commonjs @bladelabs/blade-web3.js'
+      });
     }
 
     config.ignoreWarnings = [

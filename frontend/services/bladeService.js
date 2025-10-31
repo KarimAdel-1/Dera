@@ -11,26 +11,10 @@
  * - HTS token operations
  */
 
-// Dynamic import to avoid SSR issues
-let BladeSDK = null;
-
-// Lazy load Blade SDK only on client-side
+// Temporarily disabled - Blade SDK requires Hedera SDK
 async function loadBlade() {
-  if (typeof window === 'undefined') {
-    return { BladeSDK: null };
-  }
-
-  if (!BladeSDK) {
-    try {
-      const blade = await import('@bladelabs/blade-web3.js');
-      BladeSDK = blade.BladeConnector;
-    } catch (error) {
-      console.warn('Blade SDK not available:', error);
-      return { BladeSDK: null };
-    }
-  }
-
-  return { BladeSDK };
+  console.warn('Blade SDK temporarily disabled - requires Hedera SDK');
+  return { BladeSDK: null };
 }
 
 class BladeService {

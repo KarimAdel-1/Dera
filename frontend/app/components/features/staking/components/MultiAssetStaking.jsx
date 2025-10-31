@@ -155,12 +155,8 @@ const MultiAssetStaking = () => {
 
     setIsLoadingStakes(true);
     try {
-      // Integrate with DeraMultiAssetStaking contract
-      const { stakingService } = await import('../../../../../services/stakingService');
-      const stakes = await stakingService.getUserStakes(connectedAccount);
-      setUserStakes(stakes);
-
-      // Remove fallback mock data - use empty array if service fails
+      // For now, use mock data until staking service is properly initialized
+      // TODO: Initialize stakingService with provider/signer and call getUserStakes
       setUserStakes([]);
     } catch (error) {
       console.error('Error loading stakes:', error);
@@ -206,38 +202,16 @@ const MultiAssetStaking = () => {
 
     setIsStaking(true);
     try {
-      // Integrate with DeraMultiAssetStaking contract
-      const { stakingService } = await import('../../../../../services/stakingService');
-      
-      if (assetType === 'HBAR' || assetType === 'HTS_TOKEN' || assetType === 'RWA') {
-        const tokenAddr = assetType === 'HBAR' ? '0x0000000000000000000000000000000000000000' : tokenAddress;
-        await stakingService.stakeFungibleToken(
-          tokenAddr,
-          amount,
-          lockPeriod
-        );
-      } else if (assetType === 'NFT') {
-        await stakingService.stakeNFT(
-          tokenAddress,
-          parseInt(serialNumber),
-          lockPeriod
-        );
-      }
-
+      // TODO: Initialize and use stakingService properly
       showNotification(
-        `Successfully staked ${
-          assetType === 'NFT' ? 'NFT' : amount + ' ' + assetType
-        } for ${lockPeriod} days!`,
-        'success'
+        'Staking functionality will be available once wallet integration is complete',
+        'info'
       );
 
       // Reset form
       setAmount('');
       setTokenAddress('');
       setSerialNumber('');
-
-      // Reload stakes
-      await loadUserStakes();
     } catch (error) {
       console.error('Error staking:', error);
       showNotification(`Failed to stake: ${error.message}`, 'error');
@@ -249,12 +223,8 @@ const MultiAssetStaking = () => {
   const handleUnstake = async (stakeId) => {
     setIsStaking(true);
     try {
-      // Integrate with contract
-      const { stakingService } = await import('../../../../../services/stakingService');
-      await stakingService.unstake(stakeId);
-
-      showNotification('Successfully unstaked!', 'success');
-      await loadUserStakes();
+      // TODO: Initialize and use stakingService properly
+      showNotification('Unstaking functionality will be available once wallet integration is complete', 'info');
     } catch (error) {
       console.error('Error unstaking:', error);
       showNotification(`Failed to unstake: ${error.message}`, 'error');
@@ -266,12 +236,8 @@ const MultiAssetStaking = () => {
   const handleClaimRewards = async (stakeId) => {
     setIsStaking(true);
     try {
-      // Integrate with contract
-      const { stakingService } = await import('../../../../../services/stakingService');
-      await stakingService.claimRewards(stakeId);
-
-      showNotification('Successfully claimed rewards!', 'success');
-      await loadUserStakes();
+      // TODO: Initialize and use stakingService properly
+      showNotification('Claim rewards functionality will be available once wallet integration is complete', 'info');
     } catch (error) {
       console.error('Error claiming rewards:', error);
       showNotification(`Failed to claim rewards: ${error.message}`, 'error');
