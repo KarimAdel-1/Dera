@@ -63,6 +63,12 @@ If you see ❌ errors, follow the suggested fixes.
 
 ### Step 4: Deploy Everything (5-8 minutes) ⭐
 
+
+```bash
+npm install
+```
+
+
 ```bash
 npm run deploy:hackathon
 ```

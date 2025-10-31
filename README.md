@@ -225,53 +225,30 @@ We leverage Hedera Mirror Nodes for off-chain analytics because they provide **f
 
 ## ⚡ Quick Start (5 Minutes)
 
-### Prerequisites
+**For detailed step-by-step deployment instructions, see [JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)**
 
-1. **Node.js 18+** - [Download](https://nodejs.org/)
-2. **Hedera Testnet Account** - [Create Account](https://portal.hedera.com/)
-   - Minimum balance: **100 HBAR** (available free from faucet)
-3. **HashPack Wallet** (optional for testing) - [Install](https://www.hashpack.app/)
-
-### One-Command Deployment
+### TL;DR - One-Command Deployment
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/dera-protocol.git
-cd dera-protocol
+git clone https://github.com/KarimAdel-1/Dera.git
+cd Dera
 
-# Configure environment (use provided test credentials in DoraHacks submission)
+# Configure environment
 cp contracts/.env.example contracts/.env
 nano contracts/.env  # Add your HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY
 
-# Deploy everything (contracts + HCS topics + configure frontend)
+# Deploy everything
 npm run deploy:hackathon
-```
 
-**Expected output:**
-```
-✅ All dependencies installed!
-✅ Contracts compiled successfully!
-✅ Contracts deployed successfully!
-✅ HCS topics created successfully!
-✅ Frontend environment configured
-🎉 DEPLOYMENT COMPLETE! (5-8 minutes total)
-```
-
-### Run the Application
-
-```bash
-# Terminal 1: Start frontend
-cd frontend
-npm install
-npm run dev
+# Start frontend
+cd frontend && npm run dev
 # Opens at http://localhost:3000
-
-# Terminal 2: Start backend services (optional)
-cd backend/hcs-event-service
-npm install
-npm run dev
-# Runs at http://localhost:3001
 ```
+
+**Expected time:** 5-8 minutes total
+
+**For troubleshooting and detailed instructions, see [JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)**
 
 ---
 
