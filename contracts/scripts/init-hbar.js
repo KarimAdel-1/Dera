@@ -1,8 +1,12 @@
 const { ethers } = require("hardhat");
 const fs = require("fs");
 
+const HBAR_TOKEN_ID = "0.0.0"; // Native HBAR
+
 async function main() {
   console.log("🚀 Initializing Native HBAR Support\n");
+  console.log("HBAR Token ID:", HBAR_TOKEN_ID, "(Native)");
+  console.log("HBAR Address:", ethers.ZeroAddress, "(0x0...0)\n");
 
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
@@ -48,48 +52,30 @@ async function main() {
   const vTokenAddress = await vToken.getAddress();
   console.log("✅ vToken implementation:", vTokenAddress);
 
-  // 3. Initialize HBAR asset in Pool directly
-  console.log("📍 Initializing HBAR in Pool...");
+  // 3. Initialize HBAR via PoolConfigurator
+  console.log("📍 Initializing HBAR via PoolConfigurator...");
+  const params = ethers.AbiCoder.defaultAbiCoder().encode(["uint8"], [8]); // 8 decimals for HBAR
   
-  try {
-    const initTx = await pool.initAsset(
-      ethers.ZeroAddress, // HBAR
-      dTokenAddress,
-      vTokenAddress
-    );
-    await initTx.wait();
-    console.log("✅ HBAR asset initialized in Pool");
-  } catch (error) {
-    console.error("\n❌ Failed to initialize HBAR:");
-    console.error("Message:", error.message);
-    console.error("\nThis is expected - Pool.initAsset requires PoolConfigurator role.");
-    console.log("\n✅ Tokens deployed successfully. Manual steps:");
-    console.log("   1. Call PoolConfigurator to initialize the asset");
-    console.log("   2. Or grant PoolConfigurator role to deployer");
-    console.log("\nToken addresses:");
-    console.log("   dToken:", dTokenAddress);
-    console.log("   vToken:", vTokenAddress);
-    return;
-  }
+  const initTx = await poolConfigurator.initAssets([{
+    supplyTokenImpl: dTokenAddress,
+    variableDebtTokenImpl: vTokenAddress,
+    underlyingAsset: ethers.ZeroAddress,
+    supplyTokenName: "Dera HBAR",
+    supplyTokenSymbol: "dHBAR",
+    variableDebtTokenName: "Dera Variable Debt HBAR",
+    variableDebtTokenSymbol: "vdHBAR",
+    params: params,
+    interestRateData: ethers.AbiCoder.defaultAbiCoder().encode(["address"], [rateStrategyAddress])
+  }], { gasLimit: 10000000 });
+  
+  await initTx.wait();
+  console.log("✅ HBAR asset initialized");
 
   // 4. Configure HBAR
   console.log("📍 Configuring HBAR parameters...");
-  const configData = ethers.toBigInt(
-    "0x" +
-    "1" +           // Active
-    "0" +           // Not frozen
-    "1" +           // Borrowing enabled
-    "0" +           // Stable borrowing disabled
-    "0000" +        // Reserved
-    "1D4C" +        // LTV = 7500 (75%)
-    "1F40" +        // Liquidation threshold = 8000 (80%)
-    "290C" +        // Liquidation bonus = 10500 (105%)
-    "08" +          // Decimals = 8
-    "03E8"          // Reserve factor = 1000 (10%)
-  );
-  
-  const configTx = await pool.setConfiguration(ethers.ZeroAddress, { data: configData });
-  await configTx.wait();
+  await (await poolConfigurator.configureAssetAsCollateral(ethers.ZeroAddress, 7500, 8000, 10500)).wait();
+  await (await poolConfigurator.setAssetActive(ethers.ZeroAddress, true)).wait();
+  await (await poolConfigurator.setAssetBorrowing(ethers.ZeroAddress, true)).wait();
   console.log("✅ HBAR configured");
 
   // 5. Verify
@@ -97,6 +83,7 @@ async function main() {
   const assetsList = await pool.getAssetsList();
   
   console.log("\n✅ HBAR Initialization Complete!");
+  console.log("   Token ID:", HBAR_TOKEN_ID);
   console.log("   dToken:", assetData.supplyTokenAddress);
   console.log("   vToken:", assetData.borrowTokenAddress);
   console.log("   In assets list:", assetsList.includes(ethers.ZeroAddress));

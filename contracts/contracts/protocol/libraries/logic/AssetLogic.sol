@@ -53,7 +53,9 @@ library AssetLogic {
   }
 
   function init(DataTypes.PoolAssetData storage asset, address supplyTokenAddress, address borrowTokenAddress) internal {
-    if (asset.supplyTokenAddress != address(0)) revert Errors.AssetAlreadyInitialized();
+    // Check if already initialized by checking liquidityIndex instead of supplyTokenAddress
+    // (supplyTokenAddress could be address(0) for uninitialized HBAR asset)
+    if (asset.liquidityIndex != 0) revert Errors.AssetAlreadyInitialized();
     asset.liquidityIndex = uint128(WadRayMath.RAY);
     asset.variableBorrowIndex = uint128(WadRayMath.RAY);
     asset.supplyTokenAddress = supplyTokenAddress;

@@ -58,6 +58,11 @@ contract ConcreteDeraSupplyToken is DeraSupplyToken {
   }
 
   function _associateHTS(address asset) private {
+    // Skip HTS association for native HBAR (address(0))
+    if (asset == address(0)) {
+      return;
+    }
+    
     (bool checkSuccess, bytes memory checkData) = HTS.call(
       abi.encodeWithSelector(IHederaTokenService.isToken.selector, asset)
     );

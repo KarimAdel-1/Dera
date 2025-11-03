@@ -1,10 +1,22 @@
 const hre = require("hardhat");
 const fs = require("fs");
+const { TokenId } = require("@hashgraph/sdk");
 
-const USDC_ADDRESS = "0x000000000000000000000000000000000006f89a"; // 0.0.456858
+const USDC_TOKEN_ID = "0.0.429274";
+
+// Convert Hedera Token ID to EVM address
+function tokenIdToAddress(tokenId) {
+  const parts = tokenId.split('.');
+  const num = parseInt(parts[2]);
+  return '0x' + num.toString(16).padStart(40, '0');
+}
+
+const USDC_ADDRESS = tokenIdToAddress(USDC_TOKEN_ID);
 
 async function main() {
   console.log("🔧 Adding USDC to Dera Protocol\n");
+  console.log("USDC Token ID:", USDC_TOKEN_ID);
+  console.log("USDC EVM Address:", USDC_ADDRESS);
 
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deployer:", deployer.address);
@@ -67,6 +79,8 @@ async function main() {
   console.log("✅ USDC configured");
 
   console.log("\n🎉 USDC added successfully!");
+  console.log("   Token ID:", USDC_TOKEN_ID);
+  console.log("   EVM Address:", USDC_ADDRESS);
 }
 
 main()
