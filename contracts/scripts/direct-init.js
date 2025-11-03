@@ -63,14 +63,44 @@ async function main() {
   console.log("✅ Proxies initialized");
   
   try {
+    // First check access control
+    const poolConfigurator_check = await ethers.getContractAt("DeraPoolConfigurator", deploymentInfo.addresses.POOL_CONFIGURATOR);
+    const aclManager = await ethers.getContractAt("ACLManager", deploymentInfo.addresses.ACL_MANAGER);
+    const [caller] = await ethers.getSigners();
+    const isPoolAdmin = await aclManager.isPoolAdmin(caller.address);
+
+    if (!isPoolAdmin) {
+      throw new Error(`Caller ${caller.address} is not a Pool Admin. Run: npm run grant:configurator`);
+    }
+
+    console.log("✓ Access control verified");
+
+    // Static call to check for reverts before executing
+    console.log("  Testing transaction with staticCall...");
     await poolConfigurator.finalizeInitAsset.staticCall(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8);
-    await (await poolConfigurator.finalizeInitAsset(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8)).wait();
+    console.log("  ✓ StaticCall succeeded");
+
+    // Execute the actual transaction
+    console.log("  Executing finalizeInitAsset...");
+    const tx = await poolConfigurator.finalizeInitAsset(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8);
+    console.log("  Transaction hash:", tx.hash);
+
+    const receipt = await tx.wait();
+    console.log("  ✓ Transaction confirmed");
     console.log("✅ Registered in Pool");
   } catch (e) {
     console.log("❌ Failed to register in Pool:", e.message);
-    console.log("⚠️  Skipping HBAR - Pool needs redeployment with fixed AssetLogic");
-    console.log("   Run: cd contracts && npm run redeploy-pool-only");
-    throw new Error("HBAR initialization failed - Pool needs redeployment");
+    console.log("\nDetailed error:");
+    console.log("  Error code:", e.code);
+    console.log("  Error data:", e.data);
+    if (e.reason) console.log("  Reason:", e.reason);
+    if (e.error && e.error.message) console.log("  Inner error:", e.error.message);
+
+    console.log("\n⚠️  Troubleshooting steps:");
+    console.log("  1. Verify deployer has Pool Admin role: npm run grant:configurator");
+    console.log("  2. Check Pool uses latest AssetLogic: npm run redeploy-pool-only");
+    console.log("  3. Run diagnostics: npx hardhat run scripts/diagnose-asset-init.js --network testnet");
+    throw new Error("HBAR initialization failed - see troubleshooting steps above");
   }
   
   await (await poolConfigurator.configureAssetAsCollateral(ethers.ZeroAddress, 7500, 8000, 10500)).wait();

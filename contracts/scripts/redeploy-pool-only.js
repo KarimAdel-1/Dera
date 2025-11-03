@@ -59,8 +59,15 @@ async function main() {
   await (await pool.initialize(deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER)).wait();
   console.log("✅ Pool initialized");
   
-  // Update deployment info
+  // Update deployment info - update both addresses and deploymentLog for consistency
   deploymentInfo.addresses.POOL = poolAddress;
+  // Find and update Pool in deploymentLog
+  const poolLogIndex = deploymentInfo.deploymentLog.findIndex(entry => entry.startsWith("Pool: "));
+  if (poolLogIndex !== -1) {
+    deploymentInfo.deploymentLog[poolLogIndex] = `Pool: ${poolAddress}`;
+  } else {
+    deploymentInfo.deploymentLog.push(`Pool: ${poolAddress}`);
+  }
   fs.writeFileSync("./deployment-info.json", JSON.stringify(deploymentInfo, null, 2));
   console.log("\n✅ deployment-info.json updated");
   console.log("New Pool address:", poolAddress);

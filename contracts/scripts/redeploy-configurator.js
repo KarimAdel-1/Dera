@@ -53,8 +53,16 @@ async function main() {
   await (await aclManager.addPoolAdmin(poolConfiguratorAddress)).wait();
   console.log("✅ Role granted");
   
-  // Update deployment info
+  // Update deployment info - update both addresses and deploymentLog for consistency
   deploymentInfo.addresses.POOL_CONFIGURATOR = poolConfiguratorAddress;
+  // Find and update PoolConfigurator in deploymentLog
+  const configuratorLogIndex = deploymentInfo.deploymentLog.findIndex(entry => entry.startsWith("PoolConfigurator: "));
+  if (configuratorLogIndex !== -1) {
+    deploymentInfo.deploymentLog[configuratorLogIndex] = `PoolConfigurator: ${poolConfiguratorAddress}`;
+  } else {
+    // If not found, add it
+    deploymentInfo.deploymentLog.push(`PoolConfigurator: ${poolConfiguratorAddress}`);
+  }
   fs.writeFileSync("./deployment-info.json", JSON.stringify(deploymentInfo, null, 2));
   console.log("\n✅ deployment-info.json updated");
 }
