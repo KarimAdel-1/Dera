@@ -12,12 +12,12 @@
     "init:usdc": "hardhat run scripts/init-usdc.js --network testnet",
     "test:whbar": "hardhat run scripts/test-whbar-supply.js --network testnet",
     "init:hbar": "hardhat run scripts/init-hbar.js --network testnet",
-    "test:hbar": "hardhat run scripts/test-hbar-supply.js --network testnet",
-    "init:assets": "hardhat run scripts/direct-init.js --network testnet",
-    "debug:init": "hardhat run scripts/debug-init.js --network testnet",
-    "diagnose:init": "hardhat run scripts/diagnose-asset-init.js --network testnet",
-    "grant:configurator": "hardhat run scripts/grant-configurator-role.js --network testnet",
-    "redeploy-pool-only": "hardhat run scripts/redeploy-pool-only.js --network testnet && hardhat run scripts/redeploy-configurator.js --network testnet"
+    "test:hbar": "npx hardhat run scripts/test-hbar-supply.js --network testnet",
+    "init:assets": "npx hardhat run scripts/direct-init.js --network testnet",
+    "debug:init": "npx hardhat run scripts/debug-init.js --network testnet",
+    "diagnose:init": "npx hardhat run scripts/diagnose-asset-init.js --network testnet",
+    "grant:configurator": "npx hardhat run scripts/grant-configurator-role.js --network testnet",
+    "redeploy-pool-only": "npx hardhat run scripts/redeploy-pool-only.js --network testnet && npx hardhat run scripts/redeploy-configurator.js --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
