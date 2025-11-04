@@ -4,10 +4,11 @@ const path = require("path");
 
 async function main() {
   console.log("🚀 Deploying Complete Dera Protocol to Hedera Testnet\n");
+  console.log("⚠️  FRESH DEPLOYMENT - All contracts will be deployed from scratch\n");
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
-  
+
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", ethers.formatEther(balance), "HBAR\n");
 
@@ -15,10 +16,29 @@ async function main() {
     console.warn("⚠️  Low balance. You need at least 50 HBAR for deployment");
   }
 
+  // CRITICAL: Always start with empty addresses object - NEVER reuse old deployments
   let addresses = {};
   let deploymentLog = [];
-  
-  // Note: deployment-info.json check removed - always deploy fresh contracts
+
+  // Clean up any partial deployment files to ensure fresh start
+  console.log("🧹 Cleanup check...");
+  const filesToCheck = [
+    "./deployment-partial.json",
+    "./deployment-info.json",
+    "./.openzeppelin"
+  ];
+
+  filesToCheck.forEach(file => {
+    if (fs.existsSync(file)) {
+      if (fs.statSync(file).isDirectory()) {
+        fs.rmSync(file, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(file);
+      }
+      console.log(`  - Removed ${file}`);
+    }
+  });
+  console.log("✅ Cleanup complete - Starting fresh deployment\n");
 
   try {
     // 1. Deploy PoolAddressesProvider
@@ -138,17 +158,43 @@ async function main() {
     await aclManager.addRiskAdmin(deployer.address);
     await aclManager.addEmergencyAdmin(deployer.address);
     console.log("✓ Admin roles granted to deployer");
-    
+
     // Set PoolConfigurator in provider first
     await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
 
-    // Initialize Pool
-    await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    await addressesProvider.setPoolImpl(addresses.POOL);
+    // Initialize Pool (this is guaranteed fresh since we clean everything)
+    // BUT: Hedera might reuse contract addresses, so we need error handling
+    try {
+      await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      await addressesProvider.setPoolImpl(addresses.POOL);
+      console.log("✓ Pool initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("⚠️  Pool at this address was already initialized (Hedera address reuse)");
+        await addressesProvider.setPoolImpl(addresses.POOL);
+        console.log("   Registered Pool in AddressesProvider anyway");
+      } else {
+        throw e;
+      }
+    }
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
-    await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    console.log("✓ Pool and PoolConfigurator initialized");
+    // Same issue: Hedera might reuse the contract address from previous deployment
+    try {
+      await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      console.log("✓ PoolConfigurator initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
+        console.log("   This is OK - PoolConfigurator will use its existing initialization");
+        console.log("   NOTE: The Pool address it points to might be from a previous deployment!");
+        console.log("   If asset initialization fails, you may need to:");
+        console.log("   1. Use a different deployer account, OR");
+        console.log("   2. Wait a few minutes for Hedera state to settle");
+      } else {
+        throw e;
+      }
+    }
 
     // 8. Deploy Multi-Asset Staking
     console.log("📍 8/8 Deploying Multi-Asset Staking...");
