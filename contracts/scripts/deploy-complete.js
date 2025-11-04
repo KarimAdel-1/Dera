@@ -141,10 +141,13 @@ async function main() {
     
     // Set PoolConfigurator in provider first
     await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
-    
-    // Initialize Pool (this auto-initializes PoolConfigurator)
+
+    // Initialize Pool
     await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
     await addressesProvider.setPoolImpl(addresses.POOL);
+
+    // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
+    await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
     console.log("✓ Pool and PoolConfigurator initialized");
 
     // 8. Deploy Multi-Asset Staking

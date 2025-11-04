@@ -71,7 +71,8 @@ library PoolLogic {
     // Special handling for HBAR (address(0)) - only consider it added if explicitly set
     if (params.asset == address(0)) {
       // For HBAR, check if assetsList[0] is already set to address(0) AND has been initialized
-      assetAlreadyAdded = (assetsList[0] == address(0) && poolAssets[address(0)].supplyTokenAddress != address(0));
+      // Use liquidityIndex to check initialization (consistent with AssetLogic.init())
+      assetAlreadyAdded = (assetsList[0] == address(0) && poolAssets[address(0)].liquidityIndex != 0);
     } else {
       // For regular tokens, check if already in the list
       if (!assetAlreadyAdded) {
