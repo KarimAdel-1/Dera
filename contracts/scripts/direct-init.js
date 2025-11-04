@@ -22,13 +22,60 @@ async function createProxy(implementation) {
 
 async function main() {
   console.log("🚀 Direct Asset Initialization (Bypassing ConfiguratorLogic)\n");
-  
+
   const [deployer] = await ethers.getSigners();
   const deploymentInfo = JSON.parse(fs.readFileSync("./deployment-info.json", "utf8"));
-  
+
   const pool = await ethers.getContractAt("DeraPool", deploymentInfo.addresses.POOL);
   const poolConfigurator = await ethers.getContractAt("DeraPoolConfigurator", deploymentInfo.addresses.POOL_CONFIGURATOR);
-  
+  const addressesProvider = await ethers.getContractAt("PoolAddressesProvider", deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER);
+
+  // CRITICAL DIAGNOSTICS: Check if PoolConfigurator is properly registered
+  console.log("🔍 Pre-flight checks:");
+  const poolFromProvider = await addressesProvider.getPool();
+  const configuratorFromProvider = await addressesProvider.getPoolConfigurator();
+  console.log("  Pool address (expected):", deploymentInfo.addresses.POOL);
+  console.log("  Pool address (from provider):", poolFromProvider);
+  console.log("  PoolConfigurator (expected):", deploymentInfo.addresses.POOL_CONFIGURATOR);
+  console.log("  PoolConfigurator (from provider):", configuratorFromProvider);
+
+  if (poolFromProvider !== deploymentInfo.addresses.POOL) {
+    throw new Error("❌ Pool address mismatch! Provider has old Pool address.");
+  }
+  if (configuratorFromProvider !== deploymentInfo.addresses.POOL_CONFIGURATOR) {
+    throw new Error("❌ PoolConfigurator address mismatch! Provider has old PoolConfigurator address.");
+  }
+  console.log("  ✓ All addresses match\n");
+
+  // Check current Pool state
+  console.log("📊 Current Pool state:");
+  const assetsCount = await pool.getAssetsCount();
+  console.log("  Assets count:", assetsCount.toString());
+
+  if (assetsCount > 0) {
+    const assetsList = await pool.getAssetsList();
+    console.log("  Assets list:", assetsList);
+
+    // Check if HBAR is already in the list
+    if (assetsList.includes(ethers.ZeroAddress)) {
+      console.log("  ⚠️  HBAR (0x0) is already in the assets list!");
+      console.log("  This will cause 'AssetAlreadyAdded' error");
+
+      // Get HBAR data to see its state
+      const hbarData = await pool.getAssetData(ethers.ZeroAddress);
+      console.log("  HBAR current state:");
+      console.log("    liquidityIndex:", hbarData.liquidityIndex.toString());
+      console.log("    supplyTokenAddress:", hbarData.supplyTokenAddress);
+      console.log("    borrowTokenAddress:", hbarData.borrowTokenAddress);
+      console.log("    id:", hbarData.id.toString());
+
+      if (hbarData.liquidityIndex > 0n) {
+        throw new Error("❌ HBAR is already initialized! Cannot reinitialize. Please deploy a fresh Pool.");
+      }
+    }
+  }
+  console.log("");
+
   // HBAR
   console.log("=" .repeat(60));
   console.log("HBAR (Token ID: " + HBAR_TOKEN_ID + ")");
