@@ -42,6 +42,28 @@ contract DeraPoolConfigurator is PoolConfigurator {
   }
 
   /**
+   * @notice Update the Pool address
+   * @dev CRITICAL: Used to fix Hedera contract address reuse issues
+   * @dev When PoolConfigurator address is reused, its _pool variable may point to an old Pool
+   * @dev Only Pool Admin can call this
+   * @param newPool The new Pool contract address
+   */
+  function setPool(address newPool) external onlyPoolAdmin {
+    require(newPool != address(0), "Invalid pool address");
+    address oldPool = address(_pool);
+    _pool = IPool(newPool);
+    emit PoolUpdated(oldPool, newPool);
+  }
+
+  /**
+   * @notice Get the current Pool address
+   * @return The Pool contract address
+   */
+  function getPool() external view returns (address) {
+    return address(_pool);
+  }
+
+  /**
    * @notice Finalize initialization of an asset by registering tokens in the Pool
    * @param underlyingAsset The underlying asset address
    * @param dTokenProxy The dToken proxy address
@@ -54,4 +76,5 @@ contract DeraPoolConfigurator is PoolConfigurator {
   }
 
   event AssetInitialized(address indexed asset, address indexed dToken, address indexed vToken);
+  event PoolUpdated(address indexed oldPool, address indexed newPool);
 }

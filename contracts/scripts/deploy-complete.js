@@ -233,11 +233,22 @@ async function main() {
     } catch (e) {
       if (e.message.includes("already been initialized")) {
         console.log("⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
-        console.log("   This is OK - PoolConfigurator will use its existing initialization");
-        console.log("   NOTE: The Pool address it points to might be from a previous deployment!");
-        console.log("   If asset initialization fails, you may need to:");
-        console.log("   1. Use a different deployer account, OR");
-        console.log("   2. Wait a few minutes for Hedera state to settle");
+        console.log("   Fixing: Updating PoolConfigurator's internal Pool address...");
+
+        // FIX: Call setPool() to update the internal _pool variable
+        const currentPool = await poolConfigurator.getPool();
+        console.log(`   Current Pool in PoolConfigurator: ${currentPool}`);
+        console.log(`   New Pool address: ${addresses.POOL}`);
+
+        if (currentPool !== addresses.POOL) {
+          await retryOperation(
+            async () => await poolConfigurator.setPool(addresses.POOL),
+            "PoolConfigurator.setPool"
+          );
+          console.log("✓ PoolConfigurator now points to correct Pool");
+        } else {
+          console.log("✓ PoolConfigurator already points to correct Pool");
+        }
       } else {
         throw e;
       }
