@@ -17,11 +17,14 @@ async function retryOperation(operation, operationName, maxRetries = 3) {
         error.message.includes("504") ||
         error.message.includes("timeout") ||
         error.message.includes("ETIMEDOUT") ||
-        error.message.includes("ECONNRESET");
+        error.message.includes("ECONNRESET") ||
+        error.message.includes("Mirror node upstream failure") ||
+        error.message.includes("statusCode=504");
 
       if (isNetworkError && attempt < maxRetries) {
         const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
         console.log(`⚠️  Network error during ${operationName} (attempt ${attempt}/${maxRetries})`);
+        console.log(`   Error: ${error.message.substring(0, 100)}...`);
         console.log(`   Retrying in ${waitTime/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       } else {
@@ -188,19 +191,31 @@ async function main() {
     await aclManager.addEmergencyAdmin(deployer.address);
     console.log("✓ Admin roles granted to deployer");
 
-    // Set PoolConfigurator in provider first
-    await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
+    // Set PoolConfigurator in provider first (with retry for network issues)
+    await retryOperation(
+      async () => await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR),
+      "setPoolConfiguratorImpl"
+    );
 
-    // Initialize Pool (this is guaranteed fresh since we clean everything)
-    // BUT: Hedera might reuse contract addresses, so we need error handling
+    // Initialize Pool (with retry for network issues)
+    // Also handle Hedera contract address reuse
     try {
-      await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-      await addressesProvider.setPoolImpl(addresses.POOL);
+      await retryOperation(
+        async () => await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER),
+        "Pool.initialize"
+      );
+      await retryOperation(
+        async () => await addressesProvider.setPoolImpl(addresses.POOL),
+        "setPoolImpl"
+      );
       console.log("✓ Pool initialized");
     } catch (e) {
       if (e.message.includes("already been initialized")) {
         console.log("⚠️  Pool at this address was already initialized (Hedera address reuse)");
-        await addressesProvider.setPoolImpl(addresses.POOL);
+        await retryOperation(
+          async () => await addressesProvider.setPoolImpl(addresses.POOL),
+          "setPoolImpl"
+        );
         console.log("   Registered Pool in AddressesProvider anyway");
       } else {
         throw e;
@@ -208,9 +223,12 @@ async function main() {
     }
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
-    // Same issue: Hedera might reuse the contract address from previous deployment
+    // With retry for network issues and handling for address reuse
     try {
-      await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      await retryOperation(
+        async () => await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER),
+        "PoolConfigurator.initialize"
+      );
       console.log("✓ PoolConfigurator initialized");
     } catch (e) {
       if (e.message.includes("already been initialized")) {
