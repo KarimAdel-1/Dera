@@ -7,7 +7,7 @@ async function main() {
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
-  
+
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", ethers.formatEther(balance), "HBAR\n");
 
@@ -17,8 +17,12 @@ async function main() {
 
   let addresses = {};
   let deploymentLog = [];
-  
-  // Note: deployment-info.json check removed - always deploy fresh contracts
+
+  // Clean up any partial deployment files to ensure fresh start
+  if (fs.existsSync("./deployment-partial.json")) {
+    fs.unlinkSync("./deployment-partial.json");
+    console.log("🧹 Cleaned up partial deployment file\n");
+  }
 
   try {
     // 1. Deploy PoolAddressesProvider
@@ -147,8 +151,18 @@ async function main() {
     await addressesProvider.setPoolImpl(addresses.POOL);
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
-    await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    console.log("✓ Pool and PoolConfigurator initialized");
+    // Try-catch in case it was already initialized in a previous failed deployment
+    try {
+      await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      console.log("✓ Pool and PoolConfigurator initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("✓ PoolConfigurator already initialized (reusing from previous deployment)");
+        console.log("⚠️  Note: For a completely fresh deployment, redeploy PoolConfigurator first");
+      } else {
+        throw e;
+      }
+    }
 
     // 8. Deploy Multi-Asset Staking
     console.log("📍 8/8 Deploying Multi-Asset Staking...");
