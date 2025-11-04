@@ -157,21 +157,58 @@ async function compileContracts() {
 
   const contractsPath = path.join(__dirname, 'contracts');
 
-  // Clean everything for fresh compilation
-  log('> Cleaning all artifacts, cache, and deployment files...', 'blue');
+  // COMPLETE CLEAN SLATE - Delete EVERYTHING that could cause issues
+  log('> 🧹 COMPLETE CLEANUP - Removing all cached state...', 'blue');
+
+  // 1. Clean Hardhat artifacts and cache
+  log('  - Running hardhat clean...', 'blue');
   execCommand('npx hardhat clean', contractsPath, true);
 
-  // Delete ALL deployment files to ensure completely fresh deployment
-  const deploymentInfoPath = path.join(contractsPath, 'deployment-info.json');
-  const deploymentPartialPath = path.join(contractsPath, 'deployment-partial.json');
-  if (fs.existsSync(deploymentInfoPath)) {
-    fs.unlinkSync(deploymentInfoPath);
-    log('> Deleted deployment-info.json', 'blue');
+  // 2. Delete all deployment files
+  const filesToDelete = [
+    'deployment-info.json',
+    'deployment-partial.json',
+    'hcs-topics.json',
+    '.openzeppelin/unknown-*.json' // OpenZeppelin upgrades cache
+  ];
+
+  filesToDelete.forEach(file => {
+    const filePath = path.join(contractsPath, file);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      log(`  - Deleted ${file}`, 'blue');
+    }
+  });
+
+  // 3. Delete OpenZeppelin deployment cache directory
+  const ozPath = path.join(contractsPath, '.openzeppelin');
+  if (fs.existsSync(ozPath)) {
+    fs.rmSync(ozPath, { recursive: true, force: true });
+    log('  - Deleted .openzeppelin cache directory', 'blue');
   }
-  if (fs.existsSync(deploymentPartialPath)) {
-    fs.unlinkSync(deploymentPartialPath);
-    log('> Deleted deployment-partial.json', 'blue');
+
+  // 4. Delete artifacts directory (redundant but ensures complete clean)
+  const artifactsPath = path.join(contractsPath, 'artifacts');
+  if (fs.existsSync(artifactsPath)) {
+    fs.rmSync(artifactsPath, { recursive: true, force: true });
+    log('  - Deleted artifacts directory', 'blue');
   }
+
+  // 5. Delete cache directory (redundant but ensures complete clean)
+  const cachePath = path.join(contractsPath, 'cache');
+  if (fs.existsSync(cachePath)) {
+    fs.rmSync(cachePath, { recursive: true, force: true });
+    log('  - Deleted cache directory', 'blue');
+  }
+
+  // 6. Delete typechain-types (if exists)
+  const typechainPath = path.join(contractsPath, 'typechain-types');
+  if (fs.existsSync(typechainPath)) {
+    fs.rmSync(typechainPath, { recursive: true, force: true });
+    log('  - Deleted typechain-types directory', 'blue');
+  }
+
+  log('✅ Complete cleanup finished - Starting with fresh slate!', 'green');
 
   log('> Compiling contracts from scratch...', 'blue');
   const compile = execCommand('npx hardhat compile', contractsPath);

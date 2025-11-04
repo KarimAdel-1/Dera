@@ -4,6 +4,7 @@ const path = require("path");
 
 async function main() {
   console.log("🚀 Deploying Complete Dera Protocol to Hedera Testnet\n");
+  console.log("⚠️  FRESH DEPLOYMENT - All contracts will be deployed from scratch\n");
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
@@ -15,14 +16,29 @@ async function main() {
     console.warn("⚠️  Low balance. You need at least 50 HBAR for deployment");
   }
 
+  // CRITICAL: Always start with empty addresses object - NEVER reuse old deployments
   let addresses = {};
   let deploymentLog = [];
 
   // Clean up any partial deployment files to ensure fresh start
-  if (fs.existsSync("./deployment-partial.json")) {
-    fs.unlinkSync("./deployment-partial.json");
-    console.log("🧹 Cleaned up partial deployment file\n");
-  }
+  console.log("🧹 Cleanup check...");
+  const filesToCheck = [
+    "./deployment-partial.json",
+    "./deployment-info.json",
+    "./.openzeppelin"
+  ];
+
+  filesToCheck.forEach(file => {
+    if (fs.existsSync(file)) {
+      if (fs.statSync(file).isDirectory()) {
+        fs.rmSync(file, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(file);
+      }
+      console.log(`  - Removed ${file}`);
+    }
+  });
+  console.log("✅ Cleanup complete - Starting fresh deployment\n");
 
   try {
     // 1. Deploy PoolAddressesProvider
@@ -146,32 +162,14 @@ async function main() {
     // Set PoolConfigurator in provider first
     await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
 
-    // Initialize Pool (with error handling for reused deployments)
-    try {
-      await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-      await addressesProvider.setPoolImpl(addresses.POOL);
-      console.log("✓ Pool initialized");
-    } catch (e) {
-      if (e.message.includes("already been initialized")) {
-        console.log("⚠️  Pool already initialized (reusing from previous deployment)");
-        await addressesProvider.setPoolImpl(addresses.POOL);
-      } else {
-        throw e;
-      }
-    }
+    // Initialize Pool (this is guaranteed fresh since we clean everything)
+    await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+    await addressesProvider.setPoolImpl(addresses.POOL);
+    console.log("✓ Pool initialized");
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
-    // Try-catch in case it was already initialized in a previous failed deployment
-    try {
-      await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-      console.log("✓ PoolConfigurator initialized");
-    } catch (e) {
-      if (e.message.includes("already been initialized")) {
-        console.log("⚠️  PoolConfigurator already initialized (reusing from previous deployment)");
-      } else {
-        throw e;
-      }
-    }
+    await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+    console.log("✓ PoolConfigurator initialized");
 
     // 8. Deploy Multi-Asset Staking
     console.log("📍 8/8 Deploying Multi-Asset Staking...");
