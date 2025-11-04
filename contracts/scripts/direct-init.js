@@ -45,7 +45,28 @@ async function main() {
   if (configuratorFromProvider !== deploymentInfo.addresses.POOL_CONFIGURATOR) {
     throw new Error("❌ PoolConfigurator address mismatch! Provider has old PoolConfigurator address.");
   }
-  console.log("  ✓ All addresses match\n");
+  console.log("  ✓ All addresses match");
+
+  // NEW: Check if Pool's ADDRESSES_PROVIDER matches
+  console.log("\n🔍 Checking Pool's immutable ADDRESSES_PROVIDER:");
+  const poolAddressesProvider = await pool.ADDRESSES_PROVIDER();
+  console.log("  Pool's ADDRESSES_PROVIDER:", poolAddressesProvider);
+  console.log("  Expected:                 ", deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER);
+  if (poolAddressesProvider !== deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER) {
+    throw new Error("❌ Pool was deployed with wrong ADDRESSES_PROVIDER!");
+  }
+  console.log("  ✓ Match");
+
+  // NEW: Simulate the onlyPoolConfigurator check
+  console.log("\n🔍 Simulating onlyPoolConfigurator modifier check:");
+  console.log("  When PoolConfigurator calls pool.initAsset():");
+  console.log("    _msgSender() will be:", deploymentInfo.addresses.POOL_CONFIGURATOR);
+  console.log("    ADDRESSES_PROVIDER.getPoolConfigurator() returns:", configuratorFromProvider);
+  console.log("    Match:", configuratorFromProvider === deploymentInfo.addresses.POOL_CONFIGURATOR ? "✅" : "❌");
+  if (configuratorFromProvider !== deploymentInfo.addresses.POOL_CONFIGURATOR) {
+    throw new Error("❌ onlyPoolConfigurator check will FAIL!");
+  }
+  console.log("  ✓ onlyPoolConfigurator should pass\n");
 
   // Check current Pool state
   console.log("📊 Current Pool state:");
