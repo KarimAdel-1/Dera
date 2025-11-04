@@ -142,23 +142,32 @@ async function main() {
     await aclManager.addRiskAdmin(deployer.address);
     await aclManager.addEmergencyAdmin(deployer.address);
     console.log("✓ Admin roles granted to deployer");
-    
+
     // Set PoolConfigurator in provider first
     await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
 
-    // Initialize Pool
-    await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    await addressesProvider.setPoolImpl(addresses.POOL);
+    // Initialize Pool (with error handling for reused deployments)
+    try {
+      await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      await addressesProvider.setPoolImpl(addresses.POOL);
+      console.log("✓ Pool initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("⚠️  Pool already initialized (reusing from previous deployment)");
+        await addressesProvider.setPoolImpl(addresses.POOL);
+      } else {
+        throw e;
+      }
+    }
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
     // Try-catch in case it was already initialized in a previous failed deployment
     try {
       await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-      console.log("✓ Pool and PoolConfigurator initialized");
+      console.log("✓ PoolConfigurator initialized");
     } catch (e) {
       if (e.message.includes("already been initialized")) {
-        console.log("✓ PoolConfigurator already initialized (reusing from previous deployment)");
-        console.log("⚠️  Note: For a completely fresh deployment, redeploy PoolConfigurator first");
+        console.log("⚠️  PoolConfigurator already initialized (reusing from previous deployment)");
       } else {
         throw e;
       }
