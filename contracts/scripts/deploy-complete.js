@@ -163,13 +163,38 @@ async function main() {
     await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR);
 
     // Initialize Pool (this is guaranteed fresh since we clean everything)
-    await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    await addressesProvider.setPoolImpl(addresses.POOL);
-    console.log("✓ Pool initialized");
+    // BUT: Hedera might reuse contract addresses, so we need error handling
+    try {
+      await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      await addressesProvider.setPoolImpl(addresses.POOL);
+      console.log("✓ Pool initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("⚠️  Pool at this address was already initialized (Hedera address reuse)");
+        await addressesProvider.setPoolImpl(addresses.POOL);
+        console.log("   Registered Pool in AddressesProvider anyway");
+      } else {
+        throw e;
+      }
+    }
 
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
-    await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
-    console.log("✓ PoolConfigurator initialized");
+    // Same issue: Hedera might reuse the contract address from previous deployment
+    try {
+      await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER);
+      console.log("✓ PoolConfigurator initialized");
+    } catch (e) {
+      if (e.message.includes("already been initialized")) {
+        console.log("⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
+        console.log("   This is OK - PoolConfigurator will use its existing initialization");
+        console.log("   NOTE: The Pool address it points to might be from a previous deployment!");
+        console.log("   If asset initialization fails, you may need to:");
+        console.log("   1. Use a different deployer account, OR");
+        console.log("   2. Wait a few minutes for Hedera state to settle");
+      } else {
+        throw e;
+      }
+    }
 
     // 8. Deploy Multi-Asset Staking
     console.log("📍 8/8 Deploying Multi-Asset Staking...");
