@@ -2,6 +2,35 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
+/**
+ * Retry wrapper for network operations
+ * Handles transient RPC errors (502, 503, timeouts, etc.)
+ */
+async function retryOperation(operation, operationName, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const isNetworkError =
+        error.message.includes("502") ||
+        error.message.includes("503") ||
+        error.message.includes("504") ||
+        error.message.includes("timeout") ||
+        error.message.includes("ETIMEDOUT") ||
+        error.message.includes("ECONNRESET");
+
+      if (isNetworkError && attempt < maxRetries) {
+        const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+        console.log(`⚠️  Network error during ${operationName} (attempt ${attempt}/${maxRetries})`);
+        console.log(`   Retrying in ${waitTime/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
 async function main() {
   console.log("🚀 Deploying Complete Dera Protocol to Hedera Testnet\n");
   console.log("⚠️  FRESH DEPLOYMENT - All contracts will be deployed from scratch\n");

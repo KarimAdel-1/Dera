@@ -27,6 +27,10 @@ module.exports = {
       url: process.env.HEDERA_TESTNET_RPC || "https://testnet.hashio.io/api",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 296, // Hedera testnet chain ID
+      timeout: 60000, // 60 second timeout
+      httpHeaders: {
+        "Content-Type": "application/json"
+      }
     },
     mainnet: {
       url: process.env.HEDERA_MAINNET_RPC || "https://mainnet.hashio.io/api",
