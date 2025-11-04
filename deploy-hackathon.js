@@ -156,18 +156,23 @@ async function compileContracts() {
   log('━'.repeat(60), 'cyan');
 
   const contractsPath = path.join(__dirname, 'contracts');
-  
+
   // Clean everything for fresh compilation
-  log('> Cleaning all artifacts and cache...', 'blue');
+  log('> Cleaning all artifacts, cache, and deployment files...', 'blue');
   execCommand('npx hardhat clean', contractsPath, true);
-  
-  // Delete deployment info
+
+  // Delete ALL deployment files to ensure completely fresh deployment
   const deploymentInfoPath = path.join(contractsPath, 'deployment-info.json');
   const deploymentPartialPath = path.join(contractsPath, 'deployment-partial.json');
-  if (fs.existsSync(deploymentInfoPath)) fs.unlinkSync(deploymentInfoPath);
-  if (fs.existsSync(deploymentPartialPath)) fs.unlinkSync(deploymentPartialPath);
-  log('> Deleted old deployment files', 'blue');
-  
+  if (fs.existsSync(deploymentInfoPath)) {
+    fs.unlinkSync(deploymentInfoPath);
+    log('> Deleted deployment-info.json', 'blue');
+  }
+  if (fs.existsSync(deploymentPartialPath)) {
+    fs.unlinkSync(deploymentPartialPath);
+    log('> Deleted deployment-partial.json', 'blue');
+  }
+
   log('> Compiling contracts from scratch...', 'blue');
   const compile = execCommand('npx hardhat compile', contractsPath);
 
