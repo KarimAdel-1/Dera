@@ -17,7 +17,7 @@ export const FALLBACK_ASSETS = [
   {
     symbol: 'USDC',
     name: 'USD Coin',
-    address: '0x0000000000000000000000000000000000456858',
+    address: '0x000000000000000000000000000000000006f89a', // 0.0.429274
     decimals: 6,
     supplyAPY: '5.20',
     borrowAPY: '8.90',
