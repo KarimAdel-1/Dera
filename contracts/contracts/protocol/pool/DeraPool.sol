@@ -20,10 +20,10 @@ contract DeraPool is Pool {
 
   /**
    * @notice Initialize the Pool contract
-   * @dev Called only once during proxy initialization
+   * @dev Called only once during deployment. Protected by initializer modifier.
    * @param provider Address of PoolAddressesProvider
    */
-  function initialize(IPoolAddressesProvider provider) external override {
+  function initialize(IPoolAddressesProvider provider) external override initializer {
     require(address(provider) == address(ADDRESSES_PROVIDER), "Invalid provider");
 
     // Emit event for tracking initialization

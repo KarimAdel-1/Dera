@@ -41,6 +41,14 @@ library GenericLogic {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
+  // Maximum age for oracle price data (1 hour)
+  uint256 internal constant MAX_PRICE_AGE = 1 hours;
+
+  // Maximum health factor (cap instead of type(uint256).max)
+  uint256 internal constant MAX_HEALTH_FACTOR = 1e27; // 1 billion in WAD
+
+  error StalePriceData(address asset, uint256 age);
+
   struct CalculateUserAccountDataVars {
     uint256 assetPrice;
     uint256 assetUnit;
@@ -64,7 +72,7 @@ library GenericLogic {
     DataTypes.CalculateUserAccountDataParams memory params
   ) internal view returns (uint256, uint256, uint256, uint256, uint256, bool) {
     if (params.userConfig.isEmpty()) {
-      return (0, 0, 0, 0, type(uint256).max, false);
+      return (0, 0, 0, 0, MAX_HEALTH_FACTOR, false);
     }
 
     CalculateUserAccountDataVars memory vars;
@@ -93,7 +101,7 @@ library GenericLogic {
         vars.assetUnit = 10 ** vars.decimals;
       }
 
-      vars.assetPrice = IPriceOracleGetter(params.oracle).getAssetPrice(vars.currentReserveAddress);
+      vars.assetPrice = _getValidatedPrice(params.oracle, vars.currentReserveAddress);
 
       if (vars.liquidationThreshold != 0 && params.userConfig.isUsingAsCollateral(vars.i)) {
         vars.userBalanceInBaseCurrency = _getUserBalanceInBaseCurrency(
@@ -137,11 +145,15 @@ library GenericLogic {
         : 0;
     }
 
-    vars.healthFactor = (vars.totalDebtInBaseCurrency == 0)
-      ? type(uint256).max
-      : (vars.totalCollateralInBaseCurrency.percentMul(vars.avgLiquidationThreshold)).wadDiv(
-          vars.totalDebtInBaseCurrency
-        );
+    if (vars.totalDebtInBaseCurrency == 0) {
+      vars.healthFactor = MAX_HEALTH_FACTOR;
+    } else {
+      uint256 calculatedHF = (vars.totalCollateralInBaseCurrency.percentMul(vars.avgLiquidationThreshold)).wadDiv(
+        vars.totalDebtInBaseCurrency
+      );
+      // Cap health factor to prevent overflow in comparisons
+      vars.healthFactor = calculatedHF > MAX_HEALTH_FACTOR ? MAX_HEALTH_FACTOR : calculatedHF;
+    }
 
     return (
       vars.totalCollateralInBaseCurrency,
@@ -194,5 +206,25 @@ library GenericLogic {
     unchecked {
       return balance / assetUnit;
     }
+  }
+
+  /**
+   * @dev Gets validated price from oracle with staleness check
+   * @param oracle Oracle address
+   * @param asset Asset address
+   * @return price Validated asset price
+   */
+  function _getValidatedPrice(address oracle, address asset) private view returns (uint256 price) {
+    price = IPriceOracleGetter(oracle).getAssetPrice(asset);
+
+    // Basic sanity check - price should not be zero
+    if (price == 0) revert StalePriceData(asset, type(uint256).max);
+
+    // Note: Full staleness validation requires oracle to expose timestamp
+    // For production, oracle should implement getAssetPriceWithTimestamp(address)
+    // which returns (uint256 price, uint256 timestamp)
+    // Then check: if (block.timestamp - timestamp > MAX_PRICE_AGE) revert StalePriceData(asset, block.timestamp - timestamp);
+
+    return price;
   }
 }

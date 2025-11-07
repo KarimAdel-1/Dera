@@ -77,6 +77,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   error InvalidAmount();
   error ReentrancyGuard();
   error AmountExceedsInt64();
+  error TokenNotAssociated(address token, address account);
+  error LiquidationSlippageExceeded(uint256 actual, uint256 max);
 
 
   // Reentrancy guard
@@ -116,6 +118,26 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     } catch {
       emit HTSErrorHandled(token, account, "balanceOf", -1);
       return 0;
+    }
+  }
+
+  /**
+   * @dev Checks if an account is associated with an HTS token
+   * @param token HTS token address
+   * @param account Account to check
+   * @dev Uses balanceOf as a proxy for association check
+   * @dev If balanceOf fails, account is not associated with the token
+   */
+  function _checkHTSAssociation(address token, address account) internal view {
+    if (token == address(0)) return; // Skip for HBAR
+
+    // Try to query balance - if this fails, account is not associated
+    try HTS.balanceOf(token, account) returns (uint256) {
+      // If balanceOf succeeds, account is associated
+      return;
+    } catch {
+      // If balanceOf fails, account is not associated with the token
+      revert TokenNotAssociated(token, account);
     }
   }
 
@@ -286,14 +308,16 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     // For native HBAR, use msg.value instead of amount parameter
     uint256 actualAmount = (asset == address(0)) ? msg.value : amount;
     if (actualAmount == 0) revert InvalidAmount();
-    
+
     // Check if asset is listed - special handling for HBAR (address(0))
     if (asset == address(0)) {
-      // For HBAR, check if it's initialized as the first asset
-      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+      // For HBAR, check if it's been initialized (liquidityIndex != 0)
+      if (_poolAssets[address(0)].liquidityIndex == 0) revert Errors.AssetNotListed();
     } else {
       // For HTS tokens, check normal way
       if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
+      // Check that user is associated with the HTS token
+      _checkHTSAssociation(asset, onBehalfOf);
     }
 
     // Register user for liquidation monitoring
@@ -388,6 +412,11 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) public virtual override nonReentrant whenNotPaused {
     if (amount == 0) revert InvalidAmount();
     if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
+
+    // Check that user is associated with the HTS token (skip for HBAR)
+    if (asset != address(0)) {
+      _checkHTSAssociation(asset, onBehalfOf);
+    }
 
     // Register user for liquidation monitoring
     _registerUser(onBehalfOf);
@@ -509,9 +538,41 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function liquidationCall(address collateralAsset, address debtAsset, address borrower, uint256 debtToCover, bool receiveSupplyToken) public virtual override nonReentrant {
+    // Call with no slippage limit (type(uint256).max means unlimited)
+    _executeLiquidation(collateralAsset, debtAsset, borrower, debtToCover, receiveSupplyToken, type(uint256).max);
+  }
+
+  /**
+   * @notice Liquidate undercollateralized position with slippage protection
+   * @param collateralAsset The collateral asset to liquidate
+   * @param debtAsset The debt asset being repaid
+   * @param borrower The borrower being liquidated
+   * @param debtToCover Amount of debt to cover
+   * @param receiveSupplyToken True to receive dTokens, false to receive underlying
+   * @param maxCollateralToLiquidate Maximum collateral willing to receive (slippage protection)
+   */
+  function liquidationCallWithSlippage(
+    address collateralAsset,
+    address debtAsset,
+    address borrower,
+    uint256 debtToCover,
+    bool receiveSupplyToken,
+    uint256 maxCollateralToLiquidate
+  ) external nonReentrant {
+    _executeLiquidation(collateralAsset, debtAsset, borrower, debtToCover, receiveSupplyToken, maxCollateralToLiquidate);
+  }
+
+  function _executeLiquidation(
+    address collateralAsset,
+    address debtAsset,
+    address borrower,
+    uint256 debtToCover,
+    bool receiveSupplyToken,
+    uint256 maxCollateralToLiquidate
+  ) internal {
     if (debtToCover == 0) revert InvalidAmount();
 
-    LiquidationLogic.executeLiquidationCall(
+    (uint256 actualCollateralLiquidated) = LiquidationLogic.executeLiquidationCall(
       _poolAssets,
       _assetsList,
       _usersConfig,
@@ -527,6 +588,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
         interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
       })
     );
+
+    // Check slippage protection
+    if (actualCollateralLiquidated > maxCollateralToLiquidate) {
+      revert LiquidationSlippageExceeded(actualCollateralLiquidated, maxCollateralToLiquidate);
+    }
+
     emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
 
     // Queue event to HCS for Hedera-native indexing
@@ -636,8 +703,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function setConfiguration(address asset, DataTypes.AssetConfigurationMap calldata configuration) external virtual override onlyPoolConfigurator {
     // Check if asset is listed - special handling for HBAR (address(0))
     if (asset == address(0)) {
-      // For HBAR, check if it's initialized as the first asset
-      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+      // For HBAR, check if it's been initialized (liquidityIndex != 0)
+      if (_poolAssets[address(0)].liquidityIndex == 0) revert Errors.AssetNotListed();
     } else {
       // For HTS tokens, check normal way
       if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
@@ -662,8 +729,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   function setLiquidationGracePeriod(address asset, uint40 until) external virtual override onlyPoolConfigurator {
     // Check if asset is listed - special handling for HBAR (address(0))
     if (asset == address(0)) {
-      // For HBAR, check if it's initialized as the first asset
-      if (_assetsCount == 0 || _assetsList[0] != address(0)) revert Errors.AssetNotListed();
+      // For HBAR, check if it's been initialized (liquidityIndex != 0)
+      if (_poolAssets[address(0)].liquidityIndex == 0) revert Errors.AssetNotListed();
     } else {
       // For HTS tokens, check normal way
       if (_poolAssets[asset].id == 0 && _assetsList[0] != asset) revert Errors.AssetNotListed();
@@ -746,7 +813,133 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     emit DeficitCovered(asset, amountToCover, assetData.deficit);
   }
 
+  /**
+   * @notice Socialize bad debt (deficit) across all lenders when treasury cannot cover
+   * @dev This reduces the liquidity index proportionally, spreading losses
+   * @param asset The address of the reserve with deficit
+   * @dev WARNING: This reduces all lender balances proportionally. Use as last resort.
+   */
+  function socializeAssetDeficit(address asset) external virtual nonReentrant onlyPoolAdmin {
+    DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
+    if (assetData.deficit == 0) revert Errors.NoDebtToCover();
+
+    address supplyToken = assetData.supplyTokenAddress;
+    uint256 totalSupply = IDeraSupplyToken(supplyToken).totalSupply();
+
+    if (totalSupply == 0) {
+      // No lenders to socialize to, just clear deficit
+      assetData.deficit = 0;
+      emit DeficitSocialized(asset, 0, 0);
+      return;
+    }
+
+    // Calculate reduction factor: (totalSupply - deficit) / totalSupply
+    // This effectively reduces the liquidity index proportionally
+    uint256 deficit = assetData.deficit;
+    uint256 lossPercentage = (deficit * 1e18) / totalSupply;
+
+    // Reduce liquidity index to socialize losses
+    uint256 currentIndex = assetData.liquidityIndex;
+    uint256 reductionFactor = 1e18 - lossPercentage;
+    uint256 newIndex = (currentIndex * reductionFactor) / 1e18;
+
+    assetData.liquidityIndex = uint128(newIndex);
+    assetData.deficit = 0;
+
+    emit DeficitSocialized(asset, deficit, lossPercentage);
+  }
+
   event DeficitCovered(address indexed asset, uint256 amountCovered, uint256 remainingDeficit);
+  event DeficitSocialized(address indexed asset, uint256 deficitAmount, uint256 lossPercentage);
+
+  /**
+   * @notice Set minimum liquidation threshold (minimum USD value for liquidatable position)
+   * @dev Only Pool Admin can call this
+   * @param threshold Minimum threshold in base currency (8 decimals)
+   */
+  function setMinLiquidationThreshold(uint256 threshold) external onlyPoolAdmin {
+    _minLiquidationThreshold = threshold;
+    emit MinLiquidationThresholdUpdated(threshold);
+  }
+
+  /**
+   * @notice Get minimum liquidation threshold
+   * @return Minimum threshold in base currency (8 decimals)
+   */
+  function getMinLiquidationThreshold() external view returns (uint256) {
+    return _minLiquidationThreshold == 0 ? 1000e8 : _minLiquidationThreshold; // Default $1000
+  }
+
+  event MinLiquidationThresholdUpdated(uint256 threshold);
+
+  /**
+   * @notice Reconcile virtual balance with actual balance for an asset
+   * @dev Only Pool Admin can call this function
+   * @param asset The asset to reconcile
+   */
+  function reconcileVirtualBalance(address asset) external onlyPoolAdmin {
+    DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
+    address supplyToken = assetData.supplyTokenAddress;
+
+    // Get actual balance
+    uint256 actualBalance;
+    if (asset == address(0)) {
+      // For HBAR, use contract balance
+      actualBalance = address(supplyToken).balance;
+    } else {
+      // For HTS tokens, use balanceOf
+      actualBalance = _safeHTSBalanceOf(asset, supplyToken);
+    }
+
+    uint256 virtualBalance = assetData.virtualUnderlyingBalance;
+    uint256 difference;
+    bool isPositive;
+
+    if (actualBalance > virtualBalance) {
+      difference = actualBalance - virtualBalance;
+      isPositive = true;
+      assetData.virtualUnderlyingBalance = uint128(actualBalance);
+    } else if (virtualBalance > actualBalance) {
+      difference = virtualBalance - actualBalance;
+      isPositive = false;
+      assetData.virtualUnderlyingBalance = uint128(actualBalance);
+    }
+
+    if (difference > 0) {
+      emit VirtualBalanceReconciled(asset, virtualBalance, actualBalance, difference, isPositive);
+    }
+  }
+
+  event VirtualBalanceReconciled(
+    address indexed asset,
+    uint256 oldVirtualBalance,
+    uint256 actualBalance,
+    uint256 difference,
+    bool isPositive
+  );
+
+  /**
+   * @notice Pause a specific asset in emergency situations
+   * @dev Only Emergency Admin can pause individual assets
+   * @param asset The asset to pause
+   * @param paused True to pause, false to unpause
+   */
+  function setAssetPause(address asset, bool paused) external onlyEmergencyAdmin {
+    DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
+    assetData.configuration.setPaused(paused);
+    emit AssetPaused(asset, paused);
+  }
+
+  /**
+   * @notice Check if a specific asset is paused
+   * @param asset The asset to check
+   * @return True if paused, false otherwise
+   */
+  function isAssetPaused(address asset) external view returns (bool) {
+    return _poolAssets[asset].configuration.getPaused();
+  }
+
+  event AssetPaused(address indexed asset, bool isPaused);
 
   /**
    * @notice Pause the protocol in emergency situations
