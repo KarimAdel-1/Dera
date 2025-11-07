@@ -4,6 +4,29 @@ const fs = require("fs");
 const HBAR_TOKEN_ID = "0.0.0";
 const USDC_TOKEN_ID = "0.0.429274";
 
+// Retry wrapper for handling transient network errors (502, 503, etc.)
+async function retryOperation(operation, operationName, maxRetries = 3) {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const is502Error = error.message?.includes('502') || error.code === 'SERVER_ERROR';
+      const is503Error = error.message?.includes('503');
+
+      if ((is502Error || is503Error) && i < maxRetries - 1) {
+        const waitTime = Math.pow(2, i) * 2000; // Exponential backoff: 2s, 4s, 8s
+        console.log(`  ⚠️ Network error (${is502Error ? '502' : '503'}), retrying ${operationName} in ${waitTime/1000}s... (attempt ${i + 2}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        break;
+      }
+    }
+  }
+  throw lastError;
+}
+
 function tokenIdToAddress(tokenId) {
   if (tokenId === "0.0.0") return ethers.ZeroAddress;
   const parts = tokenId.split('.');
@@ -148,12 +171,13 @@ async function main() {
     await poolConfigurator.finalizeInitAsset.staticCall(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8);
     console.log("  ✓ StaticCall succeeded");
 
-    // Execute the actual transaction
+    // Execute the actual transaction with retry logic
     console.log("  Executing finalizeInitAsset...");
-    const tx = await poolConfigurator.finalizeInitAsset(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8);
-    console.log("  Transaction hash:", tx.hash);
-
-    const receipt = await tx.wait();
+    const receipt = await retryOperation(async () => {
+      const tx = await poolConfigurator.finalizeInitAsset(ethers.ZeroAddress, hbarDTokenProxy, hbarVTokenProxy, 8);
+      console.log("  Transaction hash:", tx.hash);
+      return await tx.wait();
+    }, "HBAR finalize init");
     console.log("  ✓ Transaction confirmed");
     console.log("✅ Registered in Pool");
   } catch (e) {
@@ -171,9 +195,18 @@ async function main() {
     throw new Error("HBAR initialization failed - see troubleshooting steps above");
   }
   
-  await (await poolConfigurator.configureAssetAsCollateral(ethers.ZeroAddress, 7500, 8000, 10500)).wait();
-  await (await poolConfigurator.setAssetActive(ethers.ZeroAddress, true)).wait();
-  await (await poolConfigurator.setAssetBorrowing(ethers.ZeroAddress, true)).wait();
+  await retryOperation(
+    async () => (await poolConfigurator.configureAssetAsCollateral(ethers.ZeroAddress, 7500, 8000, 10500)).wait(),
+    "HBAR collateral configuration"
+  );
+  await retryOperation(
+    async () => (await poolConfigurator.setAssetActive(ethers.ZeroAddress, true)).wait(),
+    "HBAR activation"
+  );
+  await retryOperation(
+    async () => (await poolConfigurator.setAssetBorrowing(ethers.ZeroAddress, true)).wait(),
+    "HBAR borrowing enablement"
+  );
   console.log("✅ HBAR configured and active");
   
   // USDC
@@ -206,12 +239,24 @@ async function main() {
   await (await usdcVToken.initialize(deploymentInfo.addresses.POOL, USDC_ADDRESS, 6, "Dera Variable Debt USDC", "vdUSDC", "0x")).wait();
   console.log("✅ Proxies initialized");
   
-  await (await poolConfigurator.finalizeInitAsset(USDC_ADDRESS, usdcDTokenProxy, usdcVTokenProxy, 6)).wait();
+  await retryOperation(
+    async () => (await poolConfigurator.finalizeInitAsset(USDC_ADDRESS, usdcDTokenProxy, usdcVTokenProxy, 6)).wait(),
+    "USDC registration"
+  );
   console.log("✅ Registered in Pool");
-  
-  await (await poolConfigurator.configureAssetAsCollateral(USDC_ADDRESS, 8000, 8500, 10500)).wait();
-  await (await poolConfigurator.setAssetActive(USDC_ADDRESS, true)).wait();
-  await (await poolConfigurator.setAssetBorrowing(USDC_ADDRESS, true)).wait();
+
+  await retryOperation(
+    async () => (await poolConfigurator.configureAssetAsCollateral(USDC_ADDRESS, 8000, 8500, 10500)).wait(),
+    "USDC collateral configuration"
+  );
+  await retryOperation(
+    async () => (await poolConfigurator.setAssetActive(USDC_ADDRESS, true)).wait(),
+    "USDC activation"
+  );
+  await retryOperation(
+    async () => (await poolConfigurator.setAssetBorrowing(USDC_ADDRESS, true)).wait(),
+    "USDC borrowing enablement"
+  );
   console.log("✅ USDC configured and active");
   
   // Verify
