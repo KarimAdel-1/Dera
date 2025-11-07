@@ -206,7 +206,10 @@ class DeraProtocolService {
 
       // Execute supply
       console.log('Supplying to pool...', { asset, amount, evmAddress, referralCode });
-      const tx = await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
+      // For native tokens, include the value parameter to send HBAR with the transaction
+      const tx = isNativeToken
+        ? await poolWithSigner.supply(asset, amount, evmAddress, referralCode, { value: amount })
+        : await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
       const receipt = await tx.wait();
 
       return {
@@ -332,7 +335,10 @@ class DeraProtocolService {
       }
 
       console.log('Repaying loan...', { asset, amount, evmAddress });
-      const tx = await poolWithSigner.repay(asset, amount, evmAddress);
+      // For native tokens, include the value parameter to send HBAR with the transaction
+      const tx = isNativeToken
+        ? await poolWithSigner.repay(asset, amount, evmAddress, { value: amount })
+        : await poolWithSigner.repay(asset, amount, evmAddress);
       const receipt = await tx.wait();
 
       return {
