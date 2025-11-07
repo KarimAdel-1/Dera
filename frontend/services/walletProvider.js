@@ -293,11 +293,11 @@ class WalletProvider {
   /**
    * Get signer for contract interactions (for HashPack)
    * @param {string} accountId - Account ID to get signer for
-   * @returns {object} Signer object
+   * @returns {Promise<object>} Signer object
    */
-  getSigner(accountId) {
+  async getSigner(accountId) {
     if (this.currentWalletType === WALLET_TYPES.HASHPACK) {
-      return hashpackService.getSigner(accountId);
+      return await hashpackService.getSigner(accountId);
     }
 
     throw new Error('Signer not available for current wallet type');
