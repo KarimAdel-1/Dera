@@ -183,18 +183,25 @@ class DeraProtocolService {
       // Validate user balance before transaction
       await this.validateUserBalance(asset, amount, evmAddress, 'supply');
 
-      // First, check allowance using provider (read-only operation)
-      // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
-      const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
-      const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
+      // Only check allowance and approve for ERC20 tokens (not native HBAR which is address(0))
+      const isNativeToken = asset === ethers.ZeroAddress || asset === '0x0000000000000000000000000000000000000000';
 
-      if (allowance < amount) {
-        console.log('Approving Pool to spend tokens...');
-        // Use signer for write operations
-        const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
-        const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
-        await approveTx.wait();
-        console.log('Approval confirmed');
+      if (!isNativeToken) {
+        // First, check allowance using provider (read-only operation)
+        // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+        const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+        const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
+
+        if (allowance < amount) {
+          console.log('Approving Pool to spend tokens...');
+          // Use signer for write operations
+          const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
+          const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
+          await approveTx.wait();
+          console.log('Approval confirmed');
+        }
+      } else {
+        console.log('Native token (HBAR) - no approval needed');
       }
 
       // Execute supply
@@ -303,18 +310,25 @@ class DeraProtocolService {
         await this.validateUserBalance(asset, amount, evmAddress, 'repay');
       }
 
-      // First, check allowance using provider (read-only operation)
-      // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
-      const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
-      const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
+      // Only check allowance and approve for ERC20 tokens (not native HBAR which is address(0))
+      const isNativeToken = asset === ethers.ZeroAddress || asset === '0x0000000000000000000000000000000000000000';
 
-      if (allowance < amount) {
-        console.log('Approving Pool to spend tokens for repayment...');
-        // Use signer for write operations
-        const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
-        const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
-        await approveTx.wait();
-        console.log('Approval confirmed');
+      if (!isNativeToken) {
+        // First, check allowance using provider (read-only operation)
+        // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+        const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+        const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
+
+        if (allowance < amount) {
+          console.log('Approving Pool to spend tokens for repayment...');
+          // Use signer for write operations
+          const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
+          const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
+          await approveTx.wait();
+          console.log('Approval confirmed');
+        }
+      } else {
+        console.log('Native token (HBAR) - no approval needed for repayment');
       }
 
       console.log('Repaying loan...', { asset, amount, evmAddress });
