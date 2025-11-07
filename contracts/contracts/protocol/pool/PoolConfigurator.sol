@@ -78,24 +78,8 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
     uint256 len = input.length;
     for (uint256 i; i < len; ) {
-      // FIX: Improved decimals extraction with fallback to token query
-      uint8 decimals = 18; // Default
+      uint8 decimals = _getAssetDecimals(input[i].underlyingAsset, input[i].params);
 
-      // Try to get decimals from the token itself first
-      try IERC20Metadata(input[i].underlyingAsset).decimals() returns (uint8 d) {
-        decimals = d;
-      } catch {
-        // Fallback: try to decode from ABI-encoded params if available
-        if (input[i].params.length >= 32) {
-          // Params should be ABI-encoded as: abi.encode(uint8)
-          try this.decodeDecimals(input[i].params) returns (uint8 d) {
-            decimals = d;
-          } catch {
-            // If decode fails, keep default of 18
-          }
-        }
-      }
-      
       ConfiguratorLogic.executeInitAsset(cachedPool, ConfiguratorLogic.InitAssetInput({
         supplyTokenImpl: input[i].supplyTokenImpl,
         variableDebtTokenImpl: input[i].variableDebtTokenImpl,
@@ -302,22 +286,36 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     return address(ConfiguratorLogic);
   }
 
-  /**
-   * @notice Decode decimals from ABI-encoded params
-   * @dev External function used for try/catch pattern in initAssets
-   * @param params ABI-encoded decimals (abi.encode(uint8))
-   * @return Decoded decimals value
-   */
-  function decodeDecimals(bytes calldata params) external pure returns (uint8) {
-    return abi.decode(params, (uint8));
-  }
-
   function CONFIGURATOR_REVISION() public pure virtual returns (uint256) {
     return 1;
   }
 
   function getRevision() internal pure virtual override returns (uint256) {
     return CONFIGURATOR_REVISION();
+  }
+
+  /**
+   * @notice Extract decimals from asset or params
+   * @dev Separated to reduce stack depth in initAssets loop
+   * @param asset The underlying asset address
+   * @param params ABI-encoded params that may contain decimals
+   * @return decimals The asset decimals (default 18)
+   */
+  function _getAssetDecimals(address asset, bytes calldata params) internal view returns (uint8) {
+    // Try to get decimals from token contract
+    try IERC20Metadata(asset).decimals() returns (uint8 d) {
+      return d;
+    } catch {
+      // Fallback: decode from params if available
+      if (params.length >= 32) {
+        try abi.decode(params, (uint8)) returns (uint8 d) {
+          return d;
+        } catch {
+          return 18; // Default
+        }
+      }
+      return 18; // Default
+    }
   }
 
   function _checkNoSuppliers(address asset) internal view {
