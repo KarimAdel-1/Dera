@@ -571,11 +571,24 @@ class HashPackService {
     }
   }
 
-  getSigner(accountId) {
+  async getSigner(accountId) {
     if (!this.hashconnect) {
       throw new Error('HashConnect not initialized');
     }
-    return this.hashconnect.getSigner(accountId);
+
+    // Get EIP-1193 provider from HashConnect and wrap with ethers.js BrowserProvider
+    const provider = this.hashconnect.getProvider('testnet', this.pairingData?.topic, accountId);
+
+    // Dynamically import ethers to avoid SSR issues
+    const { ethers } = await import('ethers');
+
+    // Create BrowserProvider from EIP-1193 provider
+    const browserProvider = new ethers.BrowserProvider(provider);
+
+    // Get signer from BrowserProvider
+    const signer = await browserProvider.getSigner();
+
+    return signer;
   }
 
   getHashConnect() {
