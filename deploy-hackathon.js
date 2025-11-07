@@ -164,12 +164,13 @@ async function compileContracts() {
   log('  - Running hardhat clean...', 'blue');
   execCommand('npx hardhat clean', contractsPath, true);
 
-  // 2. Delete all deployment files
+  // 2. Delete all deployment state files (including deployment*, hcs-topics, etc.)
   const filesToDelete = [
     'deployment-info.json',
     'deployment-partial.json',
+    'deployment.json',
     'hcs-topics.json',
-    '.openzeppelin/unknown-*.json' // OpenZeppelin upgrades cache
+    'contract-addresses.json'
   ];
 
   filesToDelete.forEach(file => {
@@ -184,17 +185,17 @@ async function compileContracts() {
   const ozPath = path.join(contractsPath, '.openzeppelin');
   if (fs.existsSync(ozPath)) {
     fs.rmSync(ozPath, { recursive: true, force: true });
-    log('  - Deleted .openzeppelin cache directory', 'blue');
+    log('  - Deleted .openzeppelin directory', 'blue');
   }
 
-  // 4. Delete artifacts directory (redundant but ensures complete clean)
+  // 4. Delete artifacts directory
   const artifactsPath = path.join(contractsPath, 'artifacts');
   if (fs.existsSync(artifactsPath)) {
     fs.rmSync(artifactsPath, { recursive: true, force: true });
     log('  - Deleted artifacts directory', 'blue');
   }
 
-  // 5. Delete cache directory (redundant but ensures complete clean)
+  // 5. Delete cache directory
   const cachePath = path.join(contractsPath, 'cache');
   if (fs.existsSync(cachePath)) {
     fs.rmSync(cachePath, { recursive: true, force: true });
@@ -207,6 +208,16 @@ async function compileContracts() {
     fs.rmSync(typechainPath, { recursive: true, force: true });
     log('  - Deleted typechain-types directory', 'blue');
   }
+
+  // 7. Delete any Hardhat-related lock files
+  const lockFiles = ['hardhat.lock', '.hardhat.lock'];
+  lockFiles.forEach(file => {
+    const filePath = path.join(contractsPath, file);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      log(`  - Deleted ${file}`, 'blue');
+    }
+  });
 
   log('✅ Complete cleanup finished - Starting with fresh slate!', 'green');
 
