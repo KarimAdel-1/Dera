@@ -1,0 +1,179 @@
+================================================================================
+DERA PROTOCOL CLEANUP - QUICK REFERENCE CARD
+================================================================================
+
+FILES TO DELETE (ZERO RISK - 286 LINES)
+================================================================================
+1. /home/user/Dera/contracts/contracts/protocol/pool/SimplePoolConfigurator.sol
+2. /home/user/Dera/contracts/contracts/protocol/pool/WorkingPoolConfigurator.sol
+3. /home/user/Dera/contracts/contracts/protocol/pool/ProductionPoolConfigurator.sol
+4. /home/user/Dera/contracts/contracts/protocol/pool/DirectPoolConfigurator.sol
+5. /home/user/Dera/contracts/contracts/test/CloneFactory.sol
+
+WHY SAFE TO DELETE:
+- grep search shows 0 references in entire codebase
+- Never instantiated in any deployment script
+- Clearly experimental development variants
+- No dependencies anywhere
+
+HOW TO VERIFY:
+- npm run compile (should succeed)
+- npm test (all tests should pass)
+
+
+FILES TO REORGANIZE (NO DELETION, JUST ORGANIZATION)
+================================================================================
+Create: mkdir -p /home/user/Dera/contracts/scripts/diagnostic
+
+Move to scripts/diagnostic/:
+- check-bytecode-sizes.js
+- check-configurator-pool.js
+- deep-diagnostic.js
+- diagnose-asset-init.js
+- diagnose-whbar.js
+- final-diagnosis.js
+- test-proxy-is-contract.js
+- final-init-test.js
+- grant-configurator-role.js
+
+WHY REORGANIZE:
+- These are development debugging utilities
+- They clutter the main scripts directory
+- New developers get confused with 24 scripts in one folder
+- Better UX with logical grouping
+
+
+CODE QUALITY IMPROVEMENTS (OPTIONAL)
+================================================================================
+1. Review/remove placeholder in DeraPoolConfigurator.sol
+   Path: /home/user/Dera/contracts/contracts/protocol/pool/DeraPoolConfigurator.sol
+   Lines: 36-42
+   Issue: Function setAssetInterestRateData() always reverts
+
+2. Clean up unused stable debt token in helper
+   Path: /home/user/Dera/contracts/contracts/helpers/DeraStableAndVariableTokensHelper.sol
+   Lines: 42-43
+   Issue: Creates unused stableToken that's never used
+
+3. Clarify WHBAR initialization
+   Scripts: init-whbar.js vs init-whbar-fixed.js
+   Issue: Two WHBAR scripts, unclear which is current
+
+
+INCOMPLETE PHASE 2 FEATURES (NEEDS TEAM DECISION)
+================================================================================
+Written but not deployed:
+- DeraNodeStaking.sol
+- DeraHCSEventStreamer.sol
+- DeraProtocolIntegration.sol
+- DeraDeploymentConfig.sol
+
+Current Status:
+- Interfaces created
+- Pool.sol has conditional logic
+- NOT instantiated in deploy-complete.js
+- NOT active in any script
+
+Decision Options:
+A) Complete Phase 2 - Create deployment script (2-4 weeks)
+B) Archive to separate branch - Move to git branch (1 hour)
+C) Keep with documentation - Add README noting Phase 2 status (30 min)
+
+Recommendation: Option B or C for now
+
+
+TESTING AFTER CLEANUP
+================================================================================
+After Phase 1 deletions:
+  npm run compile
+  npm test
+
+After Phase 2 reorganization:
+  Check if any scripts hardcode paths that need updating
+
+After Phase 3 code cleanup:
+  npm run compile
+  npm test
+  npm run deploy (test on testnet)
+
+
+IMPACT SUMMARY
+================================================================================
+Dead Code Removed:   ~286 lines (5 contracts)
+Placeholder Code:    ~13 lines (3 locations)
+Organization:        13 scripts (no deletion)
+Total Time:          ~2 hours for all phases
+Breaking Changes:    NONE
+Risk Level:          LOW
+Test Required:       YES (5 minutes)
+
+
+WHICH REPORT TO READ
+================================================================================
+Want executive summary?
+  → Read: CLEANUP_REPORT_SUMMARY.md
+
+Want detailed analysis?
+  → Read: CLEANUP_DETAILED_ANALYSIS.md
+
+Want specific findings?
+  → Read: CLEANUP_DETAILED_FINDINGS.txt
+
+Want step-by-step plan?
+  → Read: CLEANUP_ACTION_PLAN.txt
+
+Want this quick reference?
+  → You're reading it!
+
+
+KEY QUESTIONS ANSWERED
+================================================================================
+
+Q: Will deleting these contracts break anything?
+A: No. Zero references in entire codebase. Safe to delete.
+
+Q: Do I have to reorganize scripts?
+A: No, optional. But recommended for developer experience.
+
+Q: Can I do cleanup incrementally?
+A: Yes! Phases 1, 2, 3 can be done independently. Do Phase 4 last.
+
+Q: How long will this take?
+A: Phase 1: 15 min, Phase 2: 30 min, Phase 3: 1 hour
+
+Q: What about Phase 2 Hedera features?
+A: Not critical now. Archive for later or complete integration - team's choice.
+
+Q: Should I worry about incomplete tests?
+A: No. They don't affect production code. Can be completed separately.
+
+Q: Are there any safe-to-delete scripts?
+A: No, they're utilities. But reorganize them to scripts/diagnostic/
+
+Q: Do interfaces need cleanup?
+A: No, all 18 interfaces are active and properly used.
+
+Q: Are token implementations duplicates?
+A: No, they follow good practice (abstract + concrete pattern).
+
+
+EVERYTHING IS DOCUMENTED
+================================================================================
+All findings are in the 4 report files in /home/user/Dera/
+
+Each report includes:
+- Exact file paths
+- Reason for classification
+- Whether safe to delete
+- What will break (if anything)
+- Specific line numbers for changes
+- Step-by-step instructions
+- Risk assessment
+- Recommended timeline
+
+================================================================================
+Generated: November 7, 2025
+Analysis: Comprehensive grep + dependency review
+Confidence: HIGH
+Status: Ready to execute
+================================================================================
