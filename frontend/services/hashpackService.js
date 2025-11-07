@@ -576,8 +576,18 @@ class HashPackService {
       throw new Error('HashConnect not initialized');
     }
 
-    if (!this.pairingData?.topic) {
+    // Check if we have any active pairing
+    const pairings = this.hashconnect.hcData?.pairingData || [];
+    if (pairings.length === 0) {
       throw new Error('No active pairing. Please connect your wallet first.');
+    }
+
+    // Ensure pairingData has the topic from HashConnect's internal data
+    if (!this.pairingData?.topic && pairings.length > 0) {
+      this.pairingData = {
+        ...this.pairingData,
+        topic: pairings[0].topic,
+      };
     }
 
     // HashConnect v3 provides getSigner directly
