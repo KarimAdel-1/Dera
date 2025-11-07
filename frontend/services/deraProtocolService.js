@@ -391,14 +391,15 @@ class DeraProtocolService {
         return "0";
       }
       
-      // Check if asset has valid dToken address
-      if (!assetData || !assetData.dTokenAddress || assetData.dTokenAddress === '0x0000000000000000000000000000000000000000') {
-        console.warn(`Asset ${asset} not initialized in Pool or no dToken`);
+      // Check if asset has valid supply token address
+      const supplyTokenAddr = assetData.supplyTokenAddress || assetData.dTokenAddress;
+      if (!assetData || !supplyTokenAddr || supplyTokenAddr === '0x0000000000000000000000000000000000000000') {
+        console.warn(`Asset ${asset} not initialized in Pool or no supply token`);
         return "0";
       }
-      
+
       // Query dToken balance
-      const dToken = new ethers.Contract(assetData.dTokenAddress, ERC20ABI.abi, this.provider);
+      const dToken = new ethers.Contract(supplyTokenAddr, ERC20ABI.abi, this.provider);
       const balance = await dToken.balanceOf(address);
       
       return balance.toString();
