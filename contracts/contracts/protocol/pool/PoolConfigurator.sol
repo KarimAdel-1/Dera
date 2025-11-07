@@ -308,11 +308,7 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     } catch {
       // Fallback: decode from params if available
       if (params.length >= 32) {
-        try abi.decode(params, (uint8)) returns (uint8 d) {
-          return d;
-        } catch {
-          return 18; // Default
-        }
+        return abi.decode(params, (uint8));
       }
       return 18; // Default
     }
