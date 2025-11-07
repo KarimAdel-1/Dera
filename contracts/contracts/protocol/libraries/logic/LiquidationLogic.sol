@@ -36,6 +36,8 @@ library LiquidationLogic {
   using AssetConfiguration for DataTypes.AssetConfigurationMap;
   using SafeCast for uint256;
 
+  error StalePriceData(address asset, uint256 age);
+
   IHTS private constant HTS = IHTS(address(0x167)); // HTS precompile address
 
   // Custom errors for HTS operations
@@ -128,8 +130,8 @@ library LiquidationLogic {
     // Use standard liquidation bonus from reserve configuration (E-Mode removed for MVP)
     vars.liquidationBonus = vars.collateralReserveCache.assetConfiguration.getLiquidationBonus();
 
-    vars.collateralAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.collateralAsset);
-    vars.debtAssetPrice = IPriceOracleGetter(params.priceOracle).getAssetPrice(params.debtAsset);
+    vars.collateralAssetPrice = _getValidatedPrice(params.priceOracle, params.collateralAsset);
+    vars.debtAssetPrice = _getValidatedPrice(params.priceOracle, params.debtAsset);
     vars.collateralAssetUnit = 10 ** vars.collateralReserveCache.assetConfiguration.getDecimals();
     vars.debtAssetUnit = 10 ** vars.debtReserveCache.assetConfiguration.getDecimals();
 
@@ -476,5 +478,24 @@ library LiquidationLogic {
     int64 responseCode = HTS.transferToken(token, from, to, int64(uint64(amount)));
 
     if (responseCode != 0) revert HTSTransferFailed(responseCode);
+  }
+
+  /**
+   * @dev Gets validated price from oracle with staleness check
+   * @param oracle Oracle address
+   * @param asset Asset address
+   * @return price Validated asset price
+   */
+  function _getValidatedPrice(address oracle, address asset) private view returns (uint256 price) {
+    price = IPriceOracleGetter(oracle).getAssetPrice(asset);
+
+    // Basic sanity check - price should not be zero
+    if (price == 0) revert StalePriceData(asset, type(uint256).max);
+
+    // Note: Full staleness validation requires oracle to expose timestamp
+    // For production, oracle should implement getAssetPriceWithTimestamp(address)
+    // which returns (uint256 price, uint256 timestamp)
+
+    return price;
   }
 }

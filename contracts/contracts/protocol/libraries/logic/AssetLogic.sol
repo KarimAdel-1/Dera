@@ -24,11 +24,18 @@ library AssetLogic {
   using AssetLogic for DataTypes.PoolAssetData;
   using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
+  // Maximum time period for interest accrual to prevent overflow (1 year)
+  uint256 internal constant MAX_ACCRUAL_PERIOD = 365 days;
+
+  error ExcessiveAccrualPeriod(uint256 timeDelta);
+
   function getNormalizedIncome(DataTypes.PoolAssetData storage asset) internal view returns (uint256) {
     uint40 timestamp = asset.lastUpdateTimestamp;
     if (timestamp == block.timestamp) {
       return asset.liquidityIndex;
     } else {
+      uint256 timeDelta = block.timestamp - timestamp;
+      if (timeDelta > MAX_ACCRUAL_PERIOD) revert ExcessiveAccrualPeriod(timeDelta);
       return MathUtils.calculateLinearInterest(asset.currentLiquidityRate, timestamp).rayMul(asset.liquidityIndex);
     }
   }
@@ -38,6 +45,8 @@ library AssetLogic {
     if (timestamp == block.timestamp) {
       return asset.variableBorrowIndex;
     } else {
+      uint256 timeDelta = block.timestamp - timestamp;
+      if (timeDelta > MAX_ACCRUAL_PERIOD) revert ExcessiveAccrualPeriod(timeDelta);
       return MathUtils.calculateCompoundedInterest(asset.currentVariableBorrowRate, timestamp).rayMul(asset.variableBorrowIndex);
     }
   }
@@ -99,6 +108,9 @@ library AssetLogic {
   }
 
   function _updateIndexes(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState) internal {
+    uint256 timeDelta = block.timestamp - assetState.assetLastUpdateTimestamp;
+    if (timeDelta > MAX_ACCRUAL_PERIOD) revert ExcessiveAccrualPeriod(timeDelta);
+
     if (assetState.currLiquidityRate != 0) {
       uint256 cumulatedLiquidityInterest = MathUtils.calculateLinearInterest(assetState.currLiquidityRate, assetState.assetLastUpdateTimestamp);
       assetState.nextLiquidityIndex = cumulatedLiquidityInterest.rayMul(assetState.currLiquidityIndex);
