@@ -78,24 +78,27 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
     uint256 len = input.length;
     for (uint256 i; i < len; ) {
-      uint8 decimals = _getAssetDecimals(input[i].underlyingAsset, input[i].params);
+      // Cache array element to avoid repeated calldata accesses that create stack variables
+      ConfiguratorInputTypes.InitAssetInput calldata currentInput = input[i];
+
+      uint8 decimals = _getAssetDecimals(currentInput.underlyingAsset, currentInput.params);
 
       // Extract struct creation to separate variable to reduce stack depth with viaIR
       ConfiguratorLogic.InitAssetInput memory assetInput = ConfiguratorLogic.InitAssetInput({
-        supplyTokenImpl: input[i].supplyTokenImpl,
-        variableDebtTokenImpl: input[i].variableDebtTokenImpl,
-        underlyingAsset: input[i].underlyingAsset,
+        supplyTokenImpl: currentInput.supplyTokenImpl,
+        variableDebtTokenImpl: currentInput.variableDebtTokenImpl,
+        underlyingAsset: currentInput.underlyingAsset,
         interestRateStrategyAddress: interestRateStrategyAddress,
         underlyingAssetDecimals: decimals,
-        supplyTokenName: input[i].supplyTokenName,
-        supplyTokenSymbol: input[i].supplyTokenSymbol,
-        variableDebtTokenName: input[i].variableDebtTokenName,
-        variableDebtTokenSymbol: input[i].variableDebtTokenSymbol,
-        params: input[i].params
+        supplyTokenName: currentInput.supplyTokenName,
+        supplyTokenSymbol: currentInput.supplyTokenSymbol,
+        variableDebtTokenName: currentInput.variableDebtTokenName,
+        variableDebtTokenSymbol: currentInput.variableDebtTokenSymbol,
+        params: currentInput.params
       });
 
       ConfiguratorLogic.executeInitAsset(cachedPool, assetInput);
-      emit AssetInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, "");
+      emit AssetInterestRateDataChanged(currentInput.underlyingAsset, interestRateStrategyAddress, "");
       unchecked { ++i; }
     }
   }
