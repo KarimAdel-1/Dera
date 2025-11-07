@@ -81,6 +81,15 @@ class HashPackService {
         this.hashconnect = null;
       }
 
+      // Check if already initialized with active pairing
+      if (!forceNew && this.hashconnect) {
+        const pairings = this.hashconnect.hcData?.pairingData || [];
+        if (pairings.length > 0) {
+          console.log('✅ HashConnect already initialized with active pairing, skipping re-initialization');
+          return true;
+        }
+      }
+
       // Create HashConnect instance with testnet
       this.hashconnect = new HashConnect(
         LedgerId.TESTNET,
