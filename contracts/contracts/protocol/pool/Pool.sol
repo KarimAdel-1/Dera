@@ -692,8 +692,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
     // Gas optimized loop
     for (uint256 i; i < reservesListCount; ) {
-      if (_assetsList[i] != address(0)) {
-        assetsList[i - droppedReservesCount] = _assetsList[i];
+      address asset = _assetsList[i];
+      // Check if slot is truly empty by verifying the asset has been initialized
+      // IMPORTANT: Cannot use asset != address(0) because HBAR IS address(0)
+      // Instead, check if the asset has a supplyTokenAddress set
+      if (_poolAssets[asset].supplyTokenAddress != address(0)) {
+        assetsList[i - droppedReservesCount] = asset;
       } else {
         unchecked { droppedReservesCount++; }
       }
