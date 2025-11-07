@@ -401,15 +401,32 @@ class HashPackService {
             return;
           }
 
-          // Wait for HashConnect to update internal state, then get topic
-          console.log('⏳ Waiting 100ms for HashConnect to update internal state...');
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Wait for HashConnect to update internal state with retry mechanism
+          console.log('⏳ Waiting for HashConnect to update internal state...');
 
-          const pairings = this.hashconnect.hcData?.pairingData || [];
-          const topic = pairings.length > 0 ? pairings[0].topic : null;
+          let topic = null;
+          let pairings = [];
+          let retries = 0;
+          const maxRetries = 10; // Try for up to ~2 seconds
+
+          // Retry loop with exponential backoff
+          while (retries < maxRetries && !topic) {
+            const waitTime = Math.min(100 * Math.pow(1.5, retries), 500); // 100ms, 150ms, 225ms... max 500ms
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+
+            pairings = this.hashconnect.hcData?.pairingData || [];
+            topic = pairings.length > 0 ? pairings[0].topic : null;
+
+            retries++;
+
+            if (!topic) {
+              console.log(`🔄 Retry ${retries}/${maxRetries}: Still waiting for topic (waited ${waitTime}ms)...`);
+            }
+          }
 
           console.log('✅ Topic from hcData after wait:', topic);
           console.log('📊 Number of pairings in hcData:', pairings.length);
+          console.log('⏱️ Total retries needed:', retries);
 
           // Return all accounts from the paired wallet
           const allAccounts = pairingData.accountIds.map((accountId) => ({
@@ -420,11 +437,19 @@ class HashPackService {
 
           console.log('All accounts to be returned:', allAccounts);
 
-          // Store complete pairing data with topic
-          this.pairingData = {
-            ...pairingData,
-            topic,
-          };
+          // Store complete pairing data from HashConnect's internal state
+          // Use the full pairing object from hcData if available, otherwise merge with event data
+          if (pairings.length > 0) {
+            this.pairingData = pairings[0]; // Use complete object from HashConnect
+            console.log('✅ Stored complete pairing data from hcData');
+          } else {
+            // Fallback: merge topic with event data
+            this.pairingData = {
+              ...pairingData,
+              topic,
+            };
+            console.log('⚠️ Fallback: Merged topic with event pairingData');
+          }
 
           // Update state to Paired
           this.state = HashConnectConnectionState?.Paired || 'Paired';
