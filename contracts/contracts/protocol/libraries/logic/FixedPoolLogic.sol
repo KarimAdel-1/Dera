@@ -33,9 +33,13 @@ library FixedPoolLogic {
     poolAssets[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
     
     // Find next available slot
+    // NOTE: We cannot check assetsList[i] == address(0) because HBAR IS address(0)
+    // Instead, check if the asset at that slot is uninitialized (supplyTokenAddress == 0)
     uint16 assetId = params.assetsCount;
     for (uint16 i = 0; i < params.assetsCount; i++) {
-      if (assetsList[i] == address(0)) {
+      address slotAsset = assetsList[i];
+      // A slot is empty if the asset at that position has no supplyTokenAddress set
+      if (poolAssets[slotAsset].supplyTokenAddress == address(0)) {
         assetId = i;
         break;
       }
