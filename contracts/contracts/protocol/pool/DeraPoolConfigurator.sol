@@ -56,6 +56,37 @@ contract DeraPoolConfigurator is PoolConfigurator {
   }
 
   /**
+   * @notice Emergency recovery function for Hedera address reuse
+   * @dev CRITICAL: Used when PoolConfigurator is reused and points to old AddressesProvider
+   * @dev This function can ONLY be called when _pool is address(0) or _addressesProvider is different
+   * @dev No role check because old AddressesProvider would have old ACLManager
+   * @param provider The new PoolAddressesProvider address
+   */
+  function recoverFromAddressReuse(IPoolAddressesProvider provider) external {
+    require(address(provider) != address(0), "Invalid provider address");
+
+    // Only allow recovery if pointing to a different provider (address reuse scenario)
+    // This prevents anyone from arbitrarily changing the provider in normal operation
+    require(address(_addressesProvider) != address(provider), "Already using this provider");
+
+    // Additional safety: only allow if _pool is zero or doesn't match provider's pool
+    address providerPool = provider.getPool();
+    require(
+      address(_pool) == address(0) || address(_pool) != providerPool,
+      "Configuration is already correct"
+    );
+
+    // Update to new provider and pool
+    address oldProvider = address(_addressesProvider);
+    address oldPool = address(_pool);
+    _addressesProvider = provider;
+    _pool = IPool(providerPool);
+
+    emit ProviderRecovered(oldProvider, address(provider));
+    emit PoolUpdated(oldPool, providerPool);
+  }
+
+  /**
    * @notice Get the current Pool address
    * @return The Pool contract address
    */
@@ -77,4 +108,5 @@ contract DeraPoolConfigurator is PoolConfigurator {
 
   event AssetInitialized(address indexed asset, address indexed dToken, address indexed vToken);
   event PoolUpdated(address indexed oldPool, address indexed newPool);
+  event ProviderRecovered(address indexed oldProvider, address indexed newProvider);
 }
