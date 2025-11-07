@@ -76,6 +76,9 @@ contract PoolStorage {
   // Mapping to check if a user is registered (for gas-efficient lookups)
   mapping(address => bool) internal _isRegisteredUser;
 
+  // Minimum liquidation threshold (minimum USD value for liquidatable position)
+  uint256 internal _minLiquidationThreshold;
+
   function getRevision() internal pure virtual returns (uint256) {
     return POOL_STORAGE_REVISION;
   }

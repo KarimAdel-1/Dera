@@ -37,6 +37,7 @@ import {IDeraHCSEventStreamer} from '../../interfaces/IDeraHCSEventStreamer.sol'
 import {IDeraProtocolIntegration} from '../../interfaces/IDeraProtocolIntegration.sol';
 import {IDeraMirrorNodeAnalytics} from '../../interfaces/IDeraMirrorNodeAnalytics.sol';
 import {IDeraNodeStaking} from '../../interfaces/IDeraNodeStaking.sol';
+import {IDeraSupplyToken} from '../../interfaces/IDeraSupplyToken.sol';
 import {PoolStorage} from './PoolStorage.sol';
 
 /**
@@ -922,12 +923,12 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @notice Pause a specific asset in emergency situations
    * @dev Only Emergency Admin can pause individual assets
    * @param asset The asset to pause
-   * @param paused True to pause, false to unpause
+   * @param isPaused True to pause, false to unpause
    */
-  function setAssetPause(address asset, bool paused) external onlyEmergencyAdmin {
+  function setAssetPause(address asset, bool isPaused) external onlyEmergencyAdmin {
     DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
-    assetData.configuration.setPaused(paused);
-    emit AssetPaused(asset, paused);
+    assetData.configuration.setPaused(isPaused);
+    emit AssetPaused(asset, isPaused);
   }
 
   /**
