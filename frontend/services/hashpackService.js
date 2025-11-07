@@ -81,13 +81,10 @@ class HashPackService {
         this.hashconnect = null;
       }
 
-      // Check if already initialized with active pairing
+      // If already initialized and not forcing new, skip re-initialization
       if (!forceNew && this.hashconnect) {
-        const pairings = this.hashconnect.hcData?.pairingData || [];
-        if (pairings.length > 0) {
-          console.log('✅ HashConnect already initialized with active pairing, skipping re-initialization');
-          return true;
-        }
+        console.log('✅ HashConnect already initialized, skipping re-initialization');
+        return true;
       }
 
       // Create HashConnect instance with testnet
