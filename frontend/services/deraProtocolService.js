@@ -206,7 +206,10 @@ class DeraProtocolService {
 
       // Execute supply
       console.log('Supplying to pool...', { asset, amount, evmAddress, referralCode });
-      const tx = await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
+      // For native tokens, include the value parameter to send HBAR with the transaction
+      const tx = isNativeToken
+        ? await poolWithSigner.supply(asset, amount, evmAddress, referralCode, { value: amount })
+        : await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
       const receipt = await tx.wait();
 
       return {
@@ -332,7 +335,10 @@ class DeraProtocolService {
       }
 
       console.log('Repaying loan...', { asset, amount, evmAddress });
-      const tx = await poolWithSigner.repay(asset, amount, evmAddress);
+      // For native tokens, include the value parameter to send HBAR with the transaction
+      const tx = isNativeToken
+        ? await poolWithSigner.repay(asset, amount, evmAddress, { value: amount })
+        : await poolWithSigner.repay(asset, amount, evmAddress);
       const receipt = await tx.wait();
 
       return {
@@ -896,7 +902,7 @@ class DeraProtocolService {
    */
   async getAssetDetailsFromContract(address) {
     // Get basic asset info
-    const assetInfo = this.getBasicAssetInfo(address);
+    const assetInfo = await this.getBasicAssetInfo(address);
 
     // Get real data from Pool contract - NO FALLBACK
     const assetData = await this.poolContract.getAssetData(address);
@@ -940,17 +946,32 @@ class DeraProtocolService {
   /**
    * Get basic asset info (symbol, name, decimals)
    * @param {string} address - Asset address
-   * @returns {object} Basic asset info
+   * @returns {Promise<object>} Basic asset info
    */
-  getBasicAssetInfo(address) {
+  async getBasicAssetInfo(address) {
+    // Handle native HBAR token
     if (address === '0x0000000000000000000000000000000000000000') {
       return { symbol: 'HBAR', name: 'Hedera', decimals: 8 };
-    } else if (address === '0x000000000000000000000000000000000006f89a') {
-      return { symbol: 'USDC', name: 'USD Coin', decimals: 6 };
-    } else if (address === '0x00000000000000000000000000000000000b2aD5') {
-      return { symbol: 'SAUCE', name: 'SaucerSwap', decimals: 6 };
     }
-    return { symbol: 'UNKNOWN', name: 'Unknown Token', decimals: 18 };
+
+    // For ERC20 tokens, fetch metadata from the contract
+    try {
+      const tokenContract = new ethers.Contract(address, ERC20ABI.abi, this.provider);
+      const [symbol, name, decimals] = await Promise.all([
+        tokenContract.symbol(),
+        tokenContract.name(),
+        tokenContract.decimals()
+      ]);
+
+      return {
+        symbol: symbol || 'UNKNOWN',
+        name: name || 'Unknown Token',
+        decimals: Number(decimals) || 18
+      };
+    } catch (error) {
+      console.error(`Failed to fetch token metadata for ${address}:`, error);
+      return { symbol: 'UNKNOWN', name: 'Unknown Token', decimals: 18 };
+    }
   }
 
   /**
