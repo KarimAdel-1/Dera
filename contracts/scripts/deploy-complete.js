@@ -330,27 +330,29 @@ async function main() {
 
       if (e.message.includes("already been initialized")) {
         console.log("\n⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
-        console.log("   Fixing: Updating PoolConfigurator's internal Pool address...");
+        console.log("   Fixing: Recovering PoolConfigurator to use new AddressesProvider and Pool...");
 
-        // FIX: Call setPool() to update the internal _pool variable
+        // FIX: Call recoverFromAddressReuse() to update both _addressesProvider and _pool
         try {
           const currentPool = await poolConfigurator.getPool();
           console.log(`   Current Pool in PoolConfigurator: ${currentPool}`);
           console.log(`   New Pool address: ${addresses.POOL}`);
+          console.log(`   New AddressesProvider: ${addresses.POOL_ADDRESSES_PROVIDER}`);
 
           if (currentPool !== addresses.POOL) {
             await retryOperation(
-              async () => await poolConfigurator.setPool(addresses.POOL),
-              "PoolConfigurator.setPool"
+              async () => await poolConfigurator.recoverFromAddressReuse(addresses.POOL_ADDRESSES_PROVIDER),
+              "PoolConfigurator.recoverFromAddressReuse"
             );
-            console.log("✓ PoolConfigurator now points to correct Pool");
+            console.log("✓ PoolConfigurator recovered successfully");
+            console.log("✓ PoolConfigurator now uses the correct AddressesProvider and Pool");
           } else {
             console.log("✓ PoolConfigurator already points to correct Pool");
           }
-        } catch (setPoolError) {
-          console.error("\n❌ Failed to call setPool():");
-          console.error("   Error:", setPoolError.message);
-          throw setPoolError;
+        } catch (recoveryError) {
+          console.error("\n❌ Failed to recover PoolConfigurator:");
+          console.error("   Error:", recoveryError.message);
+          throw recoveryError;
         }
       } else {
         console.error("\n❌ Unexpected initialization error (not 'already initialized')");
