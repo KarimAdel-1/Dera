@@ -359,10 +359,22 @@ async function configureFrontend() {
       }
     };
 
-    // Update contract addresses
+    // Update contract addresses with proper mapping
     if (deploymentInfo.addresses) {
+      const addressMapping = {
+        'POOL': 'NEXT_PUBLIC_POOL_ADDRESS',
+        'ORACLE': 'NEXT_PUBLIC_ORACLE_ADDRESS',
+        'ANALYTICS': 'NEXT_PUBLIC_ANALYTICS_ADDRESS',
+        'MULTI_ASSET_STAKING': 'NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS',
+        'POOL_CONFIGURATOR': 'NEXT_PUBLIC_POOL_CONFIGURATOR',
+        'POOL_ADDRESSES_PROVIDER': 'NEXT_PUBLIC_POOL_ADDRESSES_PROVIDER',
+        'ACL_MANAGER': 'NEXT_PUBLIC_ACL_MANAGER',
+        'RATE_STRATEGY': 'NEXT_PUBLIC_RATE_STRATEGY'
+      };
+
       Object.entries(deploymentInfo.addresses).forEach(([key, value]) => {
-        updateEnvVar(`NEXT_PUBLIC_${key}`, value);
+        const envVarName = addressMapping[key] || `NEXT_PUBLIC_${key}`;
+        updateEnvVar(envVarName, value);
       });
     }
 
@@ -372,6 +384,11 @@ async function configureFrontend() {
         updateEnvVar(`NEXT_PUBLIC_HCS_${key}_TOPIC`, value);
       });
     }
+
+    // Ensure network configuration variables are set
+    updateEnvVar('NEXT_PUBLIC_NETWORK', 'testnet');
+    updateEnvVar('NEXT_PUBLIC_RPC_URL', 'https://testnet.hashio.io/api');
+    updateEnvVar('NEXT_PUBLIC_MIRROR_NODE_URL', 'https://testnet.mirrornode.hedera.com');
 
     // Ensure critical env vars exist (preserve if already set)
     const criticalVars = [

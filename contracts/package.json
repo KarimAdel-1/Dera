@@ -8,6 +8,8 @@
     "deploy": "hardhat run scripts/deploy-complete.js --network testnet",
     "deploy:hackathon": "node ../deploy-hackathon.js",
     "deploy:hcs": "node scripts/create-hcs-topics.js",
+    "verify": "npx hardhat run scripts/verify-deployment.js --network testnet",
+    "verify:assets": "npx hardhat run scripts/verify-assets.js --network testnet",
     "init:whbar": "hardhat run scripts/init-whbar-fixed.js --network testnet",
     "init:usdc": "hardhat run scripts/init-usdc.js --network testnet",
     "test:whbar": "hardhat run scripts/test-whbar-supply.js --network testnet",
