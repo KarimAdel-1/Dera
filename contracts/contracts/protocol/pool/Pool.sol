@@ -599,25 +599,23 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     emit LiquidationCall(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, receiveSupplyToken, HCSTopics.LIQUIDATION_TOPIC());
 
     // Queue event to HCS for Hedera-native indexing
-    // Note: liquidatedCollateral approximated as debtToCover for now
-    // TODO: Modify LiquidationLogic to return actual liquidatedCollateral
-    uint256 liquidatedCollateral = debtToCover; // Approximation
+    // Use actual collateral liquidated amount returned by LiquidationLogic
     IDeraHCSEventStreamer streamer = _getHCSStreamer();
     if (address(streamer) != address(0)) {
-      streamer.queueLiquidationEvent(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, liquidatedCollateral, receiveSupplyToken);
+      streamer.queueLiquidationEvent(_msgSender(), borrower, collateralAsset, debtAsset, debtToCover, actualCollateralLiquidated, receiveSupplyToken);
     }
 
     // Protocol Integration hook
     if (address(protocolIntegration) != address(0)) {
       try IDeraProtocolIntegration(protocolIntegration).handleLiquidation(
-        _msgSender(), borrower, collateralAsset, debtAsset, debtToCover, liquidatedCollateral
+        _msgSender(), borrower, collateralAsset, debtAsset, debtToCover, actualCollateralLiquidated
       ) {} catch {}
     }
 
     // Analytics update
     if (address(analyticsContract) != address(0)) {
       try IDeraMirrorNodeAnalytics(analyticsContract).recordLiquidation(
-        collateralAsset, debtAsset, debtToCover, liquidatedCollateral, _msgSender(), borrower
+        collateralAsset, debtAsset, debtToCover, actualCollateralLiquidated, _msgSender(), borrower
       ) {} catch {}
     }
   }

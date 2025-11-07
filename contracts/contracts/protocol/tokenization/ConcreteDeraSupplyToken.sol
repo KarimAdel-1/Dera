@@ -18,14 +18,6 @@ contract ConcreteDeraSupplyToken is DeraSupplyToken {
   address constant HTS = address(0x167);
   int64 constant SUCCESS = 22;
 
-  // Temporary debug events (remove after diagnosis)
-  event DebugInitStart(address underlying, address pool);
-  event DebugInitAfterAssociate(address underlying, bytes data);
-  event DebugInitDone(address underlying);
-  event DebugHTSCheck(bool success, bytes data);
-  event DebugHTSIsTokenResult(int64 rc, bool isToken);
-  event DebugHTSAssociateResult(bool success, bytes data);
-
   constructor(IPool pool, address treasury) DeraSupplyToken(pool, treasury) {}
 
   function initialize(
@@ -41,9 +33,7 @@ contract ConcreteDeraSupplyToken is DeraSupplyToken {
     _setSymbol(supplyTokenSymbol);
     _setDecimals(supplyTokenDecimals);
     _underlyingAsset = underlyingAsset;
-    emit DebugInitStart(underlyingAsset, address(initializingPool));
     _associateHTS(underlyingAsset);
-    emit DebugInitAfterAssociate(underlyingAsset, abi.encodePacked(underlyingAsset));
     emit Initialized(
       underlyingAsset,
       address(POOL),
@@ -54,7 +44,6 @@ contract ConcreteDeraSupplyToken is DeraSupplyToken {
       supplyTokenSymbol,
       params
     );
-    emit DebugInitDone(underlyingAsset);
   }
 
   function _associateHTS(address asset) private {

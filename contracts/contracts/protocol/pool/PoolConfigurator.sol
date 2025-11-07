@@ -75,19 +75,24 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
   function initAssets(ConfiguratorInputTypes.InitAssetInput[] calldata input) external override onlyAssetListingOrPoolAdmins {
     IPool cachedPool = _pool;
     address interestRateStrategyAddress = cachedPool.RESERVE_INTEREST_RATE_STRATEGY();
-    
+
     uint256 len = input.length;
     for (uint256 i; i < len; ) {
       // FIX: Improved decimals extraction with fallback to token query
       uint8 decimals = 18; // Default
-      
+
       // Try to get decimals from the token itself first
       try IERC20Metadata(input[i].underlyingAsset).decimals() returns (uint8 d) {
         decimals = d;
       } catch {
-        // Fallback: try to extract from params if available
-        if (input[i].params.length > 0) {
-          decimals = uint8(input[i].params[0]);
+        // Fallback: try to decode from ABI-encoded params if available
+        if (input[i].params.length >= 32) {
+          // Params should be ABI-encoded as: abi.encode(uint8)
+          try this.decodeDecimals(input[i].params) returns (uint8 d) {
+            decimals = d;
+          } catch {
+            // If decode fails, keep default of 18
+          }
         }
       }
       
@@ -295,6 +300,16 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
 
   function getConfiguratorLogic() external pure returns (address) {
     return address(ConfiguratorLogic);
+  }
+
+  /**
+   * @notice Decode decimals from ABI-encoded params
+   * @dev External function used for try/catch pattern in initAssets
+   * @param params ABI-encoded decimals (abi.encode(uint8))
+   * @return Decoded decimals value
+   */
+  function decodeDecimals(bytes calldata params) external pure returns (uint8) {
+    return abi.decode(params, (uint8));
   }
 
   function CONFIGURATOR_REVISION() public pure virtual returns (uint256) {
