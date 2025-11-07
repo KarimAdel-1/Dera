@@ -84,6 +84,15 @@ class HashPackService {
       // If already initialized and not forcing new, skip re-initialization
       if (!forceNew && this.hashconnect) {
         console.log('✅ HashConnect already initialized, skipping re-initialization');
+
+        // But check if pairing was restored from localStorage
+        const pairings = this.hashconnect.hcData?.pairingData || [];
+        if (pairings.length > 0 && !this.pairingData) {
+          this.pairingData = pairings[0];
+          this.state = HashConnectConnectionState?.Paired || 'Paired';
+          console.log('✅ Restored pairing state from HashConnect:', this.pairingData.accountIds);
+        }
+
         return true;
       }
 
