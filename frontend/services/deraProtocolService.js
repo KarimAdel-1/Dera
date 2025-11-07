@@ -183,13 +183,16 @@ class DeraProtocolService {
       // Validate user balance before transaction
       await this.validateUserBalance(asset, amount, evmAddress, 'supply');
 
-      // First, check and approve if needed
-      const erc20 = new ethers.Contract(asset, ERC20ABI.abi, signer);
-      const allowance = await erc20.allowance(evmAddress, this.contracts.POOL);
+      // First, check allowance using provider (read-only operation)
+      // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+      const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+      const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
 
       if (allowance < amount) {
         console.log('Approving Pool to spend tokens...');
-        const approveTx = await erc20.approve(this.contracts.POOL, amount);
+        // Use signer for write operations
+        const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
+        const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
         await approveTx.wait();
         console.log('Approval confirmed');
       }
@@ -300,13 +303,16 @@ class DeraProtocolService {
         await this.validateUserBalance(asset, amount, evmAddress, 'repay');
       }
 
-      // First, approve if needed
-      const erc20 = new ethers.Contract(asset, ERC20ABI.abi, signer);
-      const allowance = await erc20.allowance(evmAddress, this.contracts.POOL);
+      // First, check allowance using provider (read-only operation)
+      // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+      const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+      const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
 
       if (allowance < amount) {
         console.log('Approving Pool to spend tokens for repayment...');
-        const approveTx = await erc20.approve(this.contracts.POOL, amount);
+        // Use signer for write operations
+        const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
+        const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
         await approveTx.wait();
         console.log('Approval confirmed');
       }
