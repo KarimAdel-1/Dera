@@ -173,40 +173,83 @@ async function main() {
 
     // 7. Deploy PoolConfigurator with random salt to avoid address reuse
     console.log("📍 7/8 Deploying PoolConfigurator...");
+    console.log("🔍 DEBUG: Getting contract factory...");
     const PoolConfigurator = await ethers.getContractFactory("DeraPoolConfigurator", {
       libraries: {
         ConfiguratorLogic: configuratorLogicAddress
       }
     });
-    
-    let poolConfigurator;
-    let attempts = 0;
-    
-    while (attempts < 10) {
-      const randomSalt = ethers.hexlify(ethers.randomBytes(32));
-      try {
-        poolConfigurator = await PoolConfigurator.deploy({ customData: { salt: randomSalt } });
-        await poolConfigurator.waitForDeployment();
-        addresses.POOL_CONFIGURATOR = await poolConfigurator.getAddress();
-        
-        await poolConfigurator.initialize.staticCall(addresses.POOL_ADDRESSES_PROVIDER);
-        console.log("✅ PoolConfigurator:", addresses.POOL_CONFIGURATOR);
-        break;
-      } catch (err) {
-        if (err.message.includes("already been initialized")) {
-          attempts++;
-          console.log(`⚠️  Address collision (attempt ${attempts}/10), trying new salt...`);
-        } else {
-          throw err;
-        }
+
+    // Debug: Check bytecode size
+    const bytecode = PoolConfigurator.bytecode;
+    const bytecodeSize = (bytecode.length - 2) / 2; // Remove '0x' and divide by 2 for bytes
+    console.log(`🔍 DEBUG: Bytecode size: ${bytecodeSize} bytes (${(bytecodeSize / 1024).toFixed(2)} KB)`);
+
+    if (bytecodeSize > 24576) {
+      console.log(`⚠️  WARNING: Bytecode exceeds 24KB standard limit (Hedera might reject)`);
+    }
+    if (bytecodeSize > 49152) {
+      console.log(`❌ ERROR: Bytecode exceeds 48KB absolute limit`);
+      throw new Error("Contract bytecode too large");
+    }
+
+    console.log("🔍 DEBUG: Library linked to ConfiguratorLogic at:", configuratorLogicAddress);
+    console.log("🔍 DEBUG: Deploying with account:", deployer.address);
+
+    try {
+      console.log("🔍 DEBUG: Calling deploy()...");
+      const deploymentTx = await PoolConfigurator.deploy();
+
+      console.log("🔍 DEBUG: Deployment transaction created");
+      console.log("   Transaction hash:", deploymentTx.deploymentTransaction()?.hash || "N/A");
+
+      console.log("🔍 DEBUG: Waiting for deployment confirmation...");
+      await deploymentTx.waitForDeployment();
+
+      addresses.POOL_CONFIGURATOR = await deploymentTx.getAddress();
+      deploymentLog.push(`PoolConfigurator: ${addresses.POOL_CONFIGURATOR}`);
+      console.log("✅ PoolConfigurator deployed:", addresses.POOL_CONFIGURATOR);
+
+    } catch (error) {
+      console.error("\n❌ POOLCONFIGURATOR DEPLOYMENT FAILED");
+      console.error("━".repeat(60));
+      console.error("Error Type:", error.constructor.name);
+      console.error("Error Message:", error.message);
+
+      if (error.code) console.error("Error Code:", error.code);
+      if (error.reason) console.error("Error Reason:", error.reason);
+      if (error.data) console.error("Error Data:", JSON.stringify(error.data, null, 2));
+      if (error.transaction) {
+        console.error("\nTransaction Details:");
+        console.error("  From:", error.transaction.from);
+        console.error("  Data length:", error.transaction.data?.length || 0);
       }
+
+      console.error("\nStack Trace:");
+      console.error(error.stack);
+      console.error("━".repeat(60));
+
+      // Save partial deployment before throwing
+      const partialDeployment = {
+        network: "testnet",
+        deployer: deployer.address,
+        timestamp: new Date().toISOString(),
+        addresses,
+        deploymentLog,
+        error: {
+          step: "PoolConfigurator deployment",
+          message: error.message,
+          code: error.code,
+          bytecodeSize: bytecodeSize
+        }
+      };
+      fs.writeFileSync("./deployment-partial.json", JSON.stringify(partialDeployment, null, 2));
+      console.log("📄 Partial deployment saved to deployment-partial.json");
+
+      throw error;
     }
-    
-    if (attempts >= 10) {
-      throw new Error("Failed to deploy fresh PoolConfigurator after 10 attempts. Wait 10 minutes and retry.");
-    }
-    
-    deploymentLog.push(`PoolConfigurator: ${addresses.POOL_CONFIGURATOR}`);
+
+    const poolConfigurator = await ethers.getContractAt("DeraPoolConfigurator", addresses.POOL_CONFIGURATOR);
 
     // Grant necessary roles to deployer BEFORE initializing
     await aclManager.addPoolAdmin(deployer.address);
