@@ -177,12 +177,15 @@ class DeraProtocolService {
       const signer = await this.getSigner();
       const poolWithSigner = this.poolContract.connect(signer);
 
+      // Convert Hedera account ID to EVM address if needed
+      const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
+
       // Validate user balance before transaction
-      await this.validateUserBalance(asset, amount, onBehalfOf, 'supply');
+      await this.validateUserBalance(asset, amount, evmAddress, 'supply');
 
       // First, check and approve if needed
       const erc20 = new ethers.Contract(asset, ERC20ABI.abi, signer);
-      const allowance = await erc20.allowance(onBehalfOf, this.contracts.POOL);
+      const allowance = await erc20.allowance(evmAddress, this.contracts.POOL);
 
       if (allowance < amount) {
         console.log('Approving Pool to spend tokens...');
@@ -192,8 +195,8 @@ class DeraProtocolService {
       }
 
       // Execute supply
-      console.log('Supplying to pool...', { asset, amount, onBehalfOf, referralCode });
-      const tx = await poolWithSigner.supply(asset, amount, onBehalfOf, referralCode);
+      console.log('Supplying to pool...', { asset, amount, evmAddress, referralCode });
+      const tx = await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
       const receipt = await tx.wait();
 
       return {
@@ -219,13 +222,16 @@ class DeraProtocolService {
       const signer = await this.getSigner();
       const poolWithSigner = this.poolContract.connect(signer);
 
+      // Convert Hedera account ID to EVM address if needed
+      const evmAddress = this.convertHederaAccountToEVM(to);
+
       // Validate user has supplied balance (unless withdrawing max)
       if (amount !== ethers.MaxUint256) {
-        await this.validateUserBalance(asset, amount, to, 'withdraw');
+        await this.validateUserBalance(asset, amount, evmAddress, 'withdraw');
       }
 
-      console.log('Withdrawing from pool...', { asset, amount, to });
-      const tx = await poolWithSigner.withdraw(asset, amount, to);
+      console.log('Withdrawing from pool...', { asset, amount, evmAddress });
+      const tx = await poolWithSigner.withdraw(asset, amount, evmAddress);
       const receipt = await tx.wait();
 
       return {
@@ -253,11 +259,14 @@ class DeraProtocolService {
       const signer = await this.getSigner();
       const poolWithSigner = this.poolContract.connect(signer);
 
-      // Validate user has borrowing capacity
-      await this.validateUserBalance(asset, amount, onBehalfOf, 'borrow');
+      // Convert Hedera account ID to EVM address if needed
+      const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
 
-      console.log('Borrowing from pool...', { asset, amount, referralCode, onBehalfOf });
-      const tx = await poolWithSigner.borrow(asset, amount, referralCode, onBehalfOf);
+      // Validate user has borrowing capacity
+      await this.validateUserBalance(asset, amount, evmAddress, 'borrow');
+
+      console.log('Borrowing from pool...', { asset, amount, referralCode, evmAddress });
+      const tx = await poolWithSigner.borrow(asset, amount, referralCode, evmAddress);
       const receipt = await tx.wait();
 
       return {
@@ -283,14 +292,17 @@ class DeraProtocolService {
       const signer = await this.getSigner();
       const poolWithSigner = this.poolContract.connect(signer);
 
+      // Convert Hedera account ID to EVM address if needed
+      const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
+
       // Validate user balance before transaction (unless repaying max)
       if (amount !== ethers.MaxUint256) {
-        await this.validateUserBalance(asset, amount, onBehalfOf, 'repay');
+        await this.validateUserBalance(asset, amount, evmAddress, 'repay');
       }
 
       // First, approve if needed
       const erc20 = new ethers.Contract(asset, ERC20ABI.abi, signer);
-      const allowance = await erc20.allowance(onBehalfOf, this.contracts.POOL);
+      const allowance = await erc20.allowance(evmAddress, this.contracts.POOL);
 
       if (allowance < amount) {
         console.log('Approving Pool to spend tokens for repayment...');
@@ -299,8 +311,8 @@ class DeraProtocolService {
         console.log('Approval confirmed');
       }
 
-      console.log('Repaying loan...', { asset, amount, onBehalfOf });
-      const tx = await poolWithSigner.repay(asset, amount, onBehalfOf);
+      console.log('Repaying loan...', { asset, amount, evmAddress });
+      const tx = await poolWithSigner.repay(asset, amount, evmAddress);
       const receipt = await tx.wait();
 
       return {
