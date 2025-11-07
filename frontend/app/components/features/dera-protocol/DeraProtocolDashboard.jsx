@@ -51,6 +51,11 @@ const DeraProtocolDashboard = () => {
       setAssetsError(null);
 
       try {
+        // Initialize HashPack service to restore pairing from localStorage
+        const { hashpackService } = await import('../../../../services/hashpackService');
+        await hashpackService.initialize();
+        console.log('✅ HashPack service initialized');
+
         await deraProtocolService.initialize();
         console.log('✅ DeraProtocolService initialized');
 
