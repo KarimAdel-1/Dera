@@ -171,18 +171,42 @@ async function main() {
     deploymentLog.push(`Pool: ${addresses.POOL}`);
     console.log("✅ Pool:", addresses.POOL);
 
-    // 7. Deploy PoolConfigurator first (before Pool initialization)
+    // 7. Deploy PoolConfigurator with random salt to avoid address reuse
     console.log("📍 7/8 Deploying PoolConfigurator...");
     const PoolConfigurator = await ethers.getContractFactory("DeraPoolConfigurator", {
       libraries: {
         ConfiguratorLogic: configuratorLogicAddress
       }
     });
-    const poolConfigurator = await PoolConfigurator.deploy();
-    await poolConfigurator.waitForDeployment();
-    addresses.POOL_CONFIGURATOR = await poolConfigurator.getAddress();
+    
+    let poolConfigurator;
+    let attempts = 0;
+    
+    while (attempts < 10) {
+      const randomSalt = ethers.hexlify(ethers.randomBytes(32));
+      try {
+        poolConfigurator = await PoolConfigurator.deploy({ customData: { salt: randomSalt } });
+        await poolConfigurator.waitForDeployment();
+        addresses.POOL_CONFIGURATOR = await poolConfigurator.getAddress();
+        
+        await poolConfigurator.initialize.staticCall(addresses.POOL_ADDRESSES_PROVIDER);
+        console.log("✅ PoolConfigurator:", addresses.POOL_CONFIGURATOR);
+        break;
+      } catch (err) {
+        if (err.message.includes("already been initialized")) {
+          attempts++;
+          console.log(`⚠️  Address collision (attempt ${attempts}/10), trying new salt...`);
+        } else {
+          throw err;
+        }
+      }
+    }
+    
+    if (attempts >= 10) {
+      throw new Error("Failed to deploy fresh PoolConfigurator after 10 attempts. Wait 10 minutes and retry.");
+    }
+    
     deploymentLog.push(`PoolConfigurator: ${addresses.POOL_CONFIGURATOR}`);
-    console.log("✅ PoolConfigurator:", addresses.POOL_CONFIGURATOR);
 
     // Grant necessary roles to deployer BEFORE initializing
     await aclManager.addPoolAdmin(deployer.address);
@@ -232,23 +256,7 @@ async function main() {
       console.log("✓ PoolConfigurator initialized");
     } catch (e) {
       if (e.message.includes("already been initialized")) {
-        console.log("⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
-        console.log("   Fixing: Updating PoolConfigurator's internal Pool address...");
-
-        // FIX: Call setPool() to update the internal _pool variable
-        const currentPool = await poolConfigurator.getPool();
-        console.log(`   Current Pool in PoolConfigurator: ${currentPool}`);
-        console.log(`   New Pool address: ${addresses.POOL}`);
-
-        if (currentPool !== addresses.POOL) {
-          await retryOperation(
-            async () => await poolConfigurator.setPool(addresses.POOL),
-            "PoolConfigurator.setPool"
-          );
-          console.log("✓ PoolConfigurator now points to correct Pool");
-        } else {
-          console.log("✓ PoolConfigurator already points to correct Pool");
-        }
+        throw new Error("PoolConfigurator initialization failed unexpectedly");
       } else {
         throw e;
       }
