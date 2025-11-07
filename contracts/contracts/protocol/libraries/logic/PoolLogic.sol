@@ -91,20 +91,10 @@ library PoolLogic {
     poolAssets[params.asset].init(params.supplyTokenAddress, params.variableDebtAddress);
     emit DebugPoolInitAfterInit(params.asset, params.supplyTokenAddress, params.variableDebtAddress);
 
-    // Find an empty slot or add to the end
-    for (uint16 i = 0; i < params.assetsCount; i++) {
-      if (assetsList[i] == address(0) && params.asset != address(0)) {
-        // Found empty slot for non-HBAR asset
-        poolAssets[params.asset].id = i;
-        assetsList[i] = params.asset;
-        emit DebugPoolInitAssignedId(params.asset, i);
-        return false;
-      }
-    }
-
-    // No empty slot found or this is HBAR, add to the end
+    // Always use the next sequential slot (no slot reuse)
+    // This prevents bugs where HBAR (address(0)) could be confused with empty slots
     if (params.assetsCount >= params.maxNumberAssets) revert Errors.NoMoreReservesAllowed();
-    
+
     poolAssets[params.asset].id = params.assetsCount;
     assetsList[params.assetsCount] = params.asset;
     emit DebugPoolInitAssignedId(params.asset, params.assetsCount);
