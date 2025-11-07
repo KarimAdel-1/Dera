@@ -68,6 +68,7 @@ import {PoolStorage} from './PoolStorage.sol';
  */
 abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall {
   using AssetLogic for DataTypes.PoolAssetData;
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
 
   IPoolAddressesProvider public immutable ADDRESSES_PROVIDER;
   address public immutable RESERVE_INTEREST_RATE_STRATEGY;
