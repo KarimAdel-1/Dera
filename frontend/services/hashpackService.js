@@ -576,17 +576,16 @@ class HashPackService {
       throw new Error('HashConnect not initialized');
     }
 
-    // Get EIP-1193 provider from HashConnect and wrap with ethers.js BrowserProvider
-    const provider = this.hashconnect.getProvider('testnet', this.pairingData?.topic, accountId);
+    if (!this.pairingData?.topic) {
+      throw new Error('No active pairing. Please connect your wallet first.');
+    }
 
-    // Dynamically import ethers to avoid SSR issues
-    const { ethers } = await import('ethers');
+    // HashConnect v3 provides getSigner directly
+    const signer = this.hashconnect.getSigner(accountId);
 
-    // Create BrowserProvider from EIP-1193 provider
-    const browserProvider = new ethers.BrowserProvider(provider);
-
-    // Get signer from BrowserProvider
-    const signer = await browserProvider.getSigner();
+    if (!signer) {
+      throw new Error('Failed to get signer. Please reconnect your wallet.');
+    }
 
     return signer;
   }
