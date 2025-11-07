@@ -64,8 +64,29 @@ library ConfiguratorLogic {
   function executeInitAsset(IPool pool, InitAssetInput calldata input) external {
     if (input.underlyingAssetDecimals == 0 || input.underlyingAssetDecimals > 30) revert Errors.InvalidDecimals();
 
-    address dTokenProxyAddress = _initTokenWithProxy(input.supplyTokenImpl, abi.encodeWithSelector(IInitializableDeraSupplyToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.supplyTokenName, input.supplyTokenSymbol, input.params));
-    address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, abi.encodeWithSelector(IInitializableDeraBorrowToken.initialize.selector, pool, input.underlyingAsset, input.underlyingAssetDecimals, input.variableDebtTokenName, input.variableDebtTokenSymbol, input.params));
+    // Extract encoding to separate variables to reduce stack depth with viaIR
+    bytes memory supplyTokenInitData = abi.encodeWithSelector(
+      IInitializableDeraSupplyToken.initialize.selector,
+      pool,
+      input.underlyingAsset,
+      input.underlyingAssetDecimals,
+      input.supplyTokenName,
+      input.supplyTokenSymbol,
+      input.params
+    );
+    address dTokenProxyAddress = _initTokenWithProxy(input.supplyTokenImpl, supplyTokenInitData);
+
+    bytes memory borrowTokenInitData = abi.encodeWithSelector(
+      IInitializableDeraBorrowToken.initialize.selector,
+      pool,
+      input.underlyingAsset,
+      input.underlyingAssetDecimals,
+      input.variableDebtTokenName,
+      input.variableDebtTokenSymbol,
+      input.params
+    );
+    address variableDebtTokenProxyAddress = _initTokenWithProxy(input.variableDebtTokenImpl, borrowTokenInitData);
+
     // Do NOT call pool.initAsset or pool.setConfiguration here — deploying and initializing
     // token proxies is gas-heavy and when combined with pool registration in a single
     // transaction can exceed gas/stack limits on Hedera. Split the flow: callers should
