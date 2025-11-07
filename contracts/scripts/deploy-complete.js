@@ -258,65 +258,106 @@ async function main() {
     await aclManager.addEmergencyAdmin(deployer.address);
     console.log("✓ Admin roles granted to deployer");
 
-    // Set PoolConfigurator in provider first (with retry for network issues)
-    await retryOperation(
-      async () => await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR),
-      "setPoolConfiguratorImpl"
-    );
-
-    // Initialize Pool (with retry for network issues)
-    // Also handle Hedera contract address reuse
+    // Initialize Pool FIRST (before setting PoolConfigurator in provider)
+    // This is CRITICAL because PoolConfigurator.initialize() needs provider.getPool() to work
+    console.log("🔍 DEBUG: Initializing Pool...");
     try {
       await retryOperation(
         async () => await pool.initialize(addresses.POOL_ADDRESSES_PROVIDER),
         "Pool.initialize"
       );
-      await retryOperation(
-        async () => await addressesProvider.setPoolImpl(addresses.POOL),
-        "setPoolImpl"
-      );
       console.log("✓ Pool initialized");
     } catch (e) {
       if (e.message.includes("already been initialized")) {
         console.log("⚠️  Pool at this address was already initialized (Hedera address reuse)");
-        await retryOperation(
-          async () => await addressesProvider.setPoolImpl(addresses.POOL),
-          "setPoolImpl"
-        );
-        console.log("   Registered Pool in AddressesProvider anyway");
       } else {
         throw e;
       }
     }
 
+    // Register Pool in AddressesProvider BEFORE PoolConfigurator
+    // PoolConfigurator.initialize() calls provider.getPool(), so Pool must be registered first!
+    console.log("🔍 DEBUG: Registering Pool in AddressesProvider...");
+    await retryOperation(
+      async () => await addressesProvider.setPoolImpl(addresses.POOL),
+      "setPoolImpl"
+    );
+    console.log("✓ Pool registered in AddressesProvider");
+
+    // Verify Pool is accessible from provider
+    const registeredPool = await addressesProvider.getPool();
+    console.log("🔍 DEBUG: Verifying Pool registration...");
+    console.log("   Pool address from provider:", registeredPool);
+    console.log("   Expected Pool address:", addresses.POOL);
+
+    if (registeredPool.toLowerCase() !== addresses.POOL.toLowerCase()) {
+      throw new Error(`Pool not properly registered! Got ${registeredPool}, expected ${addresses.POOL}`);
+    }
+    console.log("✓ Pool registration verified");
+
+    // NOW set PoolConfigurator in provider (after Pool is registered)
+    console.log("🔍 DEBUG: Setting PoolConfigurator in provider...");
+    await retryOperation(
+      async () => await addressesProvider.setPoolConfiguratorImpl(addresses.POOL_CONFIGURATOR),
+      "setPoolConfiguratorImpl"
+    );
+    console.log("✓ PoolConfigurator set in provider");
+
     // Initialize PoolConfigurator (CRITICAL - must be done after Pool is registered)
     // With retry for network issues and handling for address reuse
+    console.log("🔍 DEBUG: Starting PoolConfigurator initialization...");
+    console.log("   PoolConfigurator address:", addresses.POOL_CONFIGURATOR);
+    console.log("   PoolAddressesProvider address:", addresses.POOL_ADDRESSES_PROVIDER);
+
     try {
+      console.log("🔍 DEBUG: Calling poolConfigurator.initialize()...");
       await retryOperation(
         async () => await poolConfigurator.initialize(addresses.POOL_ADDRESSES_PROVIDER),
         "PoolConfigurator.initialize"
       );
       console.log("✓ PoolConfigurator initialized");
     } catch (e) {
+      console.error("\n❌ POOLCONFIGURATOR INITIALIZATION FAILED");
+      console.error("━".repeat(60));
+      console.error("Error Type:", e.constructor.name);
+      console.error("Error Message:", e.message);
+      console.error("Error Code:", e.code || "N/A");
+      console.error("Error Reason:", e.reason || "N/A");
+
+      if (e.data) {
+        console.error("Error Data:", JSON.stringify(e.data, null, 2));
+      }
+
       if (e.message.includes("already been initialized")) {
-        console.log("⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
+        console.log("\n⚠️  PoolConfigurator at this address was already initialized (Hedera address reuse)");
         console.log("   Fixing: Updating PoolConfigurator's internal Pool address...");
 
         // FIX: Call setPool() to update the internal _pool variable
-        const currentPool = await poolConfigurator.getPool();
-        console.log(`   Current Pool in PoolConfigurator: ${currentPool}`);
-        console.log(`   New Pool address: ${addresses.POOL}`);
+        try {
+          const currentPool = await poolConfigurator.getPool();
+          console.log(`   Current Pool in PoolConfigurator: ${currentPool}`);
+          console.log(`   New Pool address: ${addresses.POOL}`);
 
-        if (currentPool !== addresses.POOL) {
-          await retryOperation(
-            async () => await poolConfigurator.setPool(addresses.POOL),
-            "PoolConfigurator.setPool"
-          );
-          console.log("✓ PoolConfigurator now points to correct Pool");
-        } else {
-          console.log("✓ PoolConfigurator already points to correct Pool");
+          if (currentPool !== addresses.POOL) {
+            await retryOperation(
+              async () => await poolConfigurator.setPool(addresses.POOL),
+              "PoolConfigurator.setPool"
+            );
+            console.log("✓ PoolConfigurator now points to correct Pool");
+          } else {
+            console.log("✓ PoolConfigurator already points to correct Pool");
+          }
+        } catch (setPoolError) {
+          console.error("\n❌ Failed to call setPool():");
+          console.error("   Error:", setPoolError.message);
+          throw setPoolError;
         }
       } else {
+        console.error("\n❌ Unexpected initialization error (not 'already initialized')");
+        console.error("   This indicates a different problem than address reuse.");
+        console.error("\nFull Error Stack:");
+        console.error(e.stack);
+        console.error("━".repeat(60));
         throw e;
       }
     }
