@@ -74,9 +74,9 @@ library LiquidationLogic {
     mapping(address => DataTypes.PoolAssetData) storage poolAssets,
     mapping(uint256 => address) storage assetsList,
     mapping(address => DataTypes.UserConfigurationMap) storage usersConfig,
-    
+
     DataTypes.ExecuteLiquidationCallParams memory params
-  ) external {
+  ) external returns (uint256) {
     LiquidationCallLocalVars memory vars;
 
     DataTypes.PoolAssetData storage collateralAsset = poolAssets[params.collateralAsset];
@@ -257,6 +257,8 @@ library LiquidationLogic {
       vars.actualDebtToLiquidate
     );
 
+    // Return actual collateral liquidated for slippage protection
+    return vars.actualCollateralToLiquidate;
     // Event will be emitted by Pool contract
   }
 

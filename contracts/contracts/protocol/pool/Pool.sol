@@ -19,7 +19,6 @@ interface IHTS {
   function approve(address token, address spender, uint256 amount) external returns (int64);
   function balanceOf(address token, address account) external view returns (uint256);
   function getTokenInfo(address token) external view returns (string memory, string memory, uint8, uint64);
-  function isAssociated(address token, address account) external view returns (bool);
 }
 
 // HCS topic identifiers for off-chain event relay
@@ -126,20 +125,19 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @dev Checks if an account is associated with an HTS token
    * @param token HTS token address
    * @param account Account to check
+   * @dev Uses balanceOf as a proxy for association check
+   * @dev If balanceOf fails, account is not associated with the token
    */
   function _checkHTSAssociation(address token, address account) internal view {
     if (token == address(0)) return; // Skip for HBAR
-    try HTS.isAssociated(token, account) returns (bool associated) {
-      if (!associated) revert TokenNotAssociated(token, account);
+
+    // Try to query balance - if this fails, account is not associated
+    try HTS.balanceOf(token, account) returns (uint256) {
+      // If balanceOf succeeds, account is associated
+      return;
     } catch {
-      // If isAssociated is not available, try balanceOf as fallback
-      // This is a workaround for older HTS implementations
-      try HTS.balanceOf(token, account) returns (uint256) {
-        // If balanceOf succeeds, account is associated
-        return;
-      } catch {
-        revert TokenNotAssociated(token, account);
-      }
+      // If balanceOf fails, account is not associated with the token
+      revert TokenNotAssociated(token, account);
     }
   }
 
