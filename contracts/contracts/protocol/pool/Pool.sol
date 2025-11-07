@@ -927,7 +927,9 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    */
   function setAssetPause(address asset, bool isPaused) external onlyEmergencyAdmin {
     DataTypes.PoolAssetData storage assetData = _poolAssets[asset];
-    assetData.configuration.setPaused(isPaused);
+    DataTypes.AssetConfigurationMap memory config = assetData.configuration;
+    config.setPaused(isPaused);
+    assetData.configuration = config;
     emit AssetPaused(asset, isPaused);
   }
 
@@ -937,7 +939,8 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
    * @return True if paused, false otherwise
    */
   function isAssetPaused(address asset) external view returns (bool) {
-    return _poolAssets[asset].configuration.getPaused();
+    DataTypes.AssetConfigurationMap memory config = _poolAssets[asset].configuration;
+    return config.getPaused();
   }
 
   event AssetPaused(address indexed asset, bool isPaused);
