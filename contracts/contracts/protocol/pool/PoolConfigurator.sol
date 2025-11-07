@@ -80,7 +80,8 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
     for (uint256 i; i < len; ) {
       uint8 decimals = _getAssetDecimals(input[i].underlyingAsset, input[i].params);
 
-      ConfiguratorLogic.executeInitAsset(cachedPool, ConfiguratorLogic.InitAssetInput({
+      // Extract struct creation to separate variable to reduce stack depth with viaIR
+      ConfiguratorLogic.InitAssetInput memory assetInput = ConfiguratorLogic.InitAssetInput({
         supplyTokenImpl: input[i].supplyTokenImpl,
         variableDebtTokenImpl: input[i].variableDebtTokenImpl,
         underlyingAsset: input[i].underlyingAsset,
@@ -91,30 +92,34 @@ abstract contract PoolConfigurator is VersionedInitializable, IPoolConfigurator 
         variableDebtTokenName: input[i].variableDebtTokenName,
         variableDebtTokenSymbol: input[i].variableDebtTokenSymbol,
         params: input[i].params
-      }));
+      });
+
+      ConfiguratorLogic.executeInitAsset(cachedPool, assetInput);
       emit AssetInterestRateDataChanged(input[i].underlyingAsset, interestRateStrategyAddress, "");
       unchecked { ++i; }
     }
   }
 
   function updateSupplyToken(ConfiguratorInputTypes.UpdateSupplyTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateSupplyToken(_pool, ConfiguratorLogic.UpdateSupplyTokenInput({
+    ConfiguratorLogic.UpdateSupplyTokenInput memory updateInput = ConfiguratorLogic.UpdateSupplyTokenInput({
       asset: input.asset,
       implementation: input.implementation,
       name: input.name,
       symbol: input.symbol,
       params: input.params
-    }));
+    });
+    ConfiguratorLogic.executeUpdateSupplyToken(_pool, updateInput);
   }
 
   function updateBorrowToken(ConfiguratorInputTypes.UpdateDebtTokenInput calldata input) external override onlyPoolAdmin {
-    ConfiguratorLogic.executeUpdateBorrowToken(_pool, ConfiguratorLogic.UpdateDebtTokenInput({
+    ConfiguratorLogic.UpdateDebtTokenInput memory updateInput = ConfiguratorLogic.UpdateDebtTokenInput({
       asset: input.asset,
       implementation: input.implementation,
       name: input.name,
       symbol: input.symbol,
       params: input.params
-    }));
+    });
+    ConfiguratorLogic.executeUpdateBorrowToken(_pool, updateInput);
   }
 
   function dropAsset(address asset) external override onlyPoolAdmin {

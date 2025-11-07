@@ -325,18 +325,21 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     // Register user for liquidation monitoring
     _registerUser(onBehalfOf);
 
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteSupplyParams memory supplyParams = DataTypes.ExecuteSupplyParams({
+      user: _msgSender(),
+      asset: asset,
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
+      amount: actualAmount,
+      onBehalfOf: onBehalfOf,
+      referralCode: referralCode
+    });
+
     SupplyLogic.executeSupply(
       _poolAssets,
       _assetsList,
       _usersConfig[onBehalfOf],
-      DataTypes.ExecuteSupplyParams({
-        user: _msgSender(),
-        asset: asset,
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: actualAmount,
-        onBehalfOf: onBehalfOf,
-        referralCode: referralCode
-      })
+      supplyParams
     );
     emit Supply(_msgSender(), asset, actualAmount, onBehalfOf, referralCode, HCSTopics.SUPPLY_TOPIC());
 
@@ -364,18 +367,21 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   // Removed: supplyWithPermit - HTS tokens don't use ERC20 permit pattern
 
   function withdraw(address asset, uint256 amount, address to) public virtual override nonReentrant whenNotPaused returns (uint256) {
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteWithdrawParams memory withdrawParams = DataTypes.ExecuteWithdrawParams({
+      user: _msgSender(),
+      asset: asset,
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
+      amount: amount,
+      to: to,
+      oracle: ADDRESSES_PROVIDER.getPriceOracle()
+    });
+
     uint256 withdrawn = SupplyLogic.executeWithdraw(
       _poolAssets,
       _assetsList,
       _usersConfig[_msgSender()],
-      DataTypes.ExecuteWithdrawParams({
-        user: _msgSender(),
-        asset: asset,
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: amount,
-        to: to,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle()
-      })
+      withdrawParams
     );
     emit Withdraw(_msgSender(), asset, withdrawn, to, HCSTopics.WITHDRAW_TOPIC());
 
@@ -423,22 +429,25 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     // Register user for liquidation monitoring
     _registerUser(onBehalfOf);
 
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteBorrowParams memory borrowParams = DataTypes.ExecuteBorrowParams({
+      asset: asset,
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
+      user: _msgSender(),
+      onBehalfOf: onBehalfOf,
+      amount: amount,
+      interestRateMode: DataTypes.InterestRateMode(interestRateMode),
+      referralCode: referralCode,
+      releaseUnderlying: true,
+      oracle: ADDRESSES_PROVIDER.getPriceOracle(),
+      priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel()
+    });
+
     BorrowLogic.executeBorrow(
       _poolAssets,
       _assetsList,
       _usersConfig[onBehalfOf],
-      DataTypes.ExecuteBorrowParams({
-        asset: asset,
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        user: _msgSender(),
-        onBehalfOf: onBehalfOf,
-        amount: amount,
-        interestRateMode: DataTypes.InterestRateMode(interestRateMode),
-        referralCode: referralCode,
-        releaseUnderlying: true,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel()
-      })
+      borrowParams
     );
     emit Borrow(_msgSender(), asset, amount, interestRateMode, onBehalfOf, referralCode, HCSTopics.BORROW_TOPIC());
 
@@ -467,20 +476,23 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
     // For native HBAR repay, use msg.value instead of amount parameter
     uint256 actualAmount = (asset == address(0)) ? msg.value : amount;
     
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteRepayParams memory repayParams = DataTypes.ExecuteRepayParams({
+      asset: asset,
+      user: _msgSender(),
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
+      amount: actualAmount,
+      interestRateMode: DataTypes.InterestRateMode(interestRateMode),
+      onBehalfOf: onBehalfOf,
+      useSupplyTokens: false,
+      oracle: ADDRESSES_PROVIDER.getPriceOracle()
+    });
+
     uint256 repaid = BorrowLogic.executeRepay(
       _poolAssets,
       _assetsList,
       _usersConfig[onBehalfOf],
-      DataTypes.ExecuteRepayParams({
-        asset: asset,
-        user: _msgSender(),
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: actualAmount,
-        interestRateMode: DataTypes.InterestRateMode(interestRateMode),
-        onBehalfOf: onBehalfOf,
-        useSupplyTokens: false,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle()
-      })
+      repayParams
     );
     emit Repay(_msgSender(), asset, repaid, interestRateMode, onBehalfOf, HCSTopics.REPAY_TOPIC());
 
@@ -510,20 +522,23 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   // Removed: repayWithPermit - HTS tokens don't use ERC20 permit pattern
 
   function repayWithSupplyTokens(address asset, uint256 amount, uint256 interestRateMode) public virtual override nonReentrant returns (uint256) {
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteRepayParams memory repayParams = DataTypes.ExecuteRepayParams({
+      asset: asset,
+      user: _msgSender(),
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
+      amount: amount,
+      interestRateMode: DataTypes.InterestRateMode(interestRateMode),
+      onBehalfOf: _msgSender(),
+      useSupplyTokens: true,
+      oracle: ADDRESSES_PROVIDER.getPriceOracle()
+    });
+
     return BorrowLogic.executeRepay(
       _poolAssets,
       _assetsList,
       _usersConfig[_msgSender()],
-      DataTypes.ExecuteRepayParams({
-        asset: asset,
-        user: _msgSender(),
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY,
-        amount: amount,
-        interestRateMode: DataTypes.InterestRateMode(interestRateMode),
-        onBehalfOf: _msgSender(),
-        useSupplyTokens: true,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle()
-      })
+      repayParams
     );
   }
 
@@ -574,21 +589,24 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   ) internal {
     if (debtToCover == 0) revert InvalidAmount();
 
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.ExecuteLiquidationCallParams memory liquidationParams = DataTypes.ExecuteLiquidationCallParams({
+      liquidator: _msgSender(),
+      debtToCover: debtToCover,
+      collateralAsset: collateralAsset,
+      debtAsset: debtAsset,
+      borrower: borrower,
+      receiveSupplyToken: receiveSupplyToken,
+      priceOracle: ADDRESSES_PROVIDER.getPriceOracle(),
+      priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel(),
+      interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
+    });
+
     (uint256 actualCollateralLiquidated) = LiquidationLogic.executeLiquidationCall(
       _poolAssets,
       _assetsList,
       _usersConfig,
-      DataTypes.ExecuteLiquidationCallParams({
-        liquidator: _msgSender(),
-        debtToCover: debtToCover,
-        collateralAsset: collateralAsset,
-        debtAsset: debtAsset,
-        borrower: borrower,
-        receiveSupplyToken: receiveSupplyToken,
-        priceOracle: ADDRESSES_PROVIDER.getPriceOracle(),
-        priceOracleSentinel: ADDRESSES_PROVIDER.getPriceOracleSentinel(),
-        interestRateStrategyAddress: RESERVE_INTEREST_RATE_STRATEGY
-      })
+      liquidationParams
     );
 
     // Check slippage protection
@@ -689,13 +707,16 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
   }
 
   function initAsset(address asset, address supplyTokenAddress, address variableDebtAddress) external virtual override onlyPoolConfigurator {
-    if (PoolLogic.executeInitAsset(_poolAssets, _assetsList, DataTypes.InitPoolAssetParams({
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.InitPoolAssetParams memory initParams = DataTypes.InitPoolAssetParams({
       asset: asset,
       supplyTokenAddress: supplyTokenAddress,
       variableDebtAddress: variableDebtAddress,
       assetsCount: _assetsCount,
       maxNumberAssets: AssetConfiguration.MAX_RESERVES_COUNT
-    }))) {
+    });
+
+    if (PoolLogic.executeInitAsset(_poolAssets, _assetsList, initParams)) {
       _assetsCount++;
     }
   }
@@ -748,19 +769,23 @@ abstract contract Pool is VersionedInitializable, PoolStorage, IPool, Multicall 
 
   function finalizeTransfer(address asset, address from, address to, uint256 scaledAmount, uint256 scaledBalanceFromBefore, uint256 scaledBalanceToBefore) external virtual override {
     if (_msgSender() != _poolAssets[asset].supplyTokenAddress) revert Errors.CallerNotSupplyToken();
+
+    // Extract struct to reduce stack depth with viaIR
+    DataTypes.FinalizeTransferParams memory transferParams = DataTypes.FinalizeTransferParams({
+      asset: asset,
+      from: from,
+      to: to,
+      scaledAmount: scaledAmount,
+      scaledBalanceFromBefore: scaledBalanceFromBefore,
+      scaledBalanceToBefore: scaledBalanceToBefore,
+      oracle: ADDRESSES_PROVIDER.getPriceOracle()
+    });
+
     SupplyLogic.executeFinalizeTransfer(
       _poolAssets,
       _assetsList,
       _usersConfig,
-      DataTypes.FinalizeTransferParams({
-        asset: asset,
-        from: from,
-        to: to,
-        scaledAmount: scaledAmount,
-        scaledBalanceFromBefore: scaledBalanceFromBefore,
-        scaledBalanceToBefore: scaledBalanceToBefore,
-        oracle: ADDRESSES_PROVIDER.getPriceOracle()
-      })
+      transferParams
     );
   }
 
