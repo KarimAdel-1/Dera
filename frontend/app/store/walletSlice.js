@@ -44,27 +44,41 @@ const walletSlice = createSlice({
       );
 
       if (!exists) {
-        state.wallets.push(action.payload);
+        // Create wallet with consistent structure including id property
+        const wallet = {
+          ...action.payload,
+          id: action.payload.id || `${action.payload.walletType || 'hashpack'}_${action.payload.address || action.payload.accountId}`,
+          address: action.payload.address || action.payload.accountId,
+          connectedAt: action.payload.connectedAt || new Date().toISOString(),
+          isDefault: action.payload.isDefault || state.wallets.length === 0,
+        };
+
+        state.wallets.push(wallet);
 
         // Set as default if it's the first wallet
         if (state.wallets.length === 1) {
-          state.defaultWallet = action.payload.accountId;
-          state.activeWalletId = action.payload.accountId;
+          state.defaultWallet = wallet.address;
+          state.activeWalletId = wallet.id;
         }
       }
     },
     removeWallet: (state, action) => {
+      const walletToRemove = state.wallets.find((w) => w.id === action.payload || w.accountId === action.payload);
+
       state.wallets = state.wallets.filter(
-        (w) => w.accountId !== action.payload
+        (w) => w.id !== action.payload && w.accountId !== action.payload
       );
 
-      // Remove wallet data
-      delete state.walletsData[action.payload];
+      // Remove wallet data (using accountId for walletsData key)
+      if (walletToRemove) {
+        delete state.walletsData[walletToRemove.accountId];
+      }
 
-      // If removed wallet was default, set first wallet as default
-      if (state.defaultWallet === action.payload) {
-        state.defaultWallet = state.wallets[0]?.accountId || null;
-        state.activeWalletId = state.wallets[0]?.accountId || null;
+      // If removed wallet was default or active, set first wallet as default
+      if (state.defaultWallet === walletToRemove?.address || state.activeWalletId === action.payload) {
+        const firstWallet = state.wallets[0];
+        state.defaultWallet = firstWallet?.address || null;
+        state.activeWalletId = firstWallet?.id || null;
       }
     },
     setDefaultWallet: (state, action) => {
@@ -72,12 +86,13 @@ const walletSlice = createSlice({
       state.wallets.forEach(wallet => {
         wallet.isDefault = false;
       });
-      
+
       // Find and set the new default wallet
       const wallet = state.wallets.find((w) => w.id === action.payload);
       if (wallet) {
         wallet.isDefault = true;
         state.defaultWallet = wallet.address;
+        state.activeWalletId = wallet.id;
       }
     },
     setError: (state, action) => {

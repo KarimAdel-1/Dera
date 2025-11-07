@@ -37,6 +37,7 @@ export const useWallet = () => {
             const wallet = {
               accountId,
               address: accountId,
+              walletType: 'hashpack',
               network: 'testnet',
               isDefault: false,
               connectedAt: Date.now(),
@@ -119,6 +120,7 @@ export const useWallet = () => {
         const newWallet = {
           accountId: walletData.accountId,
           address: walletData.address,
+          walletType: 'hashpack',
           network: walletData.network,
           isDefault: wallets.length === 0 && index === 0,
           connectedAt: Date.now(),
