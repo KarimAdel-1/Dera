@@ -51,19 +51,16 @@ contract ConcreteDeraSupplyToken is DeraSupplyToken {
     if (asset == address(0)) {
       return;
     }
-    
+
     (bool checkSuccess, bytes memory checkData) = HTS.call(
       abi.encodeWithSelector(IHederaTokenService.isToken.selector, asset)
     );
-    emit DebugHTSCheck(checkSuccess, checkData);
     if (checkSuccess) {
       (int64 rc, bool isHTS) = abi.decode(checkData, (int64, bool));
-      emit DebugHTSIsTokenResult(rc, isHTS);
       if (rc == SUCCESS && isHTS) {
         (bool success, bytes memory data) = HTS.call(
           abi.encodeWithSelector(IHederaTokenService.associateToken.selector, address(this), asset)
         );
-        emit DebugHTSAssociateResult(success, data);
         if (success) {
           int64 responseCode = abi.decode(data, (int64));
           require(responseCode == SUCCESS, 'HTS_ASSOCIATE_FAILED');
