@@ -377,7 +377,7 @@ class HashPackService {
         }, 120000); // 2 minute timeout
 
         // Listen for pairing event once
-        const pairingHandler = (pairingData) => {
+        const pairingHandler = async (pairingData) => {
           clearTimeout(timeout);
           this.hashconnect.pairingEvent.off(pairingHandler);
 
@@ -401,11 +401,15 @@ class HashPackService {
             return;
           }
 
-          // Get the topic from HashConnect's internal data
+          // Wait for HashConnect to update internal state, then get topic
+          console.log('⏳ Waiting 100ms for HashConnect to update internal state...');
+          await new Promise(resolve => setTimeout(resolve, 100));
+
           const pairings = this.hashconnect.hcData?.pairingData || [];
           const topic = pairings.length > 0 ? pairings[0].topic : null;
 
-          console.log('Topic from hcData:', topic);
+          console.log('✅ Topic from hcData after wait:', topic);
+          console.log('📊 Number of pairings in hcData:', pairings.length);
 
           // Return all accounts from the paired wallet
           const allAccounts = pairingData.accountIds.map((accountId) => ({
@@ -416,10 +420,15 @@ class HashPackService {
 
           console.log('All accounts to be returned:', allAccounts);
 
+          // Store complete pairing data with topic
           this.pairingData = {
             ...pairingData,
             topic,
           };
+
+          // Update state to Paired
+          this.state = HashConnectConnectionState?.Paired || 'Paired';
+          console.log('✅ Service state updated to:', this.state);
 
           // Save session to database for persistence across localStorage clears
           // Only save if we have a topic
