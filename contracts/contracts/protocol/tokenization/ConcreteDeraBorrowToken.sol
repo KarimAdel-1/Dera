@@ -24,8 +24,8 @@ contract ConcreteDeraBorrowToken is DeraBorrowToken {
     IPool initializingPool,
     address underlyingAsset,
     uint8 debtTokenDecimals,
-    string calldata debtTokenName,
-    string calldata debtTokenSymbol,
+    string memory debtTokenName,
+    string memory debtTokenSymbol,
     bytes calldata params
   ) public override initializer {
     require(address(initializingPool) == address(POOL), 'POOL_INCONSISTENT');
