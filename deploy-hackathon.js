@@ -413,6 +413,73 @@ async function configureFrontend() {
   return true;
 }
 
+async function updateRootEnv() {
+  log('\nUpdating root .env file...', 'cyan');
+
+  const rootEnvPath = path.join(__dirname, '.env');
+  const envExamplePath = path.join(__dirname, '.env.deployment.example');
+
+  // Create .env from example if it doesn't exist
+  if (!fs.existsSync(rootEnvPath) && fs.existsSync(envExamplePath)) {
+    fs.copyFileSync(envExamplePath, rootEnvPath);
+    log('✅ Created .env from template', 'green');
+  }
+
+  // Load deployment info
+  const deploymentInfoPath = path.join(__dirname, 'contracts', 'deployment-info.json');
+  const topicsPath = path.join(__dirname, 'contracts', 'hcs-topics.json');
+
+  if (!fs.existsSync(deploymentInfoPath)) {
+    log('⚠️  deployment-info.json not found, skipping root .env update', 'yellow');
+    return false;
+  }
+
+  const deploymentInfo = JSON.parse(fs.readFileSync(deploymentInfoPath, 'utf8'));
+  const topicsInfo = fs.existsSync(topicsPath)
+    ? JSON.parse(fs.readFileSync(topicsPath, 'utf8'))
+    : null;
+
+  let envContent = fs.existsSync(rootEnvPath)
+    ? fs.readFileSync(rootEnvPath, 'utf8')
+    : '';
+
+  // Helper function to update or append env variable
+  const updateEnvVar = (key, value) => {
+    const regex = new RegExp(`^${key}=.*$`, 'gm');
+    if (envContent.match(regex)) {
+      envContent = envContent.replace(regex, `${key}=${value}`);
+    } else {
+      envContent += `\n${key}=${value}`;
+    }
+  };
+
+  // Update contract addresses
+  if (deploymentInfo.addresses) {
+    updateEnvVar('POOL_ADDRESSES_PROVIDER', deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER || '');
+    updateEnvVar('POOL_ADDRESS', deploymentInfo.addresses.POOL || '');
+    updateEnvVar('POOL_CONFIGURATOR', deploymentInfo.addresses.POOL_CONFIGURATOR || '');
+    updateEnvVar('ACL_MANAGER', deploymentInfo.addresses.ACL_MANAGER || '');
+    updateEnvVar('ORACLE_ADDRESS', deploymentInfo.addresses.ORACLE || '');
+    updateEnvVar('RATE_STRATEGY', deploymentInfo.addresses.RATE_STRATEGY || '');
+    updateEnvVar('MULTI_ASSET_STAKING_ADDRESS', deploymentInfo.addresses.MULTI_ASSET_STAKING || '');
+    updateEnvVar('ANALYTICS_CONTRACT_ADDRESS', deploymentInfo.addresses.ANALYTICS || '');
+  }
+
+  // Update HCS topic IDs
+  if (topicsInfo && topicsInfo.topics) {
+    updateEnvVar('HCS_SUPPLY_TOPIC', topicsInfo.topics.SUPPLY || '');
+    updateEnvVar('HCS_WITHDRAW_TOPIC', topicsInfo.topics.WITHDRAW || '');
+    updateEnvVar('HCS_BORROW_TOPIC', topicsInfo.topics.BORROW || '');
+    updateEnvVar('HCS_REPAY_TOPIC', topicsInfo.topics.REPAY || '');
+    updateEnvVar('HCS_LIQUIDATION_TOPIC', topicsInfo.topics.LIQUIDATION || '');
+  }
+
+  fs.writeFileSync(rootEnvPath, envContent);
+  log('✅ Root .env file updated with deployment addresses', 'green');
+
+  return true;
+}
+
 function displayDeploymentSummary() {
   log('\n🎉 DEPLOYMENT COMPLETE!', 'green');
   log('━'.repeat(60), 'green');
@@ -545,6 +612,9 @@ async function main() {
     log('\n❌ Deployment failed during frontend configuration', 'red');
     process.exit(1);
   }
+
+  // Step 7: Update root .env file
+  await updateRootEnv();
 
   const endTime = Date.now();
   const duration = Math.round((endTime - startTime) / 1000);

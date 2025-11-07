@@ -588,21 +588,14 @@ class DeraProtocolService {
    */
   async getSupportedAssets() {
     try {
-      let assetAddresses = [];
-      
-      // Get assets using Pool's getAssetsList() method (like AAVE's getReservesList)
-      try {
-        assetAddresses = await this.poolContract.getAssetsList();
-        console.log(`Found ${assetAddresses.length} assets in Pool`);
-      } catch (contractError) {
-        console.warn('Could not get assets from contract:', contractError.message);
-        // Fallback to known testnet assets
-        assetAddresses = [
-          '0x0000000000000000000000000000000000000000', // HBAR
-          '0x000000000000000000000000000000000006f89a', // USDC
-          '0x00000000000000000000000000000000000b2aD5'  // SAUCE
-        ];
+      // Get assets from Pool contract - NO FALLBACK
+      const assetAddresses = await this.poolContract.getAssetsList();
+
+      if (!assetAddresses || assetAddresses.length === 0) {
+        throw new Error('No assets found in Pool contract. Please run asset initialization.');
       }
+
+      console.log(`Found ${assetAddresses.length} assets in Pool`);
 
       // Get real asset details from contracts
       const assetsDetails = [];
@@ -613,36 +606,20 @@ class DeraProtocolService {
             assetsDetails.push(assetDetail);
           }
         } catch (error) {
-          console.warn(`Failed to get details for asset ${address}:`, error.message);
-          // Fallback to hardcoded data for known assets
-          const fallback = this.getFallbackAssetData(address);
-          if (fallback) {
-            assetsDetails.push(fallback);
-          }
+          console.error(`Failed to get details for asset ${address}:`, error.message);
+          throw new Error(`Failed to load asset ${address}. Contract may not be properly configured.`);
         }
+      }
+
+      if (assetsDetails.length === 0) {
+        throw new Error('No valid asset details could be loaded from contracts.');
       }
 
       console.log('✅ Loaded assets from Pool:', assetsDetails);
       return assetsDetails;
     } catch (error) {
       console.error('Get supported assets error:', error);
-      
-      // Final fallback - return demo assets if everything fails
-      console.warn('Using demo assets as final fallback');
-      const fallbackAssets = [
-        '0x0000000000000000000000000000000000000000',
-        '0x000000000000000000000000000000000006f89a',
-        '0x00000000000000000000000000000000000b2aD5'
-      ];
-      
-      const fallbackDetails = [];
-      for (const address of fallbackAssets) {
-        const fallback = this.getFallbackAssetData(address);
-        if (fallback) {
-          fallbackDetails.push(fallback);
-        }
-      }
-      return fallbackDetails;
+      throw error; // Propagate error to frontend - NO FALLBACK DATA
     }
   }
 
@@ -885,56 +862,46 @@ class DeraProtocolService {
    * @returns {Promise<object>} Asset details with real APY, LTV, etc.
    */
   async getAssetDetailsFromContract(address) {
-    try {
-      // Get basic asset info
-      const assetInfo = this.getBasicAssetInfo(address);
-      
-      // Try to get real data from Pool contract using getAssetData
-      let assetData;
-      try {
-        assetData = await this.poolContract.getAssetData(address);
-        
-        // Check if asset data is valid
-        if (!assetData || !assetData.supplyTokenAddress || assetData.supplyTokenAddress === '0x0000000000000000000000000000000000000000') {
-          console.warn(`Asset ${address} not initialized in Pool contract`);
-          return this.getFallbackAssetData(address);
-        }
-      } catch (error) {
-        console.warn(`Cannot get contract data for ${address}:`, error.message);
-        return this.getFallbackAssetData(address);
-      }
+    // Get basic asset info
+    const assetInfo = this.getBasicAssetInfo(address);
 
-      // Calculate real APY from contract data
-      const supplyAPY = this.calculateAPY(assetData.currentLiquidityRate || 0);
-      const borrowAPY = this.calculateAPY(assetData.currentVariableBorrowRate || 0);
+    // Get real data from Pool contract - NO FALLBACK
+    const assetData = await this.poolContract.getAssetData(address);
 
-      // Extract LTV and liquidation threshold from configuration
-      const { ltv, liquidationThreshold } = this.parseConfiguration(assetData.configuration);
-
-      // Get price from oracle or use fallback
-      let price = '0';
-      try {
-        const oraclePrice = await this.oracleContract.getAssetPrice(address);
-        price = ethers.formatUnits(oraclePrice, 8);
-      } catch (error) {
-        price = assetInfo.symbol === 'USDC' ? '1.00' : '0.08';
-      }
-
-      return {
-        address,
-        symbol: assetInfo.symbol,
-        name: assetInfo.name,
-        decimals: assetInfo.decimals,
-        supplyAPY: supplyAPY.toFixed(2),
-        borrowAPY: borrowAPY.toFixed(2),
-        price,
-        ltv,
-        liquidationThreshold
-      };
-    } catch (error) {
-      console.error(`Error getting asset details for ${address}:`, error);
-      return this.getFallbackAssetData(address);
+    // Check if asset data is valid
+    if (!assetData || !assetData.supplyTokenAddress || assetData.supplyTokenAddress === '0x0000000000000000000000000000000000000000') {
+      throw new Error(`Asset ${address} (${assetInfo.symbol}) not initialized in Pool contract`);
     }
+
+    // Calculate real APY from contract data
+    const supplyAPY = this.calculateAPY(assetData.currentLiquidityRate || 0);
+    const borrowAPY = this.calculateAPY(assetData.currentVariableBorrowRate || 0);
+
+    // Extract LTV and liquidation threshold from configuration
+    const { ltv, liquidationThreshold } = this.parseConfiguration(assetData.configuration);
+
+    // Get price from oracle
+    let price = '0';
+    try {
+      const oraclePrice = await this.oracleContract.getAssetPrice(address);
+      price = ethers.formatUnits(oraclePrice, 8);
+    } catch (error) {
+      console.warn(`Oracle price not available for ${assetInfo.symbol}, using fallback`);
+      // Only for price, allow fallback since oracle might not be configured yet
+      price = assetInfo.symbol === 'USDC' ? '1.00' : '0.08';
+    }
+
+    return {
+      address,
+      symbol: assetInfo.symbol,
+      name: assetInfo.name,
+      decimals: assetInfo.decimals,
+      supplyAPY: supplyAPY.toFixed(2),
+      borrowAPY: borrowAPY.toFixed(2),
+      price,
+      ltv,
+      liquidationThreshold
+    };
   }
 
   /**
@@ -1035,52 +1002,6 @@ class DeraProtocolService {
       console.error('Toggle collateral error:', error);
       throw error;
     }
-  }
-
-  /**
-   * Get fallback asset data when contract calls fail
-   * @param {string} address - Asset address
-   * @returns {object} Fallback asset data
-   */
-  getFallbackAssetData(address) {
-    if (address === '0x0000000000000000000000000000000000000000') {
-      return {
-        address,
-        symbol: 'HBAR',
-        name: 'Hedera',
-        decimals: 8,
-        supplyAPY: '0.00',
-        borrowAPY: '0.00',
-        price: '0.08',
-        ltv: 75,
-        liquidationThreshold: 80
-      };
-    } else if (address === '0x000000000000000000000000000000000006f89a') {
-      return {
-        address,
-        symbol: 'USDC',
-        name: 'USD Coin',
-        decimals: 6,
-        supplyAPY: '0.00',
-        borrowAPY: '0.00',
-        price: '1.00',
-        ltv: 80,
-        liquidationThreshold: 85
-      };
-    } else if (address === '0x00000000000000000000000000000000000b2aD5') {
-      return {
-        address,
-        symbol: 'SAUCE',
-        name: 'SaucerSwap',
-        decimals: 6,
-        supplyAPY: '0.00',
-        borrowAPY: '0.00',
-        price: '0.02',
-        ltv: 65,
-        liquidationThreshold: 70
-      };
-    }
-    return null;
   }
 
   /**

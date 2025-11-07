@@ -15,7 +15,6 @@ import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import deraProtocolService from '../../../../services/deraProtocolService';
-import { FALLBACK_ASSETS } from './fallbackData';
 
 const DeraProtocolDashboard = () => {
   const [activeTab, setActiveTab] = useState('supply');
@@ -55,21 +54,23 @@ const DeraProtocolDashboard = () => {
         await deraProtocolService.initialize();
         console.log('✅ DeraProtocolService initialized');
 
-        // Fetch supported assets with real contract data
+        // Fetch supported assets with real contract data ONLY
         const supportedAssets = await deraProtocolService.getSupportedAssets();
-        
+
         if (supportedAssets && supportedAssets.length > 0) {
           setAssets(supportedAssets);
           console.log('✅ Loaded assets with real contract data:', supportedAssets);
         } else {
-          throw new Error('No assets returned from contract');
+          throw new Error('No assets found in Pool contract. Please initialize assets first.');
         }
       } catch (error) {
         console.error('❌ Failed to load assets from contract:', error);
         setAssetsError(error.message);
-        console.log('📦 Loading fallback mock assets:', FALLBACK_ASSETS);
-        setAssets(FALLBACK_ASSETS);
-        showNotification('Using mock data for testing', 'warning');
+        setAssets([]);
+        showNotification(
+          `Failed to load assets: ${error.message}. Please check contract deployment.`,
+          'error'
+        );
       } finally {
         setIsLoadingAssets(false);
       }
