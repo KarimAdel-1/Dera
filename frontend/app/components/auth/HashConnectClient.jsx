@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { hashpackService } from "../../../services/hashpackService.js";
 import { connectWallet, disconnectWallet, setNetwork, deleteTempWallet, processWalletConnection, generateUniqueIdentifier, setCurrentUser } from "../../store/walletSlice";
 import { store } from "../../store/store.js";
+import { walletProvider, WALLET_TYPES } from "../../../services/walletProvider.js";
 
 export const HashConnectClient = () => {
   const dispatch = useDispatch();
@@ -72,7 +73,15 @@ export const HashConnectClient = () => {
       
       // Clean up temp wallet after processing
       dispatch(deleteTempWallet());
-      
+
+      // Sync walletProvider singleton for DeraProtocolService
+      try {
+        await walletProvider.checkPreviousConnection(WALLET_TYPES.HASHPACK);
+        console.log('✅ walletProvider synced with HashPack connection (auto-restore)');
+      } catch (syncError) {
+        console.error('⚠️ Failed to sync walletProvider on restore:', syncError);
+      }
+
       // Notify about connection
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('hashpackConnected', {
@@ -181,12 +190,20 @@ export const HashConnectButton = () => {
                   cardSkin: 'Card-1.png',
                   connectedAt: new Date().toISOString()
                 };
-                
+
                 console.log('🚀 About to process wallet connection:', accounts[0].accountId);
-                
+
                 // Use wallet-first check logic
                 await dispatch(processWalletConnection(accounts[0].accountId, walletData));
-                
+
+                // Sync walletProvider singleton for DeraProtocolService
+                try {
+                  await walletProvider.checkPreviousConnection(WALLET_TYPES.HASHPACK);
+                  console.log('✅ walletProvider synced with HashPack connection');
+                } catch (syncError) {
+                  console.error('⚠️ Failed to sync walletProvider, but Redux state is updated:', syncError);
+                }
+
                 // Navigate to dashboard after successful connection
                 router.push('/dashboard');
               } else {
