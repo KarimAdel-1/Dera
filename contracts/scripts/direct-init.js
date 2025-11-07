@@ -217,9 +217,21 @@ async function main() {
   // Verify
   const assetsList = await pool.getAssetsList();
   console.log("\n✅ Assets in pool:", assetsList.length);
-  console.log("  HBAR:", assetsList.includes(ethers.ZeroAddress));
-  console.log("  USDC:", assetsList.includes(USDC_ADDRESS));
-  
+
+  // Show actual addresses from pool
+  console.log("\nRegistered asset addresses:");
+  assetsList.forEach((addr, idx) => {
+    console.log(`  ${idx + 1}. ${addr}`);
+  });
+
+  // Check if HBAR and USDC are present (case-insensitive)
+  const hbarPresent = assetsList.some(addr => addr.toLowerCase() === ethers.ZeroAddress.toLowerCase());
+  const usdcPresent = assetsList.some(addr => addr.toLowerCase() === USDC_ADDRESS.toLowerCase());
+
+  console.log("\nAsset verification:");
+  console.log(`  HBAR (${ethers.ZeroAddress}):`, hbarPresent ? "✅ Registered" : "❌ Not found");
+  console.log(`  USDC (${USDC_ADDRESS}):`, usdcPresent ? "✅ Registered" : "❌ Not found");
+
   console.log("\n🎉 Initialization complete!");
 }
 
