@@ -591,18 +591,17 @@ class HashPackService {
       throw new Error('HashConnect not initialized');
     }
 
-    // Check if we have any active pairing
+    // Check if we have any active pairing in HashConnect's internal data
     const pairings = this.hashconnect.hcData?.pairingData || [];
     if (pairings.length === 0) {
       throw new Error('No active pairing. Please connect your wallet first.');
     }
 
-    // Ensure pairingData has the topic from HashConnect's internal data
-    if (!this.pairingData?.topic && pairings.length > 0) {
-      this.pairingData = {
-        ...this.pairingData,
-        topic: pairings[0].topic,
-      };
+    // Sync pairingData with HashConnect's internal state (same pattern as initialize())
+    if (pairings.length > 0 && !this.pairingData) {
+      this.pairingData = pairings[0];
+      this.state = HashConnectConnectionState?.Paired || 'Paired';
+      console.log('✅ Synced pairing state in getSigner:', this.pairingData.accountIds);
     }
 
     // HashConnect v3 provides getSigner directly

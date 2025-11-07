@@ -1,0 +1,333 @@
+================================================================================
+DERA PROTOCOL - CLEANUP ACTION PLAN & PRIORITY MATRIX
+================================================================================
+
+PRIORITY 1: IMMEDIATE (Low Risk, High Impact)
+================================================================================
+
+ACTION 1.1: DELETE UNUSED POOL CONFIGURATOR VARIANTS
+Files to Delete:
+  - /home/user/Dera/contracts/contracts/protocol/pool/SimplePoolConfigurator.sol
+  - /home/user/Dera/contracts/contracts/protocol/pool/WorkingPoolConfigurator.sol
+  - /home/user/Dera/contracts/contracts/protocol/pool/ProductionPoolConfigurator.sol
+  - /home/user/Dera/contracts/contracts/protocol/pool/DirectPoolConfigurator.sol
+
+Impact:
+  ✓ Remove 271 lines of dead code
+  ✓ Simplify pool architecture (now just PoolConfigurator + DeraPoolConfigurator)
+  ✓ Reduce developer confusion about which configurator to use
+  ✗ No breaking changes - zero references in entire codebase
+  
+Risk: NONE
+Test Required: Recompile contracts, existing tests unchanged
+
+Commands:
+  rm /home/user/Dera/contracts/contracts/protocol/pool/SimplePoolConfigurator.sol
+  rm /home/user/Dera/contracts/contracts/protocol/pool/WorkingPoolConfigurator.sol
+  rm /home/user/Dera/contracts/contracts/protocol/pool/ProductionPoolConfigurator.sol
+  rm /home/user/Dera/contracts/contracts/protocol/pool/DirectPoolConfigurator.sol
+
+
+ACTION 1.2: DELETE UNUSED CLONE FACTORY TEST UTILITY
+File to Delete:
+  - /home/user/Dera/contracts/contracts/test/CloneFactory.sol
+
+Impact:
+  ✓ Remove 15 lines of unused test utility
+  ✓ Clarify that OpenZeppelin Clones is the standard
+  ✗ No breaking changes - not used anywhere
+
+Risk: NONE
+Test Required: Just verify tests still run
+
+Commands:
+  rm /home/user/Dera/contracts/contracts/test/CloneFactory.sol
+
+
+PRIORITY 2: HIGH (Low Risk, Medium Impact)
+================================================================================
+
+ACTION 2.1: ORGANIZE DIAGNOSTIC SCRIPTS
+Move diagnostic/debug scripts to subfolder:
+
+Create new directory:
+  mkdir -p /home/user/Dera/contracts/scripts/diagnostic
+
+Move these files to scripts/diagnostic/:
+  mv /home/user/Dera/contracts/scripts/check-bytecode-sizes.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/check-configurator-pool.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/deep-diagnostic.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/diagnose-asset-init.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/diagnose-whbar.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/final-diagnosis.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/test-proxy-is-contract.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/final-init-test.js ./diagnostic/
+  mv /home/user/Dera/contracts/scripts/grant-configurator-role.js ./diagnostic/
+
+Impact:
+  ✓ Cleaner scripts/ directory (now only shows core deployment scripts)
+  ✓ Clear separation: deploy/ vs diagnostic/ scripts
+  ✓ Easier for new developers to find active scripts
+  ✗ No breaking changes - scripts work from any location
+
+Risk: NONE (if running scripts with full path)
+Test Required: None - just organization
+
+Keep in scripts/ (Core deployment):
+  - deploy-complete.js
+  - deploy-configurator-only.js
+  - deploy-whbar-wrapper.js
+  - complete-setup-and-init.js
+  - create-hcs-topics.js
+  - verify-deployment.js
+  - verify-assets.js
+  - redeploy-pool-only.js
+  - redeploy-configurator.js
+  - init-assets.js
+  - init-hbar.js
+  - init-usdc.js
+  - init-whbar.js
+  - init-whbar-fixed.js
+  - direct-init.js
+
+
+ACTION 2.2: CLARIFY WHBAR INITIALIZATION SCRIPTS
+Files: init-whbar.js vs init-whbar-fixed.js
+
+Question: Which is current?
+  - init-whbar.js (original)
+  - init-whbar-fixed.js (appears to be fixed version)
+
+Action Items:
+  1. Review both scripts
+  2. Document which one is authoritative
+  3. Rename deprecated one to init-whbar-legacy.js (or delete if fixed is better)
+  4. Add comment at top of current version: "Canonical WHBAR initialization script"
+
+Risk: LOW (if properly documented)
+
+
+PRIORITY 3: MEDIUM (Low Risk, Code Quality)
+================================================================================
+
+ACTION 3.1: REMOVE PLACEHOLDER FUNCTION
+File: /home/user/Dera/contracts/contracts/protocol/pool/DeraPoolConfigurator.sol
+Lines: 36-42
+
+Current Code:
+  function setAssetInterestRateData(address /* asset */, bytes calldata /* rateData */) 
+    external pure override {
+    revert("Not implemented");
+  }
+
+Options:
+  A) Remove entirely if interface doesn't require it
+  B) Implement with actual logic
+  C) Keep but add clear @deprecated notice
+
+Recommendation: Option A (remove if interface allows)
+
+Impact:
+  ✓ Remove 6 lines of placeholder code
+  ✓ Function that always reverts is obviously broken
+  ✗ Verify this function isn't required by IPoolConfigurator interface
+
+Risk: LOW (check interface compatibility)
+Test Required: Recompile, run existing tests
+
+
+ACTION 3.2: CLEAN UP UNUSED STABLE DEBT TOKEN
+File: /home/user/Dera/contracts/contracts/helpers/DeraStableAndVariableTokensHelper.sol
+Lines: 40-43
+
+Current Code:
+  // For now, we only deploy variable debt tokens (stable debt disabled)
+  // Deploy placeholder for stable debt (not used)
+  ConcreteDeraBorrowToken stableToken = new ConcreteDeraBorrowToken(IPool(pool));
+  ConcreteDeraBorrowToken variableToken = new ConcreteDeraBorrowToken(IPool(pool));
+
+Issue:
+  - stableToken is created but never used (wasted gas)
+  - Both tokens are identical (no differentiation)
+  - Comment indicates stable debt is disabled
+
+Options:
+  A) Remove stableToken deployment
+  B) Remove from emit DeployedContracts if only returning variable token
+  C) Keep with detailed comment explaining why
+
+Recommendation: Option A (remove unused deployment)
+
+Impact:
+  ✓ Remove 6 lines of dead code
+  ✓ Save unnecessary deployment gas
+
+Risk: LOW
+Test Required: Recompile, verify helper still works for variable debt
+
+
+PRIORITY 4: COMPLEX (Needs Strategic Decision)
+================================================================================
+
+ACTION 4.1: DECIDE PHASE 2 HEDERA FEATURES
+Files Affected:
+  - /home/user/Dera/contracts/contracts/hedera/DeraNodeStaking.sol
+  - /home/user/Dera/contracts/contracts/hedera/DeraHCSEventStreamer.sol
+  - /home/user/Dera/contracts/contracts/hedera/DeraProtocolIntegration.sol
+  - /home/user/Dera/contracts/contracts/hedera/DeraDeploymentConfig.sol
+
+Current Status:
+  - Implementations written with extensive documentation
+  - Interfaces created in /contracts/interfaces/
+  - Partial integration in Pool.sol (conditional with zero address default)
+  - NOT deployed in deploy-complete.js
+
+Decision Required:
+  Option A: Complete Phase 2 Integration
+    - Create deployment script to instantiate these 4 contracts
+    - Update Pool.sol to use real addresses instead of zero address
+    - Test full Phase 2 functionality
+    - Timeline: ??? weeks
+
+  Option B: Archive Phase 2 for Later
+    - Move to separate git branch "phase2-hedera"
+    - Remove from main codebase
+    - Remove from Pool.sol references
+    - Re-implement when Phase 2 is prioritized
+
+  Option C: Keep as-is with Clear Documentation
+    - Mark entire /hedera/ folder with README: "Phase 2 - Not Active"
+    - Add comments to Pool.sol: "Phase 2 hooks - awaiting deployment"
+    - Keep for reference but don't integrate
+
+Recommendation: Option B or C
+  - Phase 2 features are excellent but currently incomplete
+  - Leaving in codebase with clear docs is safest approach
+  - Keeps code for reference without creating confusion
+
+Risk: MEDIUM (affects architecture)
+Test Required: If completing Phase 2, extensive testing needed
+
+
+PRIORITY 5: LOW (Nice to Have)
+================================================================================
+
+ACTION 5.1: VERIFY PoolInstance.sol PURPOSE
+File: /home/user/Dera/contracts/contracts/protocol/pool/PoolInstance.sol
+Lines: 41 lines
+
+Status: Appears to be template/artifact
+Reason: Only 3 imports, minimal code
+
+Action:
+  1. Review file contents
+  2. If it's a template: DELETE
+  3. If it serves a purpose: Add clear documentation
+
+Risk: LOW
+
+
+ACTION 5.2: COMPLETE INTEGRATION TESTS
+File: /home/user/Dera/contracts/test/integration/SupplyBorrowRepay.test.js
+Status: BOILERPLATE - Only comments, no implementation
+
+Action:
+  - Implement actual test cases
+  - Verify full supply -> borrow -> repay flow
+  - Add interest accrual tests
+
+Impact:
+  ✓ Improves test coverage
+  ✓ Validates integration scenarios
+  
+Risk: NONE (test improvement)
+
+
+================================================================================
+QUICK REFERENCE: SAFE TO DELETE NOW
+================================================================================
+
+Contracts (286 lines total):
+  1. SimplePoolConfigurator.sol (61 lines)
+  2. WorkingPoolConfigurator.sol (63 lines)
+  3. ProductionPoolConfigurator.sol (87 lines)
+  4. DirectPoolConfigurator.sol (60 lines)
+  5. CloneFactory.sol (15 lines)
+
+Why Safe:
+  - Zero references in entire codebase
+  - No imports or dependencies
+  - Never instantiated in deployment scripts
+  - Clearly development alternatives
+
+Testing After Deletion:
+  - npm run compile (verify contracts compile)
+  - npm test (run existing test suite)
+  - No code changes needed - purely deletion
+
+
+================================================================================
+QUICK REFERENCE: ITEMS TO REORGANIZE (No Deletion)
+================================================================================
+
+Move to scripts/diagnostic/:
+  - check-bytecode-sizes.js
+  - check-configurator-pool.js
+  - deep-diagnostic.js
+  - diagnose-asset-init.js
+  - diagnose-whbar.js
+  - final-diagnosis.js
+  - test-proxy-is-contract.js
+  - final-init-test.js
+  - grant-configurator-role.js
+
+Why Reorganize:
+  - These are development utilities, not production deployment scripts
+  - Clutters the main scripts/ directory
+  - New developers might confuse diagnostic scripts with deployment flow
+  - Better organization improves developer experience
+
+Testing After Reorganization:
+  - If scripts run from fixed path: no changes needed
+  - If scripts reference each other: may need path updates
+  - Recommended: Use hardhat tasks instead of direct script calls
+
+
+================================================================================
+TOTAL CLEANUP IMPACT ESTIMATE
+================================================================================
+
+Lines of Code Removed: ~400-500 lines
+  - Unused Pool Configurators: 271 lines
+  - CloneFactory: 15 lines
+  - Placeholder functions: ~13 lines
+  - Reorganized scripts: No deletion, just organization
+
+Time to Execute:
+  - Priority 1 (Deletions): 15 minutes
+  - Priority 2 (Reorganization): 30 minutes
+  - Priority 3 (Code Quality): 1 hour
+  - Priority 4 (Phase 2 Decision): 2-4 hours (decision only)
+
+Risk Assessment:
+  - Priority 1: NONE (zero dependencies)
+  - Priority 2: NONE (organization only)
+  - Priority 3: LOW (code quality)
+  - Priority 4: MEDIUM (strategic)
+  - Priority 5: LOW (nice to have)
+
+Testing Effort:
+  - After Priority 1+2: npm compile && npm test (5 minutes)
+  - After Priority 3: npm compile && npm test (5 minutes)
+  - After Priority 4: Full test suite + integration tests (1+ hour)
+
+Recommended Sequence:
+  1. Do Priority 1 deletions
+  2. Do Priority 2 reorganization
+  3. Run tests
+  4. Do Priority 3 cleanup
+  5. Run tests
+  6. Make strategic decision on Priority 4
+  7. Optional: Do Priority 5
+
+================================================================================
