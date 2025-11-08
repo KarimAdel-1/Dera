@@ -317,6 +317,23 @@ class WalletProvider {
   }
 
   /**
+   * Get ethers provider for reading blockchain data
+   * @returns {object} Ethers JSON-RPC provider
+   */
+  getProvider() {
+    // Import ethers dynamically to avoid SSR issues
+    const { ethers } = require('ethers');
+
+    // Use the same RPC URL as the protocol service
+    const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet.hashio.io/api';
+
+    // Create and return a JSON-RPC provider
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+
+    return provider;
+  }
+
+  /**
    * Save wallet type to localStorage
    * @param {string} walletType - Wallet type to save
    */
