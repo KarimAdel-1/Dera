@@ -10,7 +10,7 @@ async function main() {
   console.log("Deployer:", deployer.address);
   console.log("Pool:", deploymentInfo.addresses.POOL);
 
-  const pool = await ethers.getContractAt("IPool", deploymentInfo.addresses.POOL);
+  const pool = await ethers.getContractAt("DeraPool", deploymentInfo.addresses.POOL);
 
   const HBAR_ADDRESS = ethers.ZeroAddress;
   const USDC_ADDRESS = "0x0000000000000000000000000000000000068cDa";
@@ -21,17 +21,22 @@ async function main() {
 
   // The simplest way to trigger a reserve update is to do a tiny supply
   // This will update the reserve's lastUpdateTimestamp and initialize indices
+  // Hedera requires minimum 10_000_000_000 wei (0.1 HBAR) for HBAR transfers
 
   console.log("1️⃣  Updating HBAR reserve state...");
-  console.log("   Method: Supply 1 tinybar (0.00000001 HBAR) to trigger state update\n");
+  console.log("   Method: Supply 0.1 HBAR (minimum amount) to trigger state update\n");
+
+  const minHbarAmount = ethers.parseUnits("0.1", 8); // 0.1 HBAR in 8 decimals
+  console.log("   Amount:", ethers.formatUnits(minHbarAmount, 8), "HBAR");
+  console.log("   Wei value:", minHbarAmount.toString());
 
   try {
     const tx = await pool.supply(
       HBAR_ADDRESS,
-      1, // 1 tinybar
+      minHbarAmount,
       deployer.address,
       0,
-      { value: 1, gasLimit: 500000 }
+      { value: minHbarAmount, gasLimit: 500000 }
     );
 
     console.log("   📤 Transaction sent:", tx.hash);
@@ -67,8 +72,18 @@ async function main() {
     // Try to get reserve data using Pool interface
     console.log("Checking if reserves can be accessed...");
 
-    // Get the DToken address
-    const hbarReserveData = await pool.getReserveData(HBAR_ADDRESS);
+    // Get the reserve configuration (assets list is stored separately)
+    // We'll get the DToken from the asset data
+    const assetsList = await pool.getAssetsList();
+    console.log("Assets registered:", assetsList.length);
+
+    // Find HBAR asset
+    const hbarAssetData = await pool.getAssetData(HBAR_ADDRESS);
+    console.log("✅ HBAR Asset Data:");
+    console.log("   DToken:", hbarAssetData.supplyTokenAddress);
+
+    // Get detailed reserve data
+    const hbarReserveData = hbarAssetData;
     console.log("✅ HBAR Reserve Data:");
     console.log("   DToken:", hbarReserveData.supplyTokenAddress);
     console.log("   Liquidity Index:", ethers.formatUnits(hbarReserveData.liquidityIndex, 27));
