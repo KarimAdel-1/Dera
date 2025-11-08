@@ -51,9 +51,53 @@ function createEnvFromExample(examplePath, targetPath, description) {
 }
 
 /**
- * Setup environment files across the project
+ * Fill Hedera credentials in all relevant .env files
+ * @param {object} credentials - { operatorId, operatorKey, privateKey }
  */
-function setupAllEnvFiles() {
+function fillCredentials(credentials) {
+  const rootDir = path.join(__dirname, '..');
+  const { operatorId, operatorKey, privateKey } = credentials;
+
+  log('\n🔐 Filling Hedera Credentials...', 'cyan');
+
+  const filesToUpdate = [
+    { path: path.join(rootDir, 'contracts', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey, PRIVATE_KEY: privateKey } },
+    { path: path.join(rootDir, 'backend', 'hcs-event-service', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey } },
+    { path: path.join(rootDir, 'backend', 'liquidation-bot', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey, LIQUIDATOR_PRIVATE_KEY: privateKey } },
+    { path: path.join(rootDir, 'backend', 'monitoring-service', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey } },
+    { path: path.join(rootDir, 'backend', 'node-staking-service', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey } },
+    { path: path.join(rootDir, 'backend', 'rate-updater-service', '.env'), vars: { HEDERA_ACCOUNT_ID: operatorId, HEDERA_PRIVATE_KEY: operatorKey } },
+  ];
+
+  filesToUpdate.forEach(({ path: filePath, vars }) => {
+    if (!fs.existsSync(filePath)) {
+      log(`  ⚠️  File not found: ${filePath}`, 'yellow');
+      return;
+    }
+
+    let content = fs.readFileSync(filePath, 'utf8');
+
+    Object.entries(vars).forEach(([key, value]) => {
+      const regex = new RegExp(`^${key}=.*$`, 'gm');
+      if (content.match(regex)) {
+        content = content.replace(regex, `${key}=${value}`);
+      } else {
+        content += `\n${key}=${value}`;
+      }
+    });
+
+    fs.writeFileSync(filePath, content);
+    log(`  ✅ Updated: ${filePath}`, 'green');
+  });
+
+  log('✅ Credentials filled in all files!', 'green');
+}
+
+/**
+ * Setup environment files across the project
+ * @param {object} credentials - Optional credentials to fill
+ */
+function setupAllEnvFiles(credentials = null) {
   log('\n📝 Setting Up Environment Files...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
@@ -130,13 +174,18 @@ function setupAllEnvFiles() {
     log(`\n⚠️  ${totalCount - successCount} files had issues - check warnings above`, 'yellow');
   }
 
-  log('\n📝 Next Steps:', 'cyan');
-  log('   1. Fill in your credentials in contracts/.env:', 'white');
-  log('      - HEDERA_OPERATOR_ID', 'white');
-  log('      - HEDERA_OPERATOR_KEY', 'white');
-  log('      - PRIVATE_KEY', 'white');
-  log('   2. (Optional) Configure Supabase in frontend/.env.local', 'white');
-  log('   3. Run: npm run deploy:hackathon', 'white');
+  // Fill credentials if provided
+  if (credentials) {
+    fillCredentials(credentials);
+  } else {
+    log('\n📝 Next Steps:', 'cyan');
+    log('   1. Fill in your credentials in contracts/.env:', 'white');
+    log('      - HEDERA_OPERATOR_ID', 'white');
+    log('      - HEDERA_OPERATOR_KEY', 'white');
+    log('      - PRIVATE_KEY', 'white');
+    log('   2. (Optional) Configure Supabase in frontend/.env.local', 'white');
+    log('   3. Run: npm run deploy:hackathon', 'white');
+  }
   log('');
 
   return successCount === totalCount;
@@ -148,4 +197,4 @@ if (require.main === module) {
   process.exit(success ? 0 : 1);
 }
 
-module.exports = { setupAllEnvFiles, createEnvFromExample };
+module.exports = { setupAllEnvFiles, createEnvFromExample, fillCredentials };

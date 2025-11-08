@@ -52,7 +52,7 @@ function execCommand(command, cwd = process.cwd(), silent = false) {
   }
 }
 
-function checkPrerequisites() {
+async function checkPrerequisites() {
   log('\nStep 1/9: 📋 Checking Prerequisites...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
@@ -66,8 +66,9 @@ function checkPrerequisites() {
   log(`✅ Node.js ${nodeVersion}`, 'green');
 
   // Setup environment files from examples if they don't exist
-  log('> Setting up environment files from templates...', 'blue');
-  const setupEnv = execCommand('node scripts/setup-env-files.js', process.cwd(), false);
+  log('\n> Setting up environment files from templates...', 'blue');
+  const { setupAllEnvFiles, fillCredentials } = require('./scripts/setup-env-files.js');
+  setupAllEnvFiles(); // Create all .env files from templates
 
   // Check for .env file
   const envPath = path.join(__dirname, 'contracts', '.env');
@@ -76,24 +77,62 @@ function checkPrerequisites() {
     log('   The setup script should have created it. Please check for errors above.', 'yellow');
     return false;
   }
-  log('✅ Environment files ready', 'green');
+  log('✅ Environment files created', 'green');
 
-  // Load and validate environment variables
+  // Load environment variables
   require('dotenv').config({ path: envPath });
 
-  const requiredVars = [
-    'HEDERA_OPERATOR_ID',
-    'HEDERA_OPERATOR_KEY',
-    'PRIVATE_KEY'
-  ];
+  // Check if credentials are already filled
+  const requiredVars = ['HEDERA_OPERATOR_ID', 'HEDERA_OPERATOR_KEY', 'PRIVATE_KEY'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName] || process.env[varName].trim() === '');
 
-  for (const varName of requiredVars) {
-    if (!process.env[varName]) {
-      log(`❌ Missing required environment variable: ${varName}`, 'red');
+  if (missingVars.length > 0) {
+    log('\n🔐 Hedera Credentials Required', 'cyan');
+    log('━'.repeat(60), 'cyan');
+    log('Please provide your Hedera testnet credentials:', 'yellow');
+    log('(You can find these in your Hedera portal or create a new testnet account)\n', 'yellow');
+
+    // Prompt for credentials
+    const operatorId = await promptUser('Hedera Operator ID (format: 0.0.xxxxx): ');
+    if (!operatorId || !operatorId.match(/^0\.0\.\d+$/)) {
+      log('❌ Invalid Hedera Operator ID format. Expected: 0.0.xxxxx', 'red');
       return false;
     }
+
+    const operatorKey = await promptUser('Hedera Operator Key (DER encoded private key): ');
+    if (!operatorKey || operatorKey.length < 64) {
+      log('❌ Invalid Hedera Operator Key. Must be at least 64 characters.', 'red');
+      return false;
+    }
+
+    const privateKey = await promptUser('EVM Private Key (64 hex characters, without 0x): ');
+    if (!privateKey || privateKey.length !== 64) {
+      log('❌ Invalid EVM Private Key. Must be exactly 64 hex characters.', 'red');
+      return false;
+    }
+
+    log('\n> Filling credentials in all environment files...', 'blue');
+
+    // Fill credentials everywhere
+    fillCredentials({
+      operatorId: operatorId.trim(),
+      operatorKey: operatorKey.trim(),
+      privateKey: privateKey.trim()
+    });
+
+    // Reload environment after filling
+    delete require.cache[require.resolve('dotenv')];
+    require('dotenv').config({ path: envPath });
   }
-  log('✅ Required environment variables configured', 'green');
+
+  // Validate credentials are now set
+  const stillMissing = requiredVars.filter(varName => !process.env[varName] || process.env[varName].trim() === '');
+  if (stillMissing.length > 0) {
+    log(`❌ Failed to configure credentials: ${stillMissing.join(', ')}`, 'red');
+    return false;
+  }
+
+  log('✅ Hedera credentials configured in all files', 'green');
 
   // Check Git
   const gitCheck = execCommand('git --version', process.cwd(), true);
