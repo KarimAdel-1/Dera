@@ -36,6 +36,7 @@ const DeraProtocolDashboard = () => {
   const [assets, setAssets] = useState([]);
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
   const [assetsError, setAssetsError] = useState(null);
+  const [walletBalances, setWalletBalances] = useState({});
 
   // Get wallet state from Redux
   const { wallets, activeWalletId } = useSelector((state) => state.wallet);
@@ -104,10 +105,11 @@ const DeraProtocolDashboard = () => {
     return () => clearInterval(interval);
   }, [assets.length, assetsError]);
 
-  // Load user positions when wallet connects and assets are loaded
+  // Load user positions and wallet balances when wallet connects and assets are loaded
   useEffect(() => {
     if (activeWallet?.address && assets.length > 0) {
       loadUserPositions(activeWallet.address);
+      fetchWalletBalances(activeWallet.address); // Fetch wallet balances too
     } else if (!activeWallet?.address) {
       // Reset account when wallet disconnects
       setUserAccount({
@@ -119,8 +121,49 @@ const DeraProtocolDashboard = () => {
         availableToBorrow: 0,
         healthFactor: Infinity
       });
+      setWalletBalances({});
     }
   }, [activeWallet?.address, assets]);
+
+  /**
+   * Fetch wallet balances from Hedera
+   */
+  const fetchWalletBalances = async (walletAddress) => {
+    try {
+      console.log('💰 Fetching wallet balances for:', walletAddress);
+
+      // Import hederaService dynamically
+      const { hederaService } = await import('../../../../services/hederaService');
+
+      // Get account balance data from mirror node
+      const balanceData = await hederaService.getAccountBalance(walletAddress);
+
+      const balances = {};
+
+      // Add HBAR balance
+      if (balanceData.hbarBalance) {
+        balances['HBAR'] = parseFloat(balanceData.hbarBalance);
+      }
+
+      // Add token balances
+      if (balanceData.tokens && Array.isArray(balanceData.tokens)) {
+        for (const token of balanceData.tokens) {
+          // Map token IDs to symbols (you can extend this mapping)
+          if (token.symbol) {
+            balances[token.symbol] = parseFloat(token.balance);
+          }
+        }
+      }
+
+      console.log('✅ Wallet balances loaded:', balances);
+      setWalletBalances(balances);
+
+      return balances;
+    } catch (error) {
+      console.error('❌ Error fetching wallet balances:', error);
+      return {};
+    }
+  };
 
   /**
    * Load user positions from Pool contract
@@ -390,6 +433,11 @@ const DeraProtocolDashboard = () => {
 
       // Reload user positions after transaction
       await loadUserPositions(activeWallet.address);
+
+      // Refresh wallet balances to reflect the transaction
+      if (activeWallet?.address) {
+        await fetchWalletBalances(activeWallet.address);
+      }
 
       closeModal();
       showNotification(`Successfully ${type}ed ${amount} ${assetSymbol}!`, 'success');
@@ -686,6 +734,7 @@ const DeraProtocolDashboard = () => {
           onClose={closeModal}
           onExecute={executeTransaction}
           isProcessing={isProcessingTransaction}
+          walletBalances={walletBalances}
         />
       )}
 
