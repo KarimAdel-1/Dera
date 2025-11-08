@@ -9,11 +9,13 @@
 - [ ] Node.js 18+ installed ([Download](https://nodejs.org/))
 - [ ] Hedera testnet account created ([Portal](https://portal.hedera.com/))
 - [ ] At least 100 HBAR in account (free from faucet)
+- [ ] Supabase project created (optional, for frontend features)
+- [ ] WalletConnect project created (optional, for wallet integration)
 - [ ] Git installed (optional)
 
 ---
 
-## 🚀 5-Step Quick Deployment
+## 🚀 3-Step Quick Deployment
 
 ### Step 1: Clone Repository (30 seconds)
 
@@ -24,54 +26,33 @@ cd Dera
 
 ---
 
-### Step 2: Configure Environment (1 minute)
-
-```bash
-# Copy environment template
-cp contracts/.env.example contracts/.env
-
-# Edit with your credentials
-nano contracts/.env
-```
-
-**Add these values:**
-```env
-HEDERA_OPERATOR_ID=0.0.YOUR_ACCOUNT_ID
-HEDERA_OPERATOR_KEY=302e020100300506... # Your private key
-PRIVATE_KEY=0x... # Same key in hex format
-```
-
-**💡 Test credentials provided in DoraHacks submission notes**
-
----
-
-### Step 3: Verify Setup (10 seconds) ⭐
-
-```bash
-npm run verify-setup
-```
-
-**Expected output:**
-```
-✅ ALL CHECKS PASSED!
-🚀 You are ready to deploy.
-```
-
-If you see ❌ errors, follow the suggested fixes.
-
----
-
-### Step 4: Deploy Everything (5-8 minutes) ⭐
-
-
-```bash
-npm install
-```
-
+### Step 2: Deploy Everything with Interactive Setup (5-8 minutes) ⭐
 
 ```bash
 npm run deploy:hackathon
 ```
+
+**The script will interactively prompt you for:**
+
+1. **Hedera Credentials** (3 prompts):
+   - Hedera Operator ID (format: 0.0.xxxxx)
+   - Hedera Operator Key (DER encoded private key)
+   - EVM Private Key (64 hex characters, without 0x)
+
+2. **Supabase Credentials** (3 prompts):
+   - Supabase URL (https://xxxxx.supabase.co)
+   - Supabase Anon/Public Key
+   - Supabase Service Role Key
+
+3. **WalletConnect** (1 prompt):
+   - WalletConnect Project ID
+
+**💡 Get credentials from:**
+- **Hedera:** https://portal.hedera.com/ (create testnet account)
+- **Supabase:** https://app.supabase.com/project/_/settings/api
+- **WalletConnect:** https://cloud.walletconnect.com/
+
+**📝 Note:** The script automatically creates all `.env` files and fills credentials everywhere. You don't need to manually edit any files!
 
 **Expected output:**
 ```
@@ -92,7 +73,7 @@ npm run deploy:hackathon
 
 ---
 
-### Step 5: Start Frontend (1 minute)
+### Step 3: Start Frontend (1 minute)
 
 ```bash
 cd frontend
@@ -262,22 +243,26 @@ All transactions visible on HashScan with:
 
 ### Deployment fails
 
-**Check:**
-```bash
-npm run verify-setup  # Diagnose issues
-```
-
 **Common fixes:**
 ```bash
 # Missing dependencies
-npm run install:all
+npm install
 
-# Missing .env
-cp contracts/.env.example contracts/.env
+# Credential validation failed
+# Re-run deployment and carefully enter credentials when prompted
+npm run deploy:hackathon
 
 # Low HBAR balance
 # Request more from https://portal.hedera.com/
 ```
+
+**Credential Format Requirements:**
+- Hedera Operator ID: Must be `0.0.xxxxx` format
+- Hedera Operator Key: Min 64 characters (DER encoded)
+- EVM Private Key: Exactly 64 hex characters (no 0x prefix)
+- Supabase URL: Must start with `https://`
+- Supabase Keys: Min 100 characters (JWT tokens)
+- WalletConnect ID: Min 32 characters
 
 ### Frontend won't start
 
@@ -316,11 +301,12 @@ npm run dev
 
 ## 💡 Pro Tips for Judges
 
-1. **Use verify-setup first:** Catches 90% of issues before deployment
+1. **Interactive setup:** The deployment script guides you through all credential setup
 2. **Keep deployment logs:** `contracts/deployment-info.json` has all addresses
 3. **Check HashScan:** All transactions are publicly verifiable
 4. **Test with small amounts:** Start with 1-5 HBAR for supply/borrow
 5. **View HCS topics:** Immutable audit log is the key feature
+6. **Credentials filled automatically:** Enter once during deployment, used in 7+ env files
 
 ---
 

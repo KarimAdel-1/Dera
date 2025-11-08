@@ -30,13 +30,12 @@
 ## 🎯 Quick Links for Judges
 
 **⚡ Super Fast Start:**
-- **[JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)** - 5-step deployment guide with checklist
-- **[DEPLOYMENT_SCRIPTS_GUIDE.md](./DEPLOYMENT_SCRIPTS_GUIDE.md)** - Detailed script documentation
+- **[JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)** - 3-step deployment guide with interactive setup
+- **[INTERACTIVE_CREDENTIALS_SETUP.md](./INTERACTIVE_CREDENTIALS_SETUP.md)** - Details on automated credential management
 
 **Essential Commands:**
 ```bash
-npm run verify-setup      # Check prerequisites (10 seconds)
-npm run deploy:hackathon  # Deploy everything (5-8 minutes)
+npm run deploy:hackathon  # Interactive deployment with credential prompts (5-8 minutes)
 cd frontend && npm run dev # Start frontend
 ```
 
@@ -227,20 +226,25 @@ We leverage Hedera Mirror Nodes for off-chain analytics because they provide **f
 
 **For detailed step-by-step deployment instructions, see [JUDGE_QUICKSTART.md](./JUDGE_QUICKSTART.md)**
 
-### TL;DR - One-Command Deployment
+### TL;DR - Interactive Deployment
 
 ```bash
 # Clone repository
 git clone https://github.com/KarimAdel-1/Dera.git
 cd Dera
 
-# Configure environment
-cp contracts/.env.example contracts/.env
-nano contracts/.env  # Add your HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY
-
-# Deploy everything
+# Run interactive deployment (prompts for credentials)
 npm run deploy:hackathon
+```
 
+**The script will interactively prompt you for:**
+1. Hedera credentials (Operator ID, Operator Key, Private Key)
+2. Supabase credentials (URL, Anon Key, Service Key)
+3. WalletConnect Project ID
+
+**All environment files are created and filled automatically!**
+
+```bash
 # Start frontend
 cd frontend && npm run dev
 # Opens at http://localhost:3000
@@ -254,74 +258,43 @@ cd frontend && npm run dev
 
 ## 📖 Deployment & Setup Instructions
 
-### Detailed Setup Steps
+### Automated Interactive Deployment
 
-#### Step 1: Environment Configuration
-
-Create `contracts/.env` from the example:
+The deployment process is now **fully automated** with **interactive credential prompts**:
 
 ```bash
-cp contracts/.env.example contracts/.env
+npm run deploy:hackathon
 ```
 
-**Required Variables:**
-```env
-# Hedera Account Credentials
-HEDERA_OPERATOR_ID=0.0.YOUR_ACCOUNT_ID
-HEDERA_OPERATOR_KEY=302e... # Your private key in DER format
-PRIVATE_KEY=0x... # Same key in hex format for ethers.js
+**What happens:**
+1. ✅ **Environment Setup:** Automatically creates all `.env` files from templates
+2. 🔐 **Credential Prompts:** Interactively asks for:
+   - Hedera credentials (3 prompts)
+   - Supabase credentials (3 prompts)
+   - WalletConnect Project ID (1 prompt)
+3. ✅ **Credential Distribution:** Fills credentials in all 7+ environment files
+4. 📦 **Dependencies:** Installs all npm packages
+5. 🔨 **Compilation:** Compiles smart contracts
+6. 🚀 **Deployment:** Deploys contracts to Hedera testnet
+7. 📡 **HCS Setup:** Creates 5 HCS topics for events
+8. ⚙️ **Asset Init:** Initializes supported assets
+9. 🎨 **Frontend Config:** Updates frontend with contract addresses
 
-# Network Configuration (pre-configured)
-HEDERA_TESTNET_RPC=https://testnet.hashio.io/api
-HEDERA_TESTNET_MIRROR_NODE=https://testnet.mirrornode.hedera.com
-```
+**📝 Get credentials from:**
+- **Hedera:** https://portal.hedera.com/ (create testnet account, get 100 HBAR)
+- **Supabase:** https://app.supabase.com/ (create project, get API keys)
+- **WalletConnect:** https://cloud.walletconnect.com/ (create project, get ID)
 
-**📝 Example Configuration:**
-See `contracts/.env.example` for complete template with all optional variables.
+**Expected time:** 5-8 minutes total
 
 **🔐 Judge Credentials:**
-Test account credentials are provided in the **DoraHacks submission notes** for verification purposes. These credentials have limited HBAR (~100) and are safe for testing.
+Test account credentials are provided in the **DoraHacks submission notes** for verification purposes. Simply enter them when prompted.
 
 ---
 
-#### Step 2: Install Dependencies
+### Manual Step-by-Step (Advanced Users)
 
-```bash
-# Install all dependencies (root, contracts, frontend, backend)
-npm run install:all
-```
-
-**Alternative (manual installation):**
-```bash
-npm install
-cd contracts && npm install && cd ..
-cd frontend && npm install && cd ..
-cd backend && npm install && cd ..
-```
-
-**Expected time:** 2-3 minutes
-
----
-
-#### Step 3: Compile Smart Contracts
-
-```bash
-cd contracts
-npm run compile
-```
-
-**Output:**
-```
-Compiling 40 Solidity files...
-✅ Compilation successful!
-Exported ABIs to ../frontend/abis/
-```
-
-**Troubleshooting:**
-- If compilation fails, ensure you have Solidity 0.8.19 compatible tooling
-- Clear cache: `npx hardhat clean` then retry
-
----
+If you prefer manual control or need to debug, you can run each step individually:
 
 #### Step 4: Deploy Smart Contracts
 
