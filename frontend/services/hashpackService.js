@@ -311,7 +311,14 @@ class HederaContractExecutor {
         // Query transaction status from mirror node
         const MIRROR_NODE_URL = process.env.NEXT_PUBLIC_MIRROR_NODE_URL || 'https://testnet.mirrornode.hedera.com';
         const txId = result.transactionId.toString();
-        const response = await fetch(`${MIRROR_NODE_URL}/api/v1/transactions/${txId}`);
+
+        // Convert transaction ID format for mirror node API
+        // From: 0.0.7093470@1762600640.035580204
+        // To:   0.0.7093470-1762600640-035580204
+        const mirrorNodeTxId = txId.replace('@', '-').replace(/\.(\d+)$/, '-$1');
+        console.log('🔍 Querying mirror node with transaction ID:', mirrorNodeTxId);
+
+        const response = await fetch(`${MIRROR_NODE_URL}/api/v1/transactions/${mirrorNodeTxId}`);
 
         if (response.ok) {
           const txData = await response.json();
@@ -323,9 +330,18 @@ class HederaContractExecutor {
               consensus_timestamp: txInfo.consensus_timestamp
             });
 
+            // Check if transaction failed
+            if (txInfo.result !== 'SUCCESS') {
+              const error = new Error(`Transaction failed: ${txInfo.result}`);
+              error.status = txInfo.result;
+              error.transactionId = txId;
+              error.receipt = txInfo;
+              throw error;
+            }
+
             return {
               transactionId: txId,
-              status: txInfo.result === 'SUCCESS' ? 'SUCCESS' : txInfo.result,
+              status: 'SUCCESS',
               receipt: {
                 status: txInfo.result,
                 transactionId: txId,
@@ -335,6 +351,10 @@ class HederaContractExecutor {
           }
         }
       } catch (mirrorError) {
+        // Re-throw if it's a transaction failure, not a network/query error
+        if (mirrorError.status && mirrorError.transactionId) {
+          throw mirrorError;
+        }
         console.warn('⚠️ Could not query mirror node for receipt:', mirrorError);
       }
 
