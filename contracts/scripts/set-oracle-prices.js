@@ -60,7 +60,7 @@ async function main() {
   // Enable fallback mode if not already enabled
   if (!fallbackEnabled) {
     console.log("\n📍 Enabling fallback mode...");
-    await (await oracle.enableFallback(true)).wait();
+    await (await oracle.setFallbackEnabled(true)).wait();
     console.log("✅ Fallback mode enabled");
   } else {
     console.log("\n✅ Fallback mode already enabled");
