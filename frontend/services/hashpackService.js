@@ -154,6 +154,7 @@ class HederaContractExecutor {
 
   /**
    * Convert Hedera account ID (0.0.X) to ContractId format
+   * Handles both Hedera format (0.0.X) and EVM format (0x...)
    */
   convertToContractId(address) {
     // If already in 0.0.X format, return as is
@@ -163,10 +164,39 @@ class HederaContractExecutor {
 
     // If EVM address format (0x...), convert to Hedera format
     if (address.startsWith('0x')) {
-      // Remove 0x prefix and convert hex to decimal
-      const hex = address.slice(2);
-      const decimal = parseInt(hex, 16);
-      return `0.0.${decimal}`;
+      try {
+        // Remove 0x prefix
+        const hex = address.slice(2).toLowerCase();
+
+        // Check if this is a Hedera-style EVM address (mostly zeros)
+        // Hedera EVM addresses are in the format: 0x0000000000000000000000000000000000XXXXXX
+        // where the actual contract number is in the last few bytes
+
+        // Remove leading zeros to get the significant part
+        const trimmed = hex.replace(/^0+/, '') || '0';
+
+        // If the trimmed hex is reasonably small (< 10 characters), it's likely a Hedera ID
+        if (trimmed.length <= 10) {
+          const decimal = parseInt(trimmed, 16);
+          console.log(`📍 Converted EVM address ${address} to Hedera ID: 0.0.${decimal}`);
+          return `0.0.${decimal}`;
+        }
+
+        // For full 20-byte EVM addresses, we can't convert without querying
+        console.error(`❌ Cannot convert full EVM address to Hedera format: ${address}`);
+        console.error('Please configure contract addresses in Hedera format (0.0.X) in your environment variables.');
+        throw new Error(
+          `Contract address must be in Hedera format (0.0.X), not EVM format (0x...).\n` +
+          `Received: ${address}\n` +
+          `Please update your .env.local with the Hedera contract ID.`
+        );
+      } catch (error) {
+        if (error.message.includes('Contract address must be')) {
+          throw error;
+        }
+        console.error('Error converting EVM address to Hedera format:', error);
+        throw new Error(`Invalid EVM address format: ${address}`);
+      }
     }
 
     return address;
@@ -219,9 +249,30 @@ class HederaContractExecutor {
       const functionData = this.encodeFunctionCall(contractInterface, functionName, args);
       console.log('📝 Encoded function data:', functionData);
 
-      // Convert contract address to Hedera format
-      const contractId = this.convertToContractId(contractAddress);
-      console.log('🏠 Contract ID:', contractId);
+      // Import ContractId dynamically from the SDK
+      const { ContractId } = await import('@hashgraph/sdk');
+
+      // Create ContractId based on address format
+      let contractId;
+      if (contractAddress.match(/^\d+\.\d+\.\d+$/)) {
+        // Hedera format (0.0.X)
+        contractId = ContractId.fromString(contractAddress);
+        console.log('🏠 Using Hedera Contract ID:', contractAddress);
+      } else if (contractAddress.startsWith('0x')) {
+        // EVM address format - use ContractId.fromEvmAddress
+        console.log('📍 Converting EVM address to ContractId:', contractAddress);
+
+        try {
+          // For Hedera testnet (shard 0, realm 0)
+          contractId = ContractId.fromEvmAddress(0, 0, contractAddress);
+          console.log('✅ ContractId created from EVM address');
+        } catch (error) {
+          console.error('❌ Failed to create ContractId from EVM address:', error);
+          throw new Error(`Cannot use EVM address with Hedera SDK: ${contractAddress}\nPlease configure contract addresses in Hedera format (0.0.X) in your .env.local`);
+        }
+      } else {
+        throw new Error(`Invalid contract address format: ${contractAddress}`);
+      }
 
       // Create ContractExecuteTransaction
       const tx = new ContractExecuteTransaction()
