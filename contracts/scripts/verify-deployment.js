@@ -109,8 +109,11 @@ async function main() {
           console.log("  ID:               ", assetData.id.toString());
 
           const config = await pool.getConfiguration(asset);
-          const isActive = (config.data & 1n) !== 0n;
-          const borrowingEnabled = (config.data & (1n << 1n)) !== 0n;
+          // Use correct bit positions from AssetConfiguration.sol
+          const IS_ACTIVE_BIT = 56n;
+          const BORROWING_ENABLED_BIT = 58n;
+          const isActive = (config.data & (1n << IS_ACTIVE_BIT)) !== 0n;
+          const borrowingEnabled = (config.data & (1n << BORROWING_ENABLED_BIT)) !== 0n;
 
           console.log("  Active:           ", isActive ? "✅ Yes" : "❌ No");
           console.log("  Borrowing:        ", borrowingEnabled ? "✅ Enabled" : "❌ Disabled");
