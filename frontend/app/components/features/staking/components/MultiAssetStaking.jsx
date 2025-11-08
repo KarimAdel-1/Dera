@@ -192,7 +192,7 @@ const MultiAssetStaking = () => {
 
       try {
         const provider = walletProvider.getProvider();
-        const signer = walletProvider.getSigner();
+        const signer = await walletProvider.getSigner(connectedAccount);
 
         if (provider && signer) {
           await stakingService.initialize(provider, signer);
