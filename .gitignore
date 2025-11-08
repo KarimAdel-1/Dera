@@ -57,6 +57,18 @@ coverage/
 secrets/
 keys/
 
+# Deployment artifacts (contain contract addresses, topic IDs, private keys)
+deployment-info.json
+hcs-topics.json
+contracts/deployment-info.json
+contracts/hcs-topics.json
+**/deployment-info.json
+**/hcs-topics.json
+
+# Backup files
+*.backup
+*.bak
+
 # Temporary files
 tmp/
 temp/

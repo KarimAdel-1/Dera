@@ -52,7 +52,7 @@ function execCommand(command, cwd = process.cwd(), silent = false) {
   }
 }
 
-async function checkPrerequisites() {
+function checkPrerequisites() {
   log('\nStep 1/9: 📋 Checking Prerequisites...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
@@ -65,74 +65,31 @@ async function checkPrerequisites() {
   }
   log(`✅ Node.js ${nodeVersion}`, 'green');
 
-  // Setup environment files from examples if they don't exist
-  log('\n> Setting up environment files from templates...', 'blue');
-  const { setupAllEnvFiles, fillCredentials } = require('./scripts/setup-env-files.js');
-  setupAllEnvFiles(); // Create all .env files from templates
-
   // Check for .env file
   const envPath = path.join(__dirname, 'contracts', '.env');
   if (!fs.existsSync(envPath)) {
     log('❌ .env file not found in contracts directory', 'red');
-    log('   The setup script should have created it. Please check for errors above.', 'yellow');
+    log('   Please copy .env.example to .env and configure your credentials', 'yellow');
     return false;
   }
-  log('✅ Environment files created', 'green');
+  log('✅ Environment file found', 'green');
 
-  // Load environment variables
+  // Load and validate environment variables
   require('dotenv').config({ path: envPath });
 
-  // Check if credentials are already filled
-  const requiredVars = ['HEDERA_OPERATOR_ID', 'HEDERA_OPERATOR_KEY', 'PRIVATE_KEY'];
-  const missingVars = requiredVars.filter(varName => !process.env[varName] || process.env[varName].trim() === '');
+  const requiredVars = [
+    'HEDERA_OPERATOR_ID',
+    'HEDERA_OPERATOR_KEY',
+    'PRIVATE_KEY'
+  ];
 
-  if (missingVars.length > 0) {
-    log('\n🔐 Hedera Credentials Required', 'cyan');
-    log('━'.repeat(60), 'cyan');
-    log('Please provide your Hedera testnet credentials:', 'yellow');
-    log('(You can find these in your Hedera portal or create a new testnet account)\n', 'yellow');
-
-    // Prompt for credentials
-    const operatorId = await promptUser('Hedera Operator ID (format: 0.0.xxxxx): ');
-    if (!operatorId || !operatorId.match(/^0\.0\.\d+$/)) {
-      log('❌ Invalid Hedera Operator ID format. Expected: 0.0.xxxxx', 'red');
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      log(`❌ Missing required environment variable: ${varName}`, 'red');
       return false;
     }
-
-    const operatorKey = await promptUser('Hedera Operator Key (DER encoded private key): ');
-    if (!operatorKey || operatorKey.length < 64) {
-      log('❌ Invalid Hedera Operator Key. Must be at least 64 characters.', 'red');
-      return false;
-    }
-
-    const privateKey = await promptUser('EVM Private Key (64 hex characters, without 0x): ');
-    if (!privateKey || privateKey.length !== 64) {
-      log('❌ Invalid EVM Private Key. Must be exactly 64 hex characters.', 'red');
-      return false;
-    }
-
-    log('\n> Filling credentials in all environment files...', 'blue');
-
-    // Fill credentials everywhere
-    fillCredentials({
-      operatorId: operatorId.trim(),
-      operatorKey: operatorKey.trim(),
-      privateKey: privateKey.trim()
-    });
-
-    // Reload environment after filling
-    delete require.cache[require.resolve('dotenv')];
-    require('dotenv').config({ path: envPath });
   }
-
-  // Validate credentials are now set
-  const stillMissing = requiredVars.filter(varName => !process.env[varName] || process.env[varName].trim() === '');
-  if (stillMissing.length > 0) {
-    log(`❌ Failed to configure credentials: ${stillMissing.join(', ')}`, 'red');
-    return false;
-  }
-
-  log('✅ Hedera credentials configured in all files', 'green');
+  log('✅ Required environment variables configured', 'green');
 
   // Check Git
   const gitCheck = execCommand('git --version', process.cwd(), true);
@@ -410,19 +367,160 @@ async function setOraclePrices() {
   return true;
 }
 
-async function updateAllEnvFiles() {
-  log('\nStep 9/9: ⚙️  Updating All Environment Files...', 'cyan');
+async function configureFrontend() {
+  log('\nStep 9/9: ⚙️  Configuring Frontend...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
-  // Use the centralized update script
-  const updateScript = execCommand('node scripts/update-env-files.js', process.cwd(), false);
+  const frontendPath = path.join(__dirname, 'frontend');
+  const envLocalPath = path.join(frontendPath, '.env.local');
+  const envExamplePath = path.join(frontendPath, '.env.example');
 
-  if (!updateScript.success) {
-    log('❌ Failed to update environment files', 'red');
+  // Create .env.local from .env.example if it doesn't exist
+  if (!fs.existsSync(envLocalPath) && fs.existsSync(envExamplePath)) {
+    fs.copyFileSync(envExamplePath, envLocalPath);
+    log('✅ Created .env.local from template', 'green');
+  }
+
+  // Load deployment info and update .env.local
+  const deploymentInfoPath = path.join(__dirname, 'contracts', 'deployment-info.json');
+  const topicsPath = path.join(__dirname, 'contracts', 'hcs-topics.json');
+
+  if (fs.existsSync(deploymentInfoPath) && fs.existsSync(envLocalPath)) {
+    const deploymentInfo = JSON.parse(fs.readFileSync(deploymentInfoPath, 'utf8'));
+    const topicsInfo = fs.existsSync(topicsPath)
+      ? JSON.parse(fs.readFileSync(topicsPath, 'utf8'))
+      : null;
+
+    let envContent = fs.readFileSync(envLocalPath, 'utf8');
+
+    // Helper function to update or append env variable
+    const updateEnvVar = (key, value) => {
+      const regex = new RegExp(`^${key}=.*$`, 'gm');
+      if (envContent.match(regex)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        envContent += `\n${key}=${value}`;
+      }
+    };
+
+    // Update contract addresses with proper mapping
+    if (deploymentInfo.addresses) {
+      const addressMapping = {
+        'POOL': 'NEXT_PUBLIC_POOL_ADDRESS',
+        'ORACLE': 'NEXT_PUBLIC_ORACLE_ADDRESS',
+        'ANALYTICS': 'NEXT_PUBLIC_ANALYTICS_ADDRESS',
+        'MULTI_ASSET_STAKING': 'NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS',
+        'POOL_CONFIGURATOR': 'NEXT_PUBLIC_POOL_CONFIGURATOR',
+        'POOL_ADDRESSES_PROVIDER': 'NEXT_PUBLIC_POOL_ADDRESSES_PROVIDER',
+        'ACL_MANAGER': 'NEXT_PUBLIC_ACL_MANAGER',
+        'RATE_STRATEGY': 'NEXT_PUBLIC_RATE_STRATEGY'
+      };
+
+      Object.entries(deploymentInfo.addresses).forEach(([key, value]) => {
+        const envVarName = addressMapping[key] || `NEXT_PUBLIC_${key}`;
+        updateEnvVar(envVarName, value);
+      });
+    }
+
+    // Update HCS topic IDs
+    if (topicsInfo && topicsInfo.topics) {
+      Object.entries(topicsInfo.topics).forEach(([key, value]) => {
+        updateEnvVar(`NEXT_PUBLIC_HCS_${key}_TOPIC`, value);
+      });
+    }
+
+    // Ensure network configuration variables are set
+    updateEnvVar('NEXT_PUBLIC_NETWORK', 'testnet');
+    updateEnvVar('NEXT_PUBLIC_RPC_URL', 'https://testnet.hashio.io/api');
+    updateEnvVar('NEXT_PUBLIC_MIRROR_NODE_URL', 'https://testnet.mirrornode.hedera.com');
+
+    // Ensure critical env vars exist (preserve if already set)
+    const criticalVars = [
+      'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID',
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'SUPABASE_SERVICE_KEY'
+    ];
+
+    criticalVars.forEach(varName => {
+      const regex = new RegExp(`^${varName}=`, 'gm');
+      if (!envContent.match(regex)) {
+        // Add placeholder if missing
+        envContent += `\n${varName}=`;
+      }
+    });
+
+    fs.writeFileSync(envLocalPath, envContent);
+    log('✅ Frontend environment configured (existing values preserved)', 'green');
+  }
+
+  return true;
+}
+
+async function updateRootEnv() {
+  log('\nUpdating root .env file...', 'cyan');
+
+  const rootEnvPath = path.join(__dirname, '.env');
+  const envExamplePath = path.join(__dirname, '.env.deployment.example');
+
+  // Create .env from example if it doesn't exist
+  if (!fs.existsSync(rootEnvPath) && fs.existsSync(envExamplePath)) {
+    fs.copyFileSync(envExamplePath, rootEnvPath);
+    log('✅ Created .env from template', 'green');
+  }
+
+  // Load deployment info
+  const deploymentInfoPath = path.join(__dirname, 'contracts', 'deployment-info.json');
+  const topicsPath = path.join(__dirname, 'contracts', 'hcs-topics.json');
+
+  if (!fs.existsSync(deploymentInfoPath)) {
+    log('⚠️  deployment-info.json not found, skipping root .env update', 'yellow');
     return false;
   }
 
-  log('✅ All environment files updated with deployment data', 'green');
+  const deploymentInfo = JSON.parse(fs.readFileSync(deploymentInfoPath, 'utf8'));
+  const topicsInfo = fs.existsSync(topicsPath)
+    ? JSON.parse(fs.readFileSync(topicsPath, 'utf8'))
+    : null;
+
+  let envContent = fs.existsSync(rootEnvPath)
+    ? fs.readFileSync(rootEnvPath, 'utf8')
+    : '';
+
+  // Helper function to update or append env variable
+  const updateEnvVar = (key, value) => {
+    const regex = new RegExp(`^${key}=.*$`, 'gm');
+    if (envContent.match(regex)) {
+      envContent = envContent.replace(regex, `${key}=${value}`);
+    } else {
+      envContent += `\n${key}=${value}`;
+    }
+  };
+
+  // Update contract addresses
+  if (deploymentInfo.addresses) {
+    updateEnvVar('POOL_ADDRESSES_PROVIDER', deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER || '');
+    updateEnvVar('POOL_ADDRESS', deploymentInfo.addresses.POOL || '');
+    updateEnvVar('POOL_CONFIGURATOR', deploymentInfo.addresses.POOL_CONFIGURATOR || '');
+    updateEnvVar('ACL_MANAGER', deploymentInfo.addresses.ACL_MANAGER || '');
+    updateEnvVar('ORACLE_ADDRESS', deploymentInfo.addresses.ORACLE || '');
+    updateEnvVar('RATE_STRATEGY', deploymentInfo.addresses.RATE_STRATEGY || '');
+    updateEnvVar('MULTI_ASSET_STAKING_ADDRESS', deploymentInfo.addresses.MULTI_ASSET_STAKING || '');
+    updateEnvVar('ANALYTICS_CONTRACT_ADDRESS', deploymentInfo.addresses.ANALYTICS || '');
+  }
+
+  // Update HCS topic IDs
+  if (topicsInfo && topicsInfo.topics) {
+    updateEnvVar('HCS_SUPPLY_TOPIC', topicsInfo.topics.SUPPLY || '');
+    updateEnvVar('HCS_WITHDRAW_TOPIC', topicsInfo.topics.WITHDRAW || '');
+    updateEnvVar('HCS_BORROW_TOPIC', topicsInfo.topics.BORROW || '');
+    updateEnvVar('HCS_REPAY_TOPIC', topicsInfo.topics.REPAY || '');
+    updateEnvVar('HCS_LIQUIDATION_TOPIC', topicsInfo.topics.LIQUIDATION || '');
+  }
+
+  fs.writeFileSync(rootEnvPath, envContent);
+  log('✅ Root .env file updated with deployment addresses', 'green');
+
   return true;
 }
 
@@ -565,11 +663,14 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 9: Update all environment files with deployment data
-  if (!await updateAllEnvFiles()) {
-    log('\n❌ Deployment failed during environment file updates', 'red');
+  // Step 9: Configure frontend
+  if (!await configureFrontend()) {
+    log('\n❌ Deployment failed during frontend configuration', 'red');
     process.exit(1);
   }
+
+  // Step 10: Update root .env file
+  await updateRootEnv();
 
   const endTime = Date.now();
   const duration = Math.round((endTime - startTime) / 1000);
