@@ -17,6 +17,8 @@
     "test:hbar": "npx hardhat run scripts/test-hbar-supply.js --network testnet",
     "init:assets": "npx hardhat run scripts/direct-init.js --network testnet",
     "activate:assets": "npx hardhat run scripts/activate-assets.js --network testnet",
+    "check:oracle": "npx hardhat run scripts/check-oracle-prices.js --network testnet",
+    "set:oracle": "npx hardhat run scripts/set-oracle-prices.js --network testnet",
     "debug:init": "npx hardhat run scripts/debug-init.js --network testnet",
     "diagnose:init": "npx hardhat run scripts/diagnose-asset-init.js --network testnet",
     "diagnose:deep": "npx hardhat run scripts/deep-diagnostic.js --network testnet",

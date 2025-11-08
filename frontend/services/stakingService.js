@@ -10,6 +10,27 @@ class StakingService {
     this.contractAddress = process.env.NEXT_PUBLIC_MULTI_ASSET_STAKING_ADDRESS;
   }
 
+  /**
+   * Convert Hedera account ID to EVM address
+   * @param {string} accountId - Hedera account ID (0.0.xxxxx) or EVM address
+   * @returns {string} EVM address
+   */
+  toEvmAddress(accountId) {
+    // If already an EVM address, return as-is
+    if (accountId.startsWith('0x')) {
+      return accountId;
+    }
+
+    // Convert Hedera account ID (0.0.xxxxx) to EVM address
+    const parts = accountId.split('.');
+    if (parts.length === 3) {
+      const num = parseInt(parts[2]);
+      return '0x' + num.toString(16).padStart(40, '0');
+    }
+
+    return accountId;
+  }
+
   async initialize(provider, signer) {
     try {
       if (!this.contractAddress) {
@@ -39,16 +60,18 @@ class StakingService {
 
   async logCurrentStatus() {
     try {
-      const tvl = await this.contract.totalValueLocked();
-      const multiplier = await this.contract.getCurrentRateMultiplier();
-      const poolStatus = await this.contract.getRewardPoolStatus();
+      // Try to get status info, but don't fail initialization if it doesn't work
+      const tvl = await this.contract.totalValueLocked().catch(() => 0n);
+      const multiplier = await this.contract.getCurrentRateMultiplier().catch(() => 100);
+      const poolStatus = await this.contract.getRewardPoolStatus().catch(() => ({ utilizationRate: 0 }));
 
       console.log('📊 Staking Status:');
-      console.log('- TVL:', ethers.formatEther(tvl), 'HBAR');
-      console.log('- Rate Multiplier:', multiplier / 100, 'x');
-      console.log('- Pool Utilization:', poolStatus.utilizationRate / 100, '%');
+      console.log('- TVL:', tvl ? ethers.formatEther(tvl) : '0', 'HBAR');
+      console.log('- Rate Multiplier:', multiplier ? multiplier / 100 : 1, 'x');
+      console.log('- Pool Utilization:', poolStatus.utilizationRate ? poolStatus.utilizationRate / 100 : 0, '%');
     } catch (error) {
-      console.error('Failed to log status:', error);
+      // Silently fail - status logging is not critical
+      console.warn('Could not fetch staking status (contract may not be fully initialized)');
     }
   }
 
@@ -134,7 +157,8 @@ class StakingService {
     if (!this.isInitialized) throw new Error('Service not initialized');
 
     try {
-      const rewards = await this.contract.getClaimableRewards(userAddress, stakeIndex);
+      const evmAddress = this.toEvmAddress(userAddress);
+      const rewards = await this.contract.getClaimableRewards(evmAddress, stakeIndex);
       return ethers.formatEther(rewards);
     } catch (error) {
       console.error('Failed to get claimable rewards:', error);
@@ -206,7 +230,8 @@ class StakingService {
     if (!this.isInitialized) throw new Error('Service not initialized');
 
     try {
-      const stakes = await this.contract.getUserStakes(userAddress);
+      const evmAddress = this.toEvmAddress(userAddress);
+      const stakes = await this.contract.getUserStakes(evmAddress);
       const enhancedStakes = [];
 
       for (let i = 0; i < stakes.length; i++) {
