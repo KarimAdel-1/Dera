@@ -1,7 +1,12 @@
+import { ethers } from 'ethers';
+
 // Dynamic imports to avoid SSR issues with crypto module
 let HashConnect = null;
 let HashConnectConnectionState = null;
 let LedgerId = null;
+let ContractExecuteTransaction = null;
+let ContractFunctionParameters = null;
+let AccountId = null;
 
 // Lazy load hashconnect only on client-side
 async function loadHashConnect() {
@@ -14,6 +19,9 @@ async function loadHashConnect() {
         Paired: 'Paired',
       },
       LedgerId: null,
+      ContractExecuteTransaction: null,
+      ContractFunctionParameters: null,
+      AccountId: null,
     };
   }
 
@@ -23,9 +31,262 @@ async function loadHashConnect() {
     HashConnect = hashconnect.HashConnect;
     HashConnectConnectionState = hashconnect.HashConnectConnectionState;
     LedgerId = sdk.LedgerId;
+    ContractExecuteTransaction = sdk.ContractExecuteTransaction;
+    ContractFunctionParameters = sdk.ContractFunctionParameters;
+    AccountId = sdk.AccountId;
   }
 
-  return { HashConnect, HashConnectConnectionState, LedgerId };
+  return {
+    HashConnect,
+    HashConnectConnectionState,
+    LedgerId,
+    ContractExecuteTransaction,
+    ContractFunctionParameters,
+    AccountId
+  };
+}
+
+/**
+ * Ethers v6 compatible wrapper for HashConnect signer
+ * HashConnect's signer only implements signTransaction, but ethers v6 contracts
+ * require sendTransaction. This wrapper bridges that gap.
+ */
+class HashConnectSignerWrapper extends ethers.AbstractSigner {
+  constructor(hashConnectSigner, provider, accountId) {
+    super(provider);
+    this.hashConnectSigner = hashConnectSigner;
+    this.accountId = accountId;
+  }
+
+  async getAddress() {
+    // Convert Hedera account ID to EVM address format
+    // Account ID format: 0.0.X -> EVM format: 0x00000000000000000000000000000000XXXXXXXX
+    const accountNum = this.accountId.split('.')[2];
+    const evmAddress = '0x' + accountNum.padStart(40, '0');
+    return evmAddress;
+  }
+
+  async signTransaction(transaction) {
+    // Use HashConnect's signTransaction method
+    return await this.hashConnectSigner.signTransaction(transaction);
+  }
+
+  async sendTransaction(transaction) {
+    console.log('🔄 HashConnectSignerWrapper.sendTransaction called:', transaction);
+
+    // Populate the transaction with missing fields
+    const tx = await this.populateTransaction(transaction);
+    console.log('📝 Populated transaction:', tx);
+
+    // Sign the transaction using HashConnect
+    const signedTx = await this.signTransaction(tx);
+    console.log('✅ Transaction signed:', signedTx);
+
+    // Broadcast the signed transaction using the provider
+    const response = await this.provider.broadcastTransaction(signedTx);
+    console.log('📡 Transaction broadcasted:', response);
+
+    return response;
+  }
+
+  async populateTransaction(transaction) {
+    // Let ethers populate the transaction with gasPrice, nonce, etc.
+    const populated = await ethers.resolveProperties(transaction);
+
+    // Ensure sender address is set
+    if (!populated.from) {
+      populated.from = await this.getAddress();
+    }
+
+    // Get gas estimate if not provided
+    if (!populated.gasLimit && this.provider) {
+      try {
+        populated.gasLimit = await this.provider.estimateGas(populated);
+      } catch (error) {
+        console.warn('Could not estimate gas, using default:', error);
+        populated.gasLimit = 300000n; // Default gas limit
+      }
+    }
+
+    // Get gas price if not provided
+    if (!populated.gasPrice && !populated.maxFeePerGas && this.provider) {
+      try {
+        const feeData = await this.provider.getFeeData();
+        if (feeData.maxFeePerGas) {
+          populated.maxFeePerGas = feeData.maxFeePerGas;
+          populated.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+        } else {
+          populated.gasPrice = feeData.gasPrice;
+        }
+      } catch (error) {
+        console.warn('Could not get fee data:', error);
+      }
+    }
+
+    // Get nonce if not provided
+    if (populated.nonce === undefined && this.provider) {
+      populated.nonce = await this.provider.getTransactionCount(await this.getAddress(), 'pending');
+    }
+
+    // Ensure chainId is set
+    if (!populated.chainId && this.provider) {
+      const network = await this.provider.getNetwork();
+      populated.chainId = network.chainId;
+    }
+
+    return populated;
+  }
+
+  connect(provider) {
+    return new HashConnectSignerWrapper(this.hashConnectSigner, provider, this.accountId);
+  }
+}
+
+/**
+ * Hedera-native transaction builder for contract interactions
+ * Uses ContractExecuteTransaction from @hashgraph/sdk instead of ethers
+ * This is the preferred method for Hedera as it works natively with HashConnect
+ */
+class HederaContractExecutor {
+  constructor(hashpackService) {
+    this.hashpackService = hashpackService;
+  }
+
+  /**
+   * Convert Hedera account ID (0.0.X) to ContractId format
+   */
+  convertToContractId(address) {
+    // If already in 0.0.X format, return as is
+    if (address.match(/^\d+\.\d+\.\d+$/)) {
+      return address;
+    }
+
+    // If EVM address format (0x...), convert to Hedera format
+    if (address.startsWith('0x')) {
+      // Remove 0x prefix and convert hex to decimal
+      const hex = address.slice(2);
+      const decimal = parseInt(hex, 16);
+      return `0.0.${decimal}`;
+    }
+
+    return address;
+  }
+
+  /**
+   * Encode a contract function call using ethers Interface
+   * @param {object} contractInterface - ethers Interface instance
+   * @param {string} functionName - Function to call
+   * @param {Array} args - Function arguments
+   * @returns {string} Encoded function data
+   */
+  encodeFunctionCall(contractInterface, functionName, args) {
+    return contractInterface.encodeFunctionData(functionName, args);
+  }
+
+  /**
+   * Execute a contract function using Hedera SDK
+   * @param {string} contractAddress - Contract address (0.0.X or 0x format)
+   * @param {object} contractInterface - ethers Interface instance for encoding
+   * @param {string} functionName - Function to call
+   * @param {Array} args - Function arguments
+   * @param {object} options - Transaction options (gas, value, etc.)
+   * @returns {Promise<object>} Transaction result
+   */
+  async executeContractFunction(contractAddress, contractInterface, functionName, args, options = {}) {
+    try {
+      console.log('🔧 Hedera Contract Executor:', {
+        contractAddress,
+        functionName,
+        args,
+        options
+      });
+
+      // Ensure we have a connected HashPack session
+      if (!this.hashpackService.isConnected()) {
+        throw new Error('HashPack not connected');
+      }
+
+      // Get the signer from HashConnect
+      const accountId = this.hashpackService.getConnectedAccountIds()[0];
+      if (!accountId) {
+        throw new Error('No account ID available');
+      }
+
+      const signer = this.hashpackService.hashconnect.getSigner(accountId);
+      console.log('✅ Got Hedera signer for account:', accountId);
+
+      // Encode the function call
+      const functionData = this.encodeFunctionCall(contractInterface, functionName, args);
+      console.log('📝 Encoded function data:', functionData);
+
+      // Convert contract address to Hedera format
+      const contractId = this.convertToContractId(contractAddress);
+      console.log('🏠 Contract ID:', contractId);
+
+      // Create ContractExecuteTransaction
+      const tx = new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(options.gasLimit || 300000)
+        .setFunctionParameters(Buffer.from(functionData.slice(2), 'hex')); // Remove 0x and convert to buffer
+
+      // If sending HBAR with the transaction (for payable functions)
+      if (options.value) {
+        const hbarAmount = Number(options.value) / 100000000; // Convert tinybars to HBAR
+        tx.setPayableAmount(hbarAmount);
+        console.log('💰 Payable amount:', hbarAmount, 'HBAR');
+      }
+
+      console.log('📤 Executing transaction via HashConnect...');
+
+      // Freeze and execute with signer
+      const frozenTx = await tx.freezeWithSigner(signer);
+      const result = await frozenTx.executeWithSigner(signer);
+
+      console.log('✅ Transaction executed:', {
+        transactionId: result.transactionId.toString(),
+        status: result.toString()
+      });
+
+      // Get receipt
+      const receipt = await result.getReceiptWithSigner(signer);
+      console.log('📋 Transaction receipt:', {
+        status: receipt.status.toString(),
+        transactionId: result.transactionId.toString()
+      });
+
+      return {
+        transactionId: result.transactionId.toString(),
+        status: receipt.status.toString(),
+        receipt: receipt
+      };
+
+    } catch (error) {
+      console.error('❌ Hedera contract execution error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute contract function and wait for consensus
+   * Similar to ethers tx.wait()
+   */
+  async executeAndWait(contractAddress, contractInterface, functionName, args, options = {}) {
+    const result = await this.executeContractFunction(
+      contractAddress,
+      contractInterface,
+      functionName,
+      args,
+      options
+    );
+
+    // Hedera transactions reach consensus immediately after receipt
+    // No need to wait like in Ethereum
+    return {
+      hash: result.transactionId,
+      status: result.status === 'SUCCESS' ? 1 : 0,
+      ...result
+    };
+  }
 }
 
 class HashPackService {
@@ -620,7 +881,7 @@ class HashPackService {
     }
   }
 
-  async getSigner(accountId) {
+  async getSigner(accountId, provider = null) {
     if (!this.hashconnect) {
       throw new Error('HashConnect not initialized');
     }
@@ -643,7 +904,7 @@ class HashPackService {
       hasPairingData: !!this.pairingData
     });
 
-    // HashConnect v3 provides getSigner directly - it should be ethers v6 compatible
+    // Get the HashConnect signer
     const hashConnectSigner = this.hashconnect.getSigner(accountId);
 
     if (!hashConnectSigner) {
@@ -660,8 +921,27 @@ class HashPackService {
       methodCount: Object.keys(hashConnectSigner).filter(k => typeof hashConnectSigner[k] === 'function').length
     });
 
-    console.log('✅ Returning HashConnect signer (should be ethers v6 compatible)');
-    return hashConnectSigner;
+    // If no provider is passed, create one using the default RPC URL
+    if (!provider) {
+      const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet.hashio.io/api';
+      provider = new ethers.JsonRpcProvider(RPC_URL);
+      console.log('📡 Created JSON-RPC provider for signer:', RPC_URL);
+    }
+
+    // Wrap the HashConnect signer to make it ethers v6 compatible
+    const wrappedSigner = new HashConnectSignerWrapper(hashConnectSigner, provider, accountId);
+
+    console.log('✅ Returning wrapped HashConnect signer (ethers v6 compatible)');
+    return wrappedSigner;
+  }
+
+  /**
+   * Get Hedera-native contract executor
+   * This is the recommended way to interact with contracts on Hedera
+   * @returns {HederaContractExecutor}
+   */
+  getContractExecutor() {
+    return new HederaContractExecutor(this);
   }
 
   getHashConnect() {
