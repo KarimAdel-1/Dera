@@ -957,15 +957,8 @@ class DeraProtocolService {
     const { ltv, liquidationThreshold } = this.parseConfiguration(assetData.configuration);
 
     // Get price from oracle
-    let price = '0';
-    try {
-      const oraclePrice = await this.oracleContract.getAssetPrice(address);
-      price = ethers.formatUnits(oraclePrice, 8);
-    } catch (error) {
-      console.warn(`Oracle price not available for ${assetInfo.symbol}, using fallback`);
-      // Only for price, allow fallback since oracle might not be configured yet
-      price = assetInfo.symbol === 'USDC' ? '1.00' : '0.08';
-    }
+    const oraclePrice = await this.oracleContract.getAssetPrice(address);
+    const price = ethers.formatUnits(oraclePrice, 8);
 
     return {
       address,
