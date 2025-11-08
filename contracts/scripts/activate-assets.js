@@ -48,6 +48,25 @@ async function main() {
     console.log("✅ Risk Admin granted");
   }
 
+  // Helper function to decode configuration bitmap
+  function decodeConfig(configData) {
+    // Bit positions from AssetConfiguration.sol
+    const IS_ACTIVE_BIT = 56n;
+    const BORROWING_ENABLED_BIT = 58n;
+    const LTV_MASK = 0xFFFFn;
+    const LIQUIDATION_THRESHOLD_START = 16n;
+    const LIQUIDATION_THRESHOLD_MASK = 0xFFFFn;
+
+    const data = BigInt(configData);
+
+    return {
+      isActive: (data & (1n << IS_ACTIVE_BIT)) !== 0n,
+      borrowingEnabled: (data & (1n << BORROWING_ENABLED_BIT)) !== 0n,
+      ltv: Number(data & LTV_MASK),
+      liquidationThreshold: Number((data >> LIQUIDATION_THRESHOLD_START) & LIQUIDATION_THRESHOLD_MASK)
+    };
+  }
+
   // Check current status
   console.log("\n" + "=".repeat(60));
   console.log("CURRENT STATUS");
@@ -58,13 +77,16 @@ async function main() {
 
   for (const asset of assetsList) {
     const config = await pool.getConfiguration(asset);
+    const decoded = decodeConfig(config.data);
     const data = await pool.getAssetData(asset);
     const tokenName = asset === HBAR_ADDRESS ? 'HBAR' : 'USDC';
 
     console.log(`\n  ${tokenName}:`);
     console.log(`    Address: ${asset}`);
-    console.log(`    Active: ${config.isActive}`);
-    console.log(`    Borrowing Enabled: ${config.borrowingEnabled}`);
+    console.log(`    Active: ${decoded.isActive ? '✅ Yes' : '❌ No'}`);
+    console.log(`    Borrowing Enabled: ${decoded.borrowingEnabled ? '✅ Yes' : '❌ No'}`);
+    console.log(`    LTV: ${decoded.ltv / 100}%`);
+    console.log(`    Liquidation Threshold: ${decoded.liquidationThreshold / 100}%`);
     console.log(`    dToken: ${data.supplyTokenAddress}`);
     console.log(`    vToken: ${data.borrowTokenAddress}`);
   }
@@ -76,8 +98,9 @@ async function main() {
 
   try {
     const hbarConfig = await pool.getConfiguration(HBAR_ADDRESS);
+    const hbarDecoded = decodeConfig(hbarConfig.data);
 
-    if (!hbarConfig.isActive) {
+    if (!hbarDecoded.isActive) {
       console.log("\n📍 Setting HBAR as active...");
       await (await poolConfigurator.setAssetActive(HBAR_ADDRESS, true)).wait();
       console.log("✅ HBAR activated");
@@ -85,7 +108,7 @@ async function main() {
       console.log("✅ HBAR already active");
     }
 
-    if (!hbarConfig.borrowingEnabled) {
+    if (!hbarDecoded.borrowingEnabled) {
       console.log("📍 Enabling HBAR borrowing...");
       await (await poolConfigurator.setAssetBorrowing(HBAR_ADDRESS, true)).wait();
       console.log("✅ HBAR borrowing enabled");
@@ -114,8 +137,9 @@ async function main() {
 
   try {
     const usdcConfig = await pool.getConfiguration(USDC_ADDRESS);
+    const usdcDecoded = decodeConfig(usdcConfig.data);
 
-    if (!usdcConfig.isActive) {
+    if (!usdcDecoded.isActive) {
       console.log("\n📍 Setting USDC as active...");
       await (await poolConfigurator.setAssetActive(USDC_ADDRESS, true)).wait();
       console.log("✅ USDC activated");
@@ -123,7 +147,7 @@ async function main() {
       console.log("✅ USDC already active");
     }
 
-    if (!usdcConfig.borrowingEnabled) {
+    if (!usdcDecoded.borrowingEnabled) {
       console.log("📍 Enabling USDC borrowing...");
       await (await poolConfigurator.setAssetBorrowing(USDC_ADDRESS, true)).wait();
       console.log("✅ USDC borrowing enabled");
@@ -152,13 +176,14 @@ async function main() {
 
   for (const asset of assetsList) {
     const config = await pool.getConfiguration(asset);
+    const decoded = decodeConfig(config.data);
     const tokenName = asset === HBAR_ADDRESS ? 'HBAR' : 'USDC';
 
     console.log(`\n  ${tokenName}:`);
-    console.log(`    Active: ${config.isActive ? '✅ Yes' : '❌ No'}`);
-    console.log(`    Borrowing: ${config.borrowingEnabled ? '✅ Enabled' : '❌ Disabled'}`);
-    console.log(`    LTV: ${config.ltv / 100}%`);
-    console.log(`    Liquidation Threshold: ${config.liquidationThreshold / 100}%`);
+    console.log(`    Active: ${decoded.isActive ? '✅ Yes' : '❌ No'}`);
+    console.log(`    Borrowing: ${decoded.borrowingEnabled ? '✅ Enabled' : '❌ Disabled'}`);
+    console.log(`    LTV: ${decoded.ltv / 100}%`);
+    console.log(`    Liquidation Threshold: ${decoded.liquidationThreshold / 100}%`);
   }
 
   console.log("\n🎉 Asset activation complete!");
