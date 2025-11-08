@@ -510,7 +510,7 @@ async function main() {
   log('💰 Required: At least 100 HBAR in your Hedera account', 'yellow');
 
   // Check prerequisites
-  if (!checkPrerequisites()) {
+  if (!await checkPrerequisites()) {
     log('\n❌ Prerequisites check failed. Please fix the issues above and try again.', 'red');
     process.exit(1);
   }
