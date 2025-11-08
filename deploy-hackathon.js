@@ -7,7 +7,7 @@
  * This script automates the complete deployment of the Dera Protocol
  * to Hedera Testnet for hackathon judges and mentors.
  *
- * Expected Runtime: 5-8 minutes
+ * Expected Runtime: 6-10 minutes
  *
  * Prerequisites:
  * - Node.js 18+
@@ -53,7 +53,7 @@ function execCommand(command, cwd = process.cwd(), silent = false) {
 }
 
 function checkPrerequisites() {
-  log('\nStep 1/7: 📋 Checking Prerequisites...', 'cyan');
+  log('\nStep 1/9: 📋 Checking Prerequisites...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   // Check Node.js version
@@ -117,7 +117,7 @@ async function promptUser(question) {
 }
 
 async function installDependencies() {
-  log('\nStep 2/7: 📦 Installing Dependencies...', 'cyan');
+  log('\nStep 2/9: 📦 Installing Dependencies...', 'cyan');
   log('━'.repeat(60), 'cyan');
   log('This may take a couple of minutes. Progress below:', 'yellow');
 
@@ -152,7 +152,7 @@ async function installDependencies() {
 }
 
 async function compileContracts() {
-  log('\nStep 3/7: 🔨 Compiling Smart Contracts...', 'cyan');
+  log('\nStep 3/9: 🔨 Compiling Smart Contracts...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const contractsPath = path.join(__dirname, 'contracts');
@@ -234,7 +234,7 @@ async function compileContracts() {
 }
 
 async function deployContracts() {
-  log('\nStep 4/7: 🚀 Deploying Contracts to Hedera Testnet...', 'cyan');
+  log('\nStep 4/9: 🚀 Deploying Contracts to Hedera Testnet...', 'cyan');
   log('━'.repeat(60), 'cyan');
   log('Fresh deployment with all fixes applied...', 'yellow');
   log('This will take 3-5 minutes. Please be patient...', 'yellow');
@@ -263,7 +263,7 @@ async function deployContracts() {
 }
 
 async function createHCSTopics() {
-  log('\nStep 5/7: 📡 Creating HCS Topics...', 'cyan');
+  log('\nStep 5/9: 📡 Creating HCS Topics...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const contractsPath = path.join(__dirname, 'contracts');
@@ -288,22 +288,22 @@ async function createHCSTopics() {
 
 
 async function initializeAssets() {
-  log('\nStep 6/7: 🔧 Initializing Assets (HBAR + USDC)...', 'cyan');
+  log('\nStep 6/9: 🔧 Initializing Assets (HBAR + USDC)...', 'cyan');
   log('━'.repeat(60), 'cyan');
   log('> Granting PoolConfigurator permissions...', 'blue');
 
   const contractsPath = path.join(__dirname, 'contracts');
-  
+
   // Grant PoolConfigurator the Pool Admin role
   const grantRole = execCommand(
     'npm run grant:configurator',
     contractsPath
   );
-  
+
   if (!grantRole.success) {
     log('⚠️  Failed to grant role (may already be granted)', 'yellow');
   }
-  
+
   log('> Initializing HBAR (0.0.0) and USDC (0.0.429274)...', 'blue');
   const assetsInit = execCommand(
     'npm run init:assets',
@@ -323,8 +323,52 @@ async function initializeAssets() {
   return true;
 }
 
+async function activateAssets() {
+  log('\nStep 7/9: 🔓 Activating Assets...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('> Enabling assets for supply/borrow operations...', 'blue');
+
+  const contractsPath = path.join(__dirname, 'contracts');
+  const activateScript = execCommand(
+    'npx hardhat run scripts/activate-assets.js --network testnet',
+    contractsPath
+  );
+
+  if (!activateScript.success) {
+    log('❌ Asset activation failed', 'red');
+    log('⚠️  Assets may already be activated or require manual activation', 'yellow');
+    return true; // Don't fail deployment - assets might already be active
+  }
+
+  log('✅ Assets activated successfully!', 'green');
+  log('   HBAR and USDC are now ready for use', 'green');
+  return true;
+}
+
+async function setOraclePrices() {
+  log('\nStep 8/9: 💰 Setting Oracle Prices...', 'cyan');
+  log('━'.repeat(60), 'cyan');
+  log('> Configuring fallback prices for HBAR and USDC...', 'blue');
+
+  const contractsPath = path.join(__dirname, 'contracts');
+  const oracleScript = execCommand(
+    'npx hardhat run scripts/set-oracle-prices.js --network testnet',
+    contractsPath
+  );
+
+  if (!oracleScript.success) {
+    log('❌ Oracle price configuration failed', 'red');
+    log('⚠️  Prices may need to be set manually', 'yellow');
+    return true; // Don't fail deployment - can continue without prices
+  }
+
+  log('✅ Oracle prices configured successfully!', 'green');
+  log('   HBAR: $0.08 | USDC: $1.00', 'green');
+  return true;
+}
+
 async function configureFrontend() {
-  log('\nStep 7/7: ⚙️  Configuring Frontend...', 'cyan');
+  log('\nStep 9/9: ⚙️  Configuring Frontend...', 'cyan');
   log('━'.repeat(60), 'cyan');
 
   const frontendPath = path.join(__dirname, 'frontend');
@@ -560,7 +604,7 @@ async function main() {
   log('╚════════════════════════════════════════════════════════════╝', 'magenta');
 
   log('\n🎯 This script will deploy the complete Dera Protocol to Hedera Testnet', 'yellow');
-  log('⏱️  Expected time: 5-8 minutes', 'yellow');
+  log('⏱️  Expected time: 6-10 minutes', 'yellow');
   log('💰 Required: At least 100 HBAR in your Hedera account', 'yellow');
 
   // Check prerequisites
@@ -601,19 +645,31 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 5: Initialize Assets (HBAR + USDC)
+  // Step 6: Initialize Assets (HBAR + USDC)
   if (!await initializeAssets()) {
     log('\n❌ Deployment failed during asset initialization', 'red');
     process.exit(1);
   }
 
-  // Step 6: Configure frontend
+  // Step 7: Activate Assets
+  if (!await activateAssets()) {
+    log('\n❌ Deployment failed during asset activation', 'red');
+    process.exit(1);
+  }
+
+  // Step 8: Set Oracle Prices
+  if (!await setOraclePrices()) {
+    log('\n❌ Deployment failed during Oracle price configuration', 'red');
+    process.exit(1);
+  }
+
+  // Step 9: Configure frontend
   if (!await configureFrontend()) {
     log('\n❌ Deployment failed during frontend configuration', 'red');
     process.exit(1);
   }
 
-  // Step 7: Update root .env file
+  // Step 10: Update root .env file
   await updateRootEnv();
 
   const endTime = Date.now();
