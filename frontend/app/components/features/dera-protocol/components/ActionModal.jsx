@@ -3,13 +3,18 @@ import { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import Tooltip from './Tooltip';
 
-const ActionModal = ({ type, asset, assets, userAccount, onClose, onExecute }) => {
+const ActionModal = ({ type, asset, assets, userAccount, onClose, onExecute, walletBalances = {} }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState('');
   const assetData = assets.find(a => a.symbol === asset);
 
   const getBalance = () => {
-    if (type === 'supply') return '10,000.00';
+    if (type === 'supply') {
+      // Use actual wallet balance from wallet
+      const walletBalance = walletBalances[asset] || 0;
+      return walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+    }
     if (type === 'borrow') {
       const maxBorrowInUSD = userAccount.availableToBorrow;
       const maxBorrowInAsset = maxBorrowInUSD / assetData.price;
@@ -26,15 +31,64 @@ const ActionModal = ({ type, asset, assets, userAccount, onClose, onExecute }) =
     return '0.00';
   };
 
-  const handleExecute = () => {
-    const amountNum = parseFloat(amount);
-    if (!amountNum || amountNum <= 0) return;
+  const validateAmount = (value) => {
+    const amountNum = parseFloat(value);
+    if (!value || isNaN(amountNum) || amountNum <= 0) {
+      setValidationError('Please enter a valid amount');
+      return false;
+    }
 
+    const balance = parseFloat(getBalance().replace(/,/g, ''));
+
+    if (type === 'supply') {
+      if (amountNum > balance) {
+        setValidationError(`Insufficient ${asset} balance. Available: ${balance.toFixed(8)}`);
+        return false;
+      }
+    } else if (type === 'withdraw') {
+      if (amountNum > balance) {
+        setValidationError(`Insufficient supplied balance. Available: ${balance.toFixed(8)}`);
+        return false;
+      }
+    } else if (type === 'borrow') {
+      if (amountNum > balance) {
+        setValidationError(`Exceeds max borrow amount. Maximum: ${balance.toFixed(2)}`);
+        return false;
+      }
+    } else if (type === 'repay') {
+      if (amountNum > balance) {
+        setValidationError(`Exceeds borrowed amount. Outstanding: ${balance.toFixed(2)}`);
+        return false;
+      }
+    }
+
+    setValidationError('');
+    return true;
+  };
+
+  const handleExecute = () => {
+    // Validate amount before executing
+    if (!validateAmount(amount)) {
+      return;
+    }
+
+    const amountNum = parseFloat(amount);
     setLoading(true);
     setTimeout(() => {
       onExecute(type, asset, amountNum);
       setLoading(false);
     }, 1500);
+  };
+
+  // Validate on amount change
+  const handleAmountChange = (e) => {
+    const value = e.target.value;
+    setAmount(value);
+    if (value) {
+      validateAmount(value);
+    } else {
+      setValidationError('');
+    }
   };
 
   const getTitle = () => {
@@ -63,18 +117,28 @@ const ActionModal = ({ type, asset, assets, userAccount, onClose, onExecute }) =
               <input
                 type="number"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-tertiary)] rounded-[12px] focus:border-[var(--color-primary)] focus:outline-none transition-all text-[var(--color-text-primary)]"
+                onChange={handleAmountChange}
+                className={`w-full px-4 py-3 border-2 ${validationError ? 'border-red-500' : 'border-[var(--color-border-primary)]'} bg-[var(--color-bg-tertiary)] rounded-[12px] focus:border-[var(--color-primary)] focus:outline-none transition-all text-[var(--color-text-primary)]`}
                 placeholder="0.00"
                 step="0.01"
               />
               <button
-                onClick={() => setAmount(getBalance().replace(/,/g, ''))}
+                onClick={() => {
+                  const maxBalance = getBalance().replace(/,/g, '');
+                  setAmount(maxBalance);
+                  validateAmount(maxBalance);
+                }}
                 className="absolute right-3 top-3 text-[13px] font-medium text-[var(--color-primary)] hover:text-[var(--color-primary)]/90 bg-[var(--color-primary)]/10 px-3 py-1 rounded-[8px] transition-all"
               >
                 MAX
               </button>
             </div>
+            {validationError && (
+              <div className="flex items-center mt-2 text-red-500 text-[12px]">
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                {validationError}
+              </div>
+            )}
           </div>
 
           <div className="bg-[var(--color-bg-tertiary)] rounded-[12px] p-4 mb-4 space-y-3 text-[13px] sm:text-[14px]">

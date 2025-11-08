@@ -298,17 +298,55 @@ class HederaContractExecutor {
         status: result.toString()
       });
 
-      // Get receipt
-      const receipt = await result.getReceiptWithSigner(signer);
-      console.log('📋 Transaction receipt:', {
-        status: receipt.status.toString(),
-        transactionId: result.transactionId.toString()
-      });
+      // Note: getReceiptWithSigner() doesn't work reliably with HashConnect
+      // The transaction is already submitted and will be processed by the network
+      // We'll query the status via mirror node instead
 
+      console.log('📋 Transaction submitted successfully. Querying status via mirror node...');
+
+      // Wait a moment for consensus
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      try {
+        // Query transaction status from mirror node
+        const MIRROR_NODE_URL = process.env.NEXT_PUBLIC_MIRROR_NODE_URL || 'https://testnet.mirrornode.hedera.com';
+        const txId = result.transactionId.toString();
+        const response = await fetch(`${MIRROR_NODE_URL}/api/v1/transactions/${txId}`);
+
+        if (response.ok) {
+          const txData = await response.json();
+          const txInfo = txData.transactions?.[0];
+
+          if (txInfo) {
+            console.log('✅ Transaction confirmed via mirror node:', {
+              result: txInfo.result,
+              consensus_timestamp: txInfo.consensus_timestamp
+            });
+
+            return {
+              transactionId: txId,
+              status: txInfo.result === 'SUCCESS' ? 'SUCCESS' : txInfo.result,
+              receipt: {
+                status: txInfo.result,
+                transactionId: txId,
+                consensusTimestamp: txInfo.consensus_timestamp
+              }
+            };
+          }
+        }
+      } catch (mirrorError) {
+        console.warn('⚠️ Could not query mirror node for receipt:', mirrorError);
+      }
+
+      // Fallback: return success since transaction was executed
+      console.log('ℹ️ Returning success - transaction was submitted to network');
       return {
         transactionId: result.transactionId.toString(),
-        status: receipt.status.toString(),
-        receipt: receipt
+        status: 'PENDING',
+        receipt: {
+          status: 'PENDING',
+          transactionId: result.transactionId.toString()
+        }
       };
 
     } catch (error) {
