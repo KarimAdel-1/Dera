@@ -51,14 +51,22 @@ function createEnvFromExample(examplePath, targetPath, description) {
 }
 
 /**
- * Fill Hedera credentials in all relevant .env files
- * @param {object} credentials - { operatorId, operatorKey, privateKey }
+ * Fill credentials in all relevant .env files
+ * @param {object} credentials - { operatorId, operatorKey, privateKey, supabaseUrl, supabaseAnonKey, supabaseServiceKey, walletConnectProjectId }
  */
 function fillCredentials(credentials) {
   const rootDir = path.join(__dirname, '..');
-  const { operatorId, operatorKey, privateKey } = credentials;
+  const {
+    operatorId,
+    operatorKey,
+    privateKey,
+    supabaseUrl,
+    supabaseAnonKey,
+    supabaseServiceKey,
+    walletConnectProjectId
+  } = credentials;
 
-  log('\n🔐 Filling Hedera Credentials...', 'cyan');
+  log('\n🔐 Filling Credentials...', 'cyan');
 
   const filesToUpdate = [
     { path: path.join(rootDir, 'contracts', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey, PRIVATE_KEY: privateKey } },
@@ -68,6 +76,19 @@ function fillCredentials(credentials) {
     { path: path.join(rootDir, 'backend', 'node-staking-service', '.env'), vars: { HEDERA_OPERATOR_ID: operatorId, HEDERA_OPERATOR_KEY: operatorKey } },
     { path: path.join(rootDir, 'backend', 'rate-updater-service', '.env'), vars: { HEDERA_ACCOUNT_ID: operatorId, HEDERA_PRIVATE_KEY: operatorKey } },
   ];
+
+  // Add frontend credentials if provided
+  if (supabaseUrl && supabaseAnonKey && supabaseServiceKey && walletConnectProjectId) {
+    filesToUpdate.push({
+      path: path.join(rootDir, 'frontend', '.env.local'),
+      vars: {
+        NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
+        SUPABASE_SERVICE_KEY: supabaseServiceKey,
+        NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: walletConnectProjectId
+      }
+    });
+  }
 
   filesToUpdate.forEach(({ path: filePath, vars }) => {
     if (!fs.existsSync(filePath)) {
