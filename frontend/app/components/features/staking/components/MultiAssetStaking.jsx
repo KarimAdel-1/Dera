@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import NotificationToast from '../../../common/NotificationToast';
 import { hederaService } from '../../../../../services/hederaService';
+import stakingService from '../../../../../services/stakingService';
+import { walletProvider } from '../../../../../services/walletProvider';
 
 const MultiAssetStaking = () => {
   // Use default wallet from Redux (same pattern as SidebarSection)
@@ -155,9 +157,26 @@ const MultiAssetStaking = () => {
 
     setIsLoadingStakes(true);
     try {
-      // For now, use mock data until staking service is properly initialized
-      // TODO: Initialize stakingService with provider/signer and call getUserStakes
-      setUserStakes([]);
+      const stakes = await stakingService.getUserStakes(connectedAccount);
+
+      // Transform stakes to match UI format
+      const transformedStakes = stakes.map(stake => ({
+        stakeId: stake.index,
+        assetType: stake.asset === 'address(0)' ? 'HBAR' : 'HTS_TOKEN',
+        amount: stake.amount,
+        lockPeriod: stake.lockPeriod,
+        rewardAPY: (stake.lockPeriod === 7 ? 5 :
+                   stake.lockPeriod === 30 ? 10 :
+                   stake.lockPeriod === 90 ? 20 :
+                   stake.lockPeriod === 180 ? 35 : 50),
+        accumulatedRewards: stake.claimableRewards,
+        unlockTime: (stake.startTime + stake.lockPeriod * 86400) * 1000, // Convert to milliseconds
+        status: stake.isUnlocked ? 'Unlocked' : 'Locked',
+        serialNumber: stake.nftSerialNumber,
+        isNFT: stake.isNFT,
+      }));
+
+      setUserStakes(transformedStakes);
     } catch (error) {
       console.error('Error loading stakes:', error);
       showNotification('Failed to load your stakes', 'error');
@@ -166,8 +185,26 @@ const MultiAssetStaking = () => {
     }
   };
 
+  // Initialize staking service when wallet connects
   useEffect(() => {
-    loadUserStakes();
+    const initStakingService = async () => {
+      if (!connectedAccount) return;
+
+      try {
+        const provider = walletProvider.getProvider();
+        const signer = walletProvider.getSigner();
+
+        if (provider && signer) {
+          await stakingService.initialize(provider, signer);
+          console.log('✅ Staking service initialized');
+          await loadUserStakes();
+        }
+      } catch (error) {
+        console.error('Failed to initialize staking service:', error);
+      }
+    };
+
+    initStakingService();
   }, [connectedAccount]);
 
   const handleStake = async () => {
@@ -202,16 +239,46 @@ const MultiAssetStaking = () => {
 
     setIsStaking(true);
     try {
-      // TODO: Initialize and use stakingService properly
-      showNotification(
-        'Staking functionality will be available once wallet integration is complete',
-        'info'
-      );
+      let receipt;
 
-      // Reset form
+      // Check if stake can be sustained before proceeding
+      if (assetType === 'HBAR' || assetType === 'HTS_TOKEN' || assetType === 'RWA') {
+        const canSustain = await stakingService.canSustainStake(amount, lockPeriod);
+        if (!canSustain) {
+          showNotification(
+            'Insufficient reward pool to sustain this stake. Please try a smaller amount or shorter period.',
+            'error'
+          );
+          setIsStaking(false);
+          return;
+        }
+      }
+
+      // Execute staking based on asset type
+      if (assetType === 'HBAR') {
+        receipt = await stakingService.stakeHBAR(amount, lockPeriod);
+        showNotification(`Successfully staked ${amount} HBAR for ${lockPeriod} days!`, 'success');
+      } else if (assetType === 'NFT') {
+        // For NFT staking, we'd need a different service method
+        showNotification('NFT staking will be available soon', 'info');
+        setIsStaking(false);
+        return;
+      } else {
+        // For HTS tokens and RWAs, we'd need token-specific staking
+        showNotification('Token staking will be available soon', 'info');
+        setIsStaking(false);
+        return;
+      }
+
+      // Reset form after successful stake
       setAmount('');
       setTokenAddress('');
       setSerialNumber('');
+      setSelectedToken(null);
+      setSelectedNFT(null);
+
+      // Reload user stakes
+      await loadUserStakes();
     } catch (error) {
       console.error('Error staking:', error);
       showNotification(`Failed to stake: ${error.message}`, 'error');
@@ -223,11 +290,33 @@ const MultiAssetStaking = () => {
   const handleUnstake = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Initialize and use stakingService properly
-      showNotification('Unstaking functionality will be available once wallet integration is complete', 'info');
+      // Get the stake info to check if it's unlocked
+      const stake = userStakes.find(s => s.stakeId === stakeId);
+      if (!stake) {
+        showNotification('Stake not found', 'error');
+        setIsStaking(false);
+        return;
+      }
+
+      // Call unstake service
+      const receipt = await stakingService.unstake(stakeId, userStakes);
+
+      showNotification(
+        stake.status === 'Unlocked'
+          ? `Successfully unstaked ${stake.amount} ${stake.assetType}!`
+          : `Successfully unstaked with early withdrawal penalty`,
+        'success'
+      );
+
+      // Reload user stakes
+      await loadUserStakes();
     } catch (error) {
       console.error('Error unstaking:', error);
-      showNotification(`Failed to unstake: ${error.message}`, 'error');
+      if (error.message.includes('cancelled')) {
+        showNotification('Unstake cancelled', 'info');
+      } else {
+        showNotification(`Failed to unstake: ${error.message}`, 'error');
+      }
     } finally {
       setIsStaking(false);
     }
@@ -236,8 +325,30 @@ const MultiAssetStaking = () => {
   const handleClaimRewards = async (stakeId) => {
     setIsStaking(true);
     try {
-      // TODO: Initialize and use stakingService properly
-      showNotification('Claim rewards functionality will be available once wallet integration is complete', 'info');
+      // Get the stake info
+      const stake = userStakes.find(s => s.stakeId === stakeId);
+      if (!stake) {
+        showNotification('Stake not found', 'error');
+        setIsStaking(false);
+        return;
+      }
+
+      if (parseFloat(stake.accumulatedRewards) === 0) {
+        showNotification('No rewards available to claim', 'warning');
+        setIsStaking(false);
+        return;
+      }
+
+      // Call claim rewards service
+      const receipt = await stakingService.claimRewards(stakeId);
+
+      showNotification(
+        `Successfully claimed ${stake.accumulatedRewards} ${stake.isNFT ? 'HBAR' : stake.assetType} rewards!`,
+        'success'
+      );
+
+      // Reload user stakes to update rewards
+      await loadUserStakes();
     } catch (error) {
       console.error('Error claiming rewards:', error);
       showNotification(`Failed to claim rewards: ${error.message}`, 'error');
