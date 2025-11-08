@@ -644,13 +644,45 @@ class HashPackService {
     });
 
     // HashConnect v3 provides getSigner directly
-    const signer = this.hashconnect.getSigner(accountId);
+    const hashConnectSigner = this.hashconnect.getSigner(accountId);
 
-    if (!signer) {
+    if (!hashConnectSigner) {
       throw new Error('Failed to get signer. Please reconnect your wallet.');
     }
 
-    return signer;
+    // Wrap the HashConnect signer to make it compatible with ethers v6
+    // This wrapper implements the sendTransaction method that ethers contracts expect
+    const ethersCompatibleSigner = {
+      ...hashConnectSigner,
+
+      // Implement sendTransaction for ethers v6 compatibility
+      sendTransaction: async (transaction) => {
+        console.log('🔄 Ethers sendTransaction intercepted, routing through HashConnect');
+
+        // HashConnect signer uses call() method for contract calls
+        // Extract the contract call data
+        if (hashConnectSigner.call) {
+          return await hashConnectSigner.call(transaction);
+        }
+
+        throw new Error('HashConnect signer does not support this transaction type');
+      },
+
+      // Ensure getAddress is available
+      getAddress: async () => {
+        if (hashConnectSigner.getAddress) {
+          return await hashConnectSigner.getAddress();
+        }
+        // Fallback to accountId if getAddress not available
+        return accountId;
+      },
+
+      // Provider access
+      provider: hashConnectSigner.provider || null,
+    };
+
+    console.log('✅ Returning ethers-compatible wrapped signer');
+    return ethersCompatibleSigner;
   }
 
   getHashConnect() {
