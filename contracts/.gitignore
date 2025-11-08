@@ -44,3 +44,6 @@ yarn-error.log*
 
 # Deployment artifacts
 deployments/
+
+
+hcs-topics.json

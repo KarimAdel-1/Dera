@@ -1,12 +1,12 @@
 {
   "network": "testnet",
-  "created": "2025-11-07T04:36:00.000Z",
+  "created": "2025-11-08T14:47:49.169Z",
   "topics": {
-    "SUPPLY": "0.0.7207144",
-    "WITHDRAW": "0.0.7207146",
-    "BORROW": "0.0.7207148",
-    "REPAY": "0.0.7207149",
-    "LIQUIDATION": "0.0.7207150"
+    "SUPPLY": "0.0.7219755",
+    "WITHDRAW": "0.0.7219756",
+    "BORROW": "0.0.7219757",
+    "REPAY": "0.0.7219758",
+    "LIQUIDATION": "0.0.7219759"
   },
   "note": "Real HCS topics created via Hedera SDK"
 }

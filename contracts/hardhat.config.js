@@ -2,7 +2,7 @@ require("dotenv").config();
 require("@nomicfoundation/hardhat-ethers");
 // NOTE: OpenZeppelin upgrades plugin loaded but not used in deployment
 // May cause issues with deterministic deployments on Hedera
-require("@openzeppelin/hardhat-upgrades");
+// require("@openzeppelin/hardhat-upgrades");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
