@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 // Dynamic imports to avoid SSR issues with crypto module
 let HashConnect = null;
 let HashConnectConnectionState = null;
@@ -26,6 +28,102 @@ async function loadHashConnect() {
   }
 
   return { HashConnect, HashConnectConnectionState, LedgerId };
+}
+
+/**
+ * Ethers v6 compatible wrapper for HashConnect signer
+ * HashConnect's signer only implements signTransaction, but ethers v6 contracts
+ * require sendTransaction. This wrapper bridges that gap.
+ */
+class HashConnectSignerWrapper extends ethers.AbstractSigner {
+  constructor(hashConnectSigner, provider, accountId) {
+    super(provider);
+    this.hashConnectSigner = hashConnectSigner;
+    this.accountId = accountId;
+  }
+
+  async getAddress() {
+    // Convert Hedera account ID to EVM address format
+    // Account ID format: 0.0.X -> EVM format: 0x00000000000000000000000000000000XXXXXXXX
+    const accountNum = this.accountId.split('.')[2];
+    const evmAddress = '0x' + accountNum.padStart(40, '0');
+    return evmAddress;
+  }
+
+  async signTransaction(transaction) {
+    // Use HashConnect's signTransaction method
+    return await this.hashConnectSigner.signTransaction(transaction);
+  }
+
+  async sendTransaction(transaction) {
+    console.log('🔄 HashConnectSignerWrapper.sendTransaction called:', transaction);
+
+    // Populate the transaction with missing fields
+    const tx = await this.populateTransaction(transaction);
+    console.log('📝 Populated transaction:', tx);
+
+    // Sign the transaction using HashConnect
+    const signedTx = await this.signTransaction(tx);
+    console.log('✅ Transaction signed:', signedTx);
+
+    // Broadcast the signed transaction using the provider
+    const response = await this.provider.broadcastTransaction(signedTx);
+    console.log('📡 Transaction broadcasted:', response);
+
+    return response;
+  }
+
+  async populateTransaction(transaction) {
+    // Let ethers populate the transaction with gasPrice, nonce, etc.
+    const populated = await ethers.resolveProperties(transaction);
+
+    // Ensure sender address is set
+    if (!populated.from) {
+      populated.from = await this.getAddress();
+    }
+
+    // Get gas estimate if not provided
+    if (!populated.gasLimit && this.provider) {
+      try {
+        populated.gasLimit = await this.provider.estimateGas(populated);
+      } catch (error) {
+        console.warn('Could not estimate gas, using default:', error);
+        populated.gasLimit = 300000n; // Default gas limit
+      }
+    }
+
+    // Get gas price if not provided
+    if (!populated.gasPrice && !populated.maxFeePerGas && this.provider) {
+      try {
+        const feeData = await this.provider.getFeeData();
+        if (feeData.maxFeePerGas) {
+          populated.maxFeePerGas = feeData.maxFeePerGas;
+          populated.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+        } else {
+          populated.gasPrice = feeData.gasPrice;
+        }
+      } catch (error) {
+        console.warn('Could not get fee data:', error);
+      }
+    }
+
+    // Get nonce if not provided
+    if (populated.nonce === undefined && this.provider) {
+      populated.nonce = await this.provider.getTransactionCount(await this.getAddress(), 'pending');
+    }
+
+    // Ensure chainId is set
+    if (!populated.chainId && this.provider) {
+      const network = await this.provider.getNetwork();
+      populated.chainId = network.chainId;
+    }
+
+    return populated;
+  }
+
+  connect(provider) {
+    return new HashConnectSignerWrapper(this.hashConnectSigner, provider, this.accountId);
+  }
 }
 
 class HashPackService {
@@ -620,7 +718,7 @@ class HashPackService {
     }
   }
 
-  async getSigner(accountId) {
+  async getSigner(accountId, provider = null) {
     if (!this.hashconnect) {
       throw new Error('HashConnect not initialized');
     }
@@ -643,7 +741,7 @@ class HashPackService {
       hasPairingData: !!this.pairingData
     });
 
-    // HashConnect v3 provides getSigner directly - it should be ethers v6 compatible
+    // Get the HashConnect signer
     const hashConnectSigner = this.hashconnect.getSigner(accountId);
 
     if (!hashConnectSigner) {
@@ -660,8 +758,18 @@ class HashPackService {
       methodCount: Object.keys(hashConnectSigner).filter(k => typeof hashConnectSigner[k] === 'function').length
     });
 
-    console.log('✅ Returning HashConnect signer (should be ethers v6 compatible)');
-    return hashConnectSigner;
+    // If no provider is passed, create one using the default RPC URL
+    if (!provider) {
+      const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://testnet.hashio.io/api';
+      provider = new ethers.JsonRpcProvider(RPC_URL);
+      console.log('📡 Created JSON-RPC provider for signer:', RPC_URL);
+    }
+
+    // Wrap the HashConnect signer to make it ethers v6 compatible
+    const wrappedSigner = new HashConnectSignerWrapper(hashConnectSigner, provider, accountId);
+
+    console.log('✅ Returning wrapped HashConnect signer (ethers v6 compatible)');
+    return wrappedSigner;
   }
 
   getHashConnect() {
