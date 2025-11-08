@@ -24,8 +24,17 @@ async function main() {
       console.log("   ID:", assetData.id.toString());
 
       const config = await pool.getConfiguration(asset);
-      console.log("   Active:", config.data & 1n ? "Yes" : "No");
-      console.log("   Borrowing Enabled:", config.data & (1n << 1n) ? "Yes" : "No");
+
+      // Decode bitmap using correct bit positions
+      const IS_ACTIVE_BIT = 56n;
+      const BORROWING_ENABLED_BIT = 58n;
+      const configData = BigInt(config.data);
+
+      const isActive = (configData & (1n << IS_ACTIVE_BIT)) !== 0n;
+      const borrowingEnabled = (configData & (1n << BORROWING_ENABLED_BIT)) !== 0n;
+
+      console.log("   Active:", isActive ? "Yes" : "No");
+      console.log("   Borrowing Enabled:", borrowingEnabled ? "Yes" : "No");
     } catch (e) {
       console.log("   ❌ Error getting asset data:", e.message);
     }
