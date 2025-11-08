@@ -24,19 +24,22 @@ async function main() {
   // Hedera requires minimum 10_000_000_000 wei (0.1 HBAR) for HBAR transfers
 
   console.log("1️⃣  Updating HBAR reserve state...");
-  console.log("   Method: Supply 0.1 HBAR (minimum amount) to trigger state update\n");
+  console.log("   Method: Supply 0.1 HBAR to trigger state update\n");
 
-  const minHbarAmount = ethers.parseUnits("0.1", 8); // 0.1 HBAR in 8 decimals
-  console.log("   Amount:", ethers.formatUnits(minHbarAmount, 8), "HBAR");
-  console.log("   Wei value:", minHbarAmount.toString());
+  // HBAR uses 8 decimals for amount, but EVM value field uses 18 decimals (wei)
+  const amountHbar = ethers.parseUnits("0.1", 8); // 0.1 HBAR in 8 decimals (for supply function)
+  const valueWei = ethers.parseEther("0.1");     // 0.1 HBAR in 18 decimals (for msg.value)
+
+  console.log("   Amount (8 decimals):", ethers.formatUnits(amountHbar, 8), "HBAR =", amountHbar.toString());
+  console.log("   Value (18 decimals wei):", ethers.formatEther(valueWei), "HBAR =", valueWei.toString(), "wei");
 
   try {
     const tx = await pool.supply(
       HBAR_ADDRESS,
-      minHbarAmount,
+      amountHbar,        // Amount in 8 decimals
       deployer.address,
       0,
-      { value: minHbarAmount, gasLimit: 500000 }
+      { value: valueWei, gasLimit: 500000 }  // Value in 18 decimals (wei)
     );
 
     console.log("   📤 Transaction sent:", tx.hash);
