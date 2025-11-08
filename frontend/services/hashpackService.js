@@ -643,46 +643,25 @@ class HashPackService {
       hasPairingData: !!this.pairingData
     });
 
-    // HashConnect v3 provides getSigner directly
+    // HashConnect v3 provides getSigner directly - it should be ethers v6 compatible
     const hashConnectSigner = this.hashconnect.getSigner(accountId);
 
     if (!hashConnectSigner) {
       throw new Error('Failed to get signer. Please reconnect your wallet.');
     }
 
-    // Wrap the HashConnect signer to make it compatible with ethers v6
-    // This wrapper implements the sendTransaction method that ethers contracts expect
-    const ethersCompatibleSigner = {
-      ...hashConnectSigner,
+    // Log available methods for debugging
+    console.log('🔍 HashConnect signer inspection:', {
+      signerType: hashConnectSigner.constructor?.name,
+      hasSendTransaction: typeof hashConnectSigner.sendTransaction === 'function',
+      hasSignTransaction: typeof hashConnectSigner.signTransaction === 'function',
+      hasGetAddress: typeof hashConnectSigner.getAddress === 'function',
+      hasProvider: !!hashConnectSigner.provider,
+      methodCount: Object.keys(hashConnectSigner).filter(k => typeof hashConnectSigner[k] === 'function').length
+    });
 
-      // Implement sendTransaction for ethers v6 compatibility
-      sendTransaction: async (transaction) => {
-        console.log('🔄 Ethers sendTransaction intercepted, routing through HashConnect');
-
-        // HashConnect signer uses call() method for contract calls
-        // Extract the contract call data
-        if (hashConnectSigner.call) {
-          return await hashConnectSigner.call(transaction);
-        }
-
-        throw new Error('HashConnect signer does not support this transaction type');
-      },
-
-      // Ensure getAddress is available
-      getAddress: async () => {
-        if (hashConnectSigner.getAddress) {
-          return await hashConnectSigner.getAddress();
-        }
-        // Fallback to accountId if getAddress not available
-        return accountId;
-      },
-
-      // Provider access
-      provider: hashConnectSigner.provider || null,
-    };
-
-    console.log('✅ Returning ethers-compatible wrapped signer');
-    return ethersCompatibleSigner;
+    console.log('✅ Returning HashConnect signer (should be ethers v6 compatible)');
+    return hashConnectSigner;
   }
 
   getHashConnect() {
