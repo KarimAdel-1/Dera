@@ -20,6 +20,7 @@
     "check:oracle": "npx hardhat run scripts/check-oracle-prices.js --network testnet",
     "set:oracle": "npx hardhat run scripts/set-oracle-prices.js --network testnet",
     "diagnose:oracle": "npx hardhat run scripts/diagnose-oracle-config.js --network testnet",
+    "diagnose:pyth": "npx hardhat run scripts/check-oracle-pyth-config.js --network testnet",
     "init:reserves": "npx hardhat run scripts/init-reserve-state.js --network testnet",
     "debug:init": "npx hardhat run scripts/debug-init.js --network testnet",
     "diagnose:init": "npx hardhat run scripts/diagnose-asset-init.js --network testnet",
