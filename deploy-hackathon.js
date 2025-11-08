@@ -111,13 +111,52 @@ async function checkPrerequisites() {
       return false;
     }
 
+    // Prompt for Supabase credentials (frontend)
+    log('\n🗄️  Supabase Configuration (Frontend)', 'cyan');
+    log('━'.repeat(60), 'cyan');
+    log('Get these from your Supabase project settings:', 'yellow');
+    log('(https://app.supabase.com/project/_/settings/api)\n', 'yellow');
+
+    const supabaseUrl = await promptUser('Supabase URL (https://xxxxx.supabase.co): ');
+    if (!supabaseUrl || !supabaseUrl.startsWith('https://')) {
+      log('❌ Invalid Supabase URL. Must start with https://', 'red');
+      return false;
+    }
+
+    const supabaseAnonKey = await promptUser('Supabase Anon/Public Key: ');
+    if (!supabaseAnonKey || supabaseAnonKey.length < 100) {
+      log('❌ Invalid Supabase Anon Key. Must be at least 100 characters.', 'red');
+      return false;
+    }
+
+    const supabaseServiceKey = await promptUser('Supabase Service Role Key: ');
+    if (!supabaseServiceKey || supabaseServiceKey.length < 100) {
+      log('❌ Invalid Supabase Service Key. Must be at least 100 characters.', 'red');
+      return false;
+    }
+
+    // Prompt for WalletConnect Project ID (frontend)
+    log('\n🔗 WalletConnect Configuration (Frontend)', 'cyan');
+    log('━'.repeat(60), 'cyan');
+    log('Get your project ID from: https://cloud.walletconnect.com/\n', 'yellow');
+
+    const walletConnectProjectId = await promptUser('WalletConnect Project ID: ');
+    if (!walletConnectProjectId || walletConnectProjectId.length < 32) {
+      log('❌ Invalid WalletConnect Project ID. Must be at least 32 characters.', 'red');
+      return false;
+    }
+
     log('\n> Filling credentials in all environment files...', 'blue');
 
     // Fill credentials everywhere
     fillCredentials({
       operatorId: operatorId.trim(),
       operatorKey: operatorKey.trim(),
-      privateKey: privateKey.trim()
+      privateKey: privateKey.trim(),
+      supabaseUrl: supabaseUrl.trim(),
+      supabaseAnonKey: supabaseAnonKey.trim(),
+      supabaseServiceKey: supabaseServiceKey.trim(),
+      walletConnectProjectId: walletConnectProjectId.trim()
     });
 
     // Reload environment after filling
@@ -125,14 +164,14 @@ async function checkPrerequisites() {
     require('dotenv').config({ path: envPath });
   }
 
-  // Validate credentials are now set
+  // Validate Hedera credentials are now set
   const stillMissing = requiredVars.filter(varName => !process.env[varName] || process.env[varName].trim() === '');
   if (stillMissing.length > 0) {
-    log(`❌ Failed to configure credentials: ${stillMissing.join(', ')}`, 'red');
+    log(`❌ Failed to configure Hedera credentials: ${stillMissing.join(', ')}`, 'red');
     return false;
   }
 
-  log('✅ Hedera credentials configured in all files', 'green');
+  log('✅ All credentials configured successfully', 'green');
 
   // Check Git
   const gitCheck = execCommand('git --version', process.cwd(), true);
