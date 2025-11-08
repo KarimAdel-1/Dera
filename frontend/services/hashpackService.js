@@ -304,11 +304,11 @@ class HederaContractExecutor {
 
       console.log('📋 Transaction submitted successfully. Querying status via mirror node...');
 
-      // Wait a moment for consensus
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for consensus and mirror node indexing
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       try {
-        // Query transaction status from mirror node
+        // Query transaction status from mirror node with retry logic
         const MIRROR_NODE_URL = process.env.NEXT_PUBLIC_MIRROR_NODE_URL || 'https://testnet.mirrornode.hedera.com';
         const txId = result.transactionId.toString();
 
@@ -318,7 +318,27 @@ class HederaContractExecutor {
         const mirrorNodeTxId = txId.replace('@', '-').replace(/\.(\d+)$/, '-$1');
         console.log('🔍 Querying mirror node with transaction ID:', mirrorNodeTxId);
 
-        const response = await fetch(`${MIRROR_NODE_URL}/api/v1/transactions/${mirrorNodeTxId}`);
+        // Retry logic for mirror node query (transactions may take time to index)
+        let response = null;
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (attempts < maxAttempts) {
+          response = await fetch(`${MIRROR_NODE_URL}/api/v1/transactions/${mirrorNodeTxId}`);
+
+          if (response.ok) {
+            break;
+          }
+
+          if (response.status === 404 && attempts < maxAttempts - 1) {
+            // Transaction not indexed yet, wait and retry
+            console.log(`⏳ Transaction not indexed yet, waiting... (attempt ${attempts + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+          } else {
+            break;
+          }
+        }
 
         if (response.ok) {
           const txData = await response.json();
