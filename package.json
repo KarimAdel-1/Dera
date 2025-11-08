@@ -16,7 +16,9 @@
     "start:hcs": "cd backend/hcs-event-service && npm run dev",
     "start:staking": "cd backend/node-staking-service && npm run dev",
     "start:backend:core": "concurrently \"npm run start:hcs\" \"npm run start:staking\"",
-    "build:frontend": "cd frontend && npm run build"
+    "build:frontend": "cd frontend && npm run build",
+    "env:setup": "node scripts/setup-env-files.js",
+    "env:update": "node scripts/update-env-files.js"
   },
   "keywords": [
     "defi",
