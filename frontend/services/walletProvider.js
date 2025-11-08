@@ -304,6 +304,19 @@ class WalletProvider {
   }
 
   /**
+   * Get Hedera contract executor for native transactions
+   * This is the recommended method for HashPack on Hedera
+   * @returns {object} Contract executor
+   */
+  getContractExecutor() {
+    if (this.currentWalletType === WALLET_TYPES.HASHPACK) {
+      return hashpackService.getContractExecutor();
+    }
+
+    throw new Error('Contract executor not available for current wallet type');
+  }
+
+  /**
    * Save wallet type to localStorage
    * @param {string} walletType - Wallet type to save
    */

@@ -166,6 +166,7 @@ class DeraProtocolService {
 
   /**
    * Supply assets to the pool
+   * Uses Hedera-native transactions for better HashPack compatibility
    * @param {string} asset - Asset address (0.0.xxxxx format)
    * @param {string} amount - Amount to supply (in token units with decimals)
    * @param {string} onBehalfOf - Address to supply on behalf of
@@ -173,9 +174,26 @@ class DeraProtocolService {
    * @returns {Promise<object>} Transaction response
    */
   async supply(asset, amount, onBehalfOf, referralCode = 0) {
+    // Use Hedera-native approach by default for better compatibility
+    return this.supplyWithHedera(asset, amount, onBehalfOf, referralCode);
+  }
+
+  /**
+   * Supply assets to the pool using Hedera-native transactions
+   * This is the recommended method for HashPack as it uses ContractExecuteTransaction
+   * @param {string} asset - Asset address (0.0.xxxxx or 0x format)
+   * @param {string} amount - Amount to supply (in token units with decimals)
+   * @param {string} onBehalfOf - Address to supply on behalf of
+   * @param {number} referralCode - Referral code
+   * @returns {Promise<object>} Transaction response
+   */
+  async supplyWithHedera(asset, amount, onBehalfOf, referralCode = 0) {
     try {
-      const signer = await this.getSigner();
-      const poolWithSigner = this.poolContract.connect(signer);
+      // Get contract executor from wallet provider
+      const executor = walletProvider.getContractExecutor();
+      if (!executor) {
+        throw new Error('Hedera contract executor not available. Make sure HashPack is connected.');
+      }
 
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
@@ -183,42 +201,61 @@ class DeraProtocolService {
       // Validate user balance before transaction
       await this.validateUserBalance(asset, amount, evmAddress, 'supply');
 
-      // Only check allowance and approve for ERC20 tokens (not native HBAR which is address(0))
+      // Create ethers Interface for encoding
+      const poolInterface = new ethers.Interface(PoolABI.abi);
+
+      // Check if this is native HBAR
       const isNativeToken = asset === ethers.ZeroAddress || asset === '0x0000000000000000000000000000000000000000';
 
+      // Handle token approval for ERC20 (not needed for native HBAR)
       if (!isNativeToken) {
-        // First, check allowance using provider (read-only operation)
-        // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+        console.log('🔍 Checking token allowance...');
         const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
         const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
 
         if (allowance < amount) {
-          console.log('Approving Pool to spend tokens...');
-          // Use signer for write operations
-          const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
-          const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
-          await approveTx.wait();
-          console.log('Approval confirmed');
+          console.log('📝 Approving Pool to spend tokens...');
+          const erc20Interface = new ethers.Interface(ERC20ABI.abi);
+          const approveResult = await executor.executeAndWait(
+            asset,
+            erc20Interface,
+            'approve',
+            [this.contracts.POOL, amount],
+            { gasLimit: 100000 }
+          );
+          console.log('✅ Approval confirmed:', approveResult.transactionId);
         }
       } else {
         console.log('Native token (HBAR) - no approval needed');
       }
 
-      // Execute supply
-      console.log('Supplying to pool...', { asset, amount, evmAddress, referralCode });
-      // For native tokens, include the value parameter to send HBAR with the transaction
-      const tx = isNativeToken
-        ? await poolWithSigner.supply(asset, amount, evmAddress, referralCode, { value: amount })
-        : await poolWithSigner.supply(asset, amount, evmAddress, referralCode);
-      const receipt = await tx.wait();
+      // Execute supply using Hedera transaction
+      console.log('📤 Supplying to pool via Hedera transaction...', {
+        asset,
+        amount: amount.toString(),
+        evmAddress,
+        referralCode
+      });
+
+      const result = await executor.executeAndWait(
+        this.contracts.POOL,
+        poolInterface,
+        'supply',
+        [asset, amount, evmAddress, referralCode],
+        {
+          gasLimit: 300000,
+          value: isNativeToken ? amount : undefined // Send HBAR for native token
+        }
+      );
 
       return {
-        transactionHash: receipt.hash,
-        status: receipt.status === 1 ? 'success' : 'failed',
-        receipt
+        transactionHash: result.transactionId,
+        status: result.status === 1 ? 'success' : 'failed',
+        receipt: result.receipt
       };
+
     } catch (error) {
-      console.error('Supply error:', error);
+      console.error('Supply (Hedera) error:', error);
       throw error;
     }
   }

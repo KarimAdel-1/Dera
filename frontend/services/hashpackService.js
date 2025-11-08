@@ -4,6 +4,9 @@ import { ethers } from 'ethers';
 let HashConnect = null;
 let HashConnectConnectionState = null;
 let LedgerId = null;
+let ContractExecuteTransaction = null;
+let ContractFunctionParameters = null;
+let AccountId = null;
 
 // Lazy load hashconnect only on client-side
 async function loadHashConnect() {
@@ -16,6 +19,9 @@ async function loadHashConnect() {
         Paired: 'Paired',
       },
       LedgerId: null,
+      ContractExecuteTransaction: null,
+      ContractFunctionParameters: null,
+      AccountId: null,
     };
   }
 
@@ -25,9 +31,19 @@ async function loadHashConnect() {
     HashConnect = hashconnect.HashConnect;
     HashConnectConnectionState = hashconnect.HashConnectConnectionState;
     LedgerId = sdk.LedgerId;
+    ContractExecuteTransaction = sdk.ContractExecuteTransaction;
+    ContractFunctionParameters = sdk.ContractFunctionParameters;
+    AccountId = sdk.AccountId;
   }
 
-  return { HashConnect, HashConnectConnectionState, LedgerId };
+  return {
+    HashConnect,
+    HashConnectConnectionState,
+    LedgerId,
+    ContractExecuteTransaction,
+    ContractFunctionParameters,
+    AccountId
+  };
 }
 
 /**
@@ -123,6 +139,153 @@ class HashConnectSignerWrapper extends ethers.AbstractSigner {
 
   connect(provider) {
     return new HashConnectSignerWrapper(this.hashConnectSigner, provider, this.accountId);
+  }
+}
+
+/**
+ * Hedera-native transaction builder for contract interactions
+ * Uses ContractExecuteTransaction from @hashgraph/sdk instead of ethers
+ * This is the preferred method for Hedera as it works natively with HashConnect
+ */
+class HederaContractExecutor {
+  constructor(hashpackService) {
+    this.hashpackService = hashpackService;
+  }
+
+  /**
+   * Convert Hedera account ID (0.0.X) to ContractId format
+   */
+  convertToContractId(address) {
+    // If already in 0.0.X format, return as is
+    if (address.match(/^\d+\.\d+\.\d+$/)) {
+      return address;
+    }
+
+    // If EVM address format (0x...), convert to Hedera format
+    if (address.startsWith('0x')) {
+      // Remove 0x prefix and convert hex to decimal
+      const hex = address.slice(2);
+      const decimal = parseInt(hex, 16);
+      return `0.0.${decimal}`;
+    }
+
+    return address;
+  }
+
+  /**
+   * Encode a contract function call using ethers Interface
+   * @param {object} contractInterface - ethers Interface instance
+   * @param {string} functionName - Function to call
+   * @param {Array} args - Function arguments
+   * @returns {string} Encoded function data
+   */
+  encodeFunctionCall(contractInterface, functionName, args) {
+    return contractInterface.encodeFunctionData(functionName, args);
+  }
+
+  /**
+   * Execute a contract function using Hedera SDK
+   * @param {string} contractAddress - Contract address (0.0.X or 0x format)
+   * @param {object} contractInterface - ethers Interface instance for encoding
+   * @param {string} functionName - Function to call
+   * @param {Array} args - Function arguments
+   * @param {object} options - Transaction options (gas, value, etc.)
+   * @returns {Promise<object>} Transaction result
+   */
+  async executeContractFunction(contractAddress, contractInterface, functionName, args, options = {}) {
+    try {
+      console.log('🔧 Hedera Contract Executor:', {
+        contractAddress,
+        functionName,
+        args,
+        options
+      });
+
+      // Ensure we have a connected HashPack session
+      if (!this.hashpackService.isConnected()) {
+        throw new Error('HashPack not connected');
+      }
+
+      // Get the signer from HashConnect
+      const accountId = this.hashpackService.getConnectedAccountIds()[0];
+      if (!accountId) {
+        throw new Error('No account ID available');
+      }
+
+      const signer = this.hashpackService.hashconnect.getSigner(accountId);
+      console.log('✅ Got Hedera signer for account:', accountId);
+
+      // Encode the function call
+      const functionData = this.encodeFunctionCall(contractInterface, functionName, args);
+      console.log('📝 Encoded function data:', functionData);
+
+      // Convert contract address to Hedera format
+      const contractId = this.convertToContractId(contractAddress);
+      console.log('🏠 Contract ID:', contractId);
+
+      // Create ContractExecuteTransaction
+      const tx = new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(options.gasLimit || 300000)
+        .setFunctionParameters(Buffer.from(functionData.slice(2), 'hex')); // Remove 0x and convert to buffer
+
+      // If sending HBAR with the transaction (for payable functions)
+      if (options.value) {
+        const hbarAmount = Number(options.value) / 100000000; // Convert tinybars to HBAR
+        tx.setPayableAmount(hbarAmount);
+        console.log('💰 Payable amount:', hbarAmount, 'HBAR');
+      }
+
+      console.log('📤 Executing transaction via HashConnect...');
+
+      // Freeze and execute with signer
+      const frozenTx = await tx.freezeWithSigner(signer);
+      const result = await frozenTx.executeWithSigner(signer);
+
+      console.log('✅ Transaction executed:', {
+        transactionId: result.transactionId.toString(),
+        status: result.toString()
+      });
+
+      // Get receipt
+      const receipt = await result.getReceiptWithSigner(signer);
+      console.log('📋 Transaction receipt:', {
+        status: receipt.status.toString(),
+        transactionId: result.transactionId.toString()
+      });
+
+      return {
+        transactionId: result.transactionId.toString(),
+        status: receipt.status.toString(),
+        receipt: receipt
+      };
+
+    } catch (error) {
+      console.error('❌ Hedera contract execution error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute contract function and wait for consensus
+   * Similar to ethers tx.wait()
+   */
+  async executeAndWait(contractAddress, contractInterface, functionName, args, options = {}) {
+    const result = await this.executeContractFunction(
+      contractAddress,
+      contractInterface,
+      functionName,
+      args,
+      options
+    );
+
+    // Hedera transactions reach consensus immediately after receipt
+    // No need to wait like in Ethereum
+    return {
+      hash: result.transactionId,
+      status: result.status === 'SUCCESS' ? 1 : 0,
+      ...result
+    };
   }
 }
 
@@ -770,6 +933,15 @@ class HashPackService {
 
     console.log('✅ Returning wrapped HashConnect signer (ethers v6 compatible)');
     return wrappedSigner;
+  }
+
+  /**
+   * Get Hedera-native contract executor
+   * This is the recommended way to interact with contracts on Hedera
+   * @returns {HederaContractExecutor}
+   */
+  getContractExecutor() {
+    return new HederaContractExecutor(this);
   }
 
   getHashConnect() {
