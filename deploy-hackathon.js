@@ -159,9 +159,10 @@ async function checkPrerequisites() {
       walletConnectProjectId: walletConnectProjectId.trim()
     });
 
-    // Reload environment after filling
-    delete require.cache[require.resolve('dotenv')];
-    require('dotenv').config({ path: envPath });
+    // Set environment variables directly (since files are now filled)
+    process.env.HEDERA_OPERATOR_ID = operatorId.trim();
+    process.env.HEDERA_OPERATOR_KEY = operatorKey.trim();
+    process.env.PRIVATE_KEY = privateKey.trim();
   }
 
   // Validate Hedera credentials are now set
