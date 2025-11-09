@@ -165,6 +165,18 @@ class DeraProtocolService {
    */
 
   /**
+   * Get Hedera contract executor from wallet provider
+   * @returns {Promise<object>} Hedera contract executor
+   */
+  async getHederaExecutor() {
+    const executor = walletProvider.getContractExecutor();
+    if (!executor) {
+      throw new Error('Hedera contract executor not available. Make sure HashPack is connected.');
+    }
+    return executor;
+  }
+
+  /**
    * Supply assets to the pool
    * Uses Hedera-native transactions for better HashPack compatibility
    * @param {string} asset - Asset address (0.0.xxxxx format)
@@ -189,11 +201,8 @@ class DeraProtocolService {
    */
   async supplyWithHedera(asset, amount, onBehalfOf, referralCode = 0) {
     try {
-      // Get contract executor from wallet provider
-      const executor = walletProvider.getContractExecutor();
-      if (!executor) {
-        throw new Error('Hedera contract executor not available. Make sure HashPack is connected.');
-      }
+      // Get Hedera contract executor
+      const executor = await this.getHederaExecutor();
 
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
