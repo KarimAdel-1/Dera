@@ -352,6 +352,12 @@ class DeraProtocolService {
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
 
+      console.log('🔍 Borrow request:', {
+        asset,
+        amount: amount.toString(),
+        onBehalfOf: evmAddress
+      });
+
       // Validate user has borrowing capacity
       await this.validateUserBalance(asset, amount, evmAddress, 'borrow');
 
@@ -959,9 +965,26 @@ class DeraProtocolService {
       } else if (operation === 'borrow') {
         // Check available borrow capacity
         const accountData = await this.getUserAccountData(userAddress);
-        if (accountData.availableToBorrowUSD <= 0) {
-          throw new Error('No borrowing capacity available. Please supply collateral first.');
+
+        console.log('📊 Borrow validation - Account data:', {
+          totalCollateralUSD: accountData.totalCollateralUSD,
+          totalDebtUSD: accountData.totalDebtUSD,
+          availableToBorrowUSD: accountData.availableToBorrowUSD,
+          healthFactor: accountData.healthFactor
+        });
+
+        if (accountData.totalCollateralUSD <= 0) {
+          throw new Error('No collateral supplied. Please supply assets first and enable them as collateral.');
         }
+
+        if (accountData.availableToBorrowUSD <= 0) {
+          if (accountData.totalDebtUSD > 0) {
+            throw new Error('Maximum borrowing capacity reached. Your debt is at the limit of your collateral.');
+          } else {
+            throw new Error('No borrowing capacity. Please enable your supplied assets as collateral.');
+          }
+        }
+
         return; // Skip balance check for borrow
       }
 

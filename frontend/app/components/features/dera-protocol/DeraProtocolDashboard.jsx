@@ -439,6 +439,17 @@ const DeraProtocolDashboard = () => {
         await fetchWalletBalances(activeWallet.address);
       }
 
+      // Refresh asset data to update APY, total supplied, total borrowed, etc.
+      try {
+        const updatedAssets = await deraProtocolService.getSupportedAssets();
+        if (updatedAssets && updatedAssets.length > 0) {
+          setAssets(updatedAssets);
+          console.log('🔄 Asset data refreshed after transaction');
+        }
+      } catch (error) {
+        console.warn('Could not refresh asset data:', error.message);
+      }
+
       closeModal();
       showNotification(`Successfully ${type}ed ${amount} ${assetSymbol}!`, 'success');
     } catch (error) {
@@ -582,8 +593,15 @@ const DeraProtocolDashboard = () => {
 
       console.log('✅ Collateral toggled:', result);
 
-      // Reload account data
+      // Reload account data and wallet balances
       await loadUserPositions(activeWallet.address);
+      await fetchWalletBalances(activeWallet.address);
+
+      // Refresh asset data to update available to borrow
+      const updatedAssets = await deraProtocolService.getSupportedAssets();
+      if (updatedAssets && updatedAssets.length > 0) {
+        setAssets(updatedAssets);
+      }
 
       showNotification(
         `Collateral ${supply.collateralEnabled ? 'disabled' : 'enabled'} for ${assetSymbol}`,
