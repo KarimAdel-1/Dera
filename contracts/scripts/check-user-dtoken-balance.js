@@ -34,14 +34,32 @@ async function main() {
   const hederaId = hex.length <= 10 ? `0.0.${parseInt(hex, 16)}` : 'EVM-only address';
   console.log("✅ Hedera Format:", hederaId);
 
-  // Get dToken contract
-  const dToken = await ethers.getContractAt("IDeraSupplyToken", dTokenAddress);
+  // Get dToken contract with correct ABI
+  const dTokenABI = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
+    "function totalSupply() view returns (uint256)",
+    "function balanceOf(address) view returns (uint256)",
+    "function scaledBalanceOf(address) view returns (uint256)"
+  ];
+  const dToken = new ethers.Contract(dTokenAddress, dTokenABI, deployer);
 
   // Get token info
-  const name = await dToken.name();
-  const symbol = await dToken.symbol();
-  const decimals = await dToken.decimals();
-  const totalSupply = await dToken.totalSupply();
+  let name, symbol, decimals, totalSupply;
+  try {
+    name = await dToken.name();
+    symbol = await dToken.symbol();
+    decimals = await dToken.decimals();
+    totalSupply = await dToken.totalSupply();
+  } catch (error) {
+    console.log("⚠️  Could not read token metadata:", error.message);
+    // Use defaults
+    name = "DeraSupplyToken";
+    symbol = "dHBAR";
+    decimals = 8;
+    totalSupply = 0n;
+  }
 
   console.log("\n📊 Token Information:");
   console.log("   Name:", name);
