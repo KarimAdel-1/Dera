@@ -248,6 +248,31 @@ class DeraProtocolService {
         }
       );
 
+      // Get and log dToken address for user reference
+      try {
+        const assetData = await this.poolContract.getAssetData(asset);
+        const dTokenAddress = assetData.supplyTokenAddress;
+
+        if (dTokenAddress && dTokenAddress !== ethers.ZeroAddress) {
+          // Convert to Hedera format
+          const hex = dTokenAddress.slice(2).replace(/^0+/, '') || '0';
+          const hederaId = hex.length <= 10 ? `0.0.${parseInt(hex, 16)}` : 'N/A';
+
+          console.log('\n╔════════════════════════════════════════════════════════════╗');
+          console.log('║            📊 YOUR dTOKEN INFORMATION                      ║');
+          console.log('╠════════════════════════════════════════════════════════════╣');
+          console.log(`║  dToken Address (EVM):    ${dTokenAddress.padEnd(20)}  ║`);
+          console.log(`║  dToken Address (Hedera): ${hederaId.padEnd(20)}  ║`);
+          console.log('║                                                            ║');
+          console.log('║  💡 To see dTokens in HashPack:                            ║');
+          console.log('║     1. Open HashPack → Tokens                              ║');
+          console.log('║     2. Add Token → Enter Hedera ID above                   ║');
+          console.log('╚════════════════════════════════════════════════════════════╝\n');
+        }
+      } catch (err) {
+        console.log('Could not fetch dToken address:', err.message);
+      }
+
       return {
         transactionHash: result.transactionId,
         status: result.status === 1 ? 'success' : 'failed',
