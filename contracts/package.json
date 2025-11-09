@@ -28,7 +28,9 @@
     "diagnose:init": "npx hardhat run scripts/diagnose-asset-init.js --network testnet",
     "diagnose:deep": "npx hardhat run scripts/deep-diagnostic.js --network testnet",
     "grant:configurator": "npx hardhat run scripts/grant-configurator-role.js --network testnet",
-    "redeploy-pool-only": "npx hardhat run scripts/redeploy-pool-only.js --network testnet && npx hardhat run scripts/redeploy-configurator.js --network testnet"
+    "redeploy-pool-only": "npx hardhat run scripts/redeploy-pool-only.js --network testnet && npx hardhat run scripts/redeploy-configurator.js --network testnet",
+    "get:dtoken": "npx hardhat run scripts/get-dtoken-address.js --network testnet",
+    "check:balance": "npx hardhat run scripts/check-user-dtoken-balance.js --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

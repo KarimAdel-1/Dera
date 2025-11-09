@@ -248,6 +248,31 @@ class DeraProtocolService {
         }
       );
 
+      // Get and log dToken address for user reference
+      try {
+        const assetData = await this.poolContract.getAssetData(asset);
+        const dTokenAddress = assetData.supplyTokenAddress;
+
+        if (dTokenAddress && dTokenAddress !== ethers.ZeroAddress) {
+          // Convert to Hedera format
+          const hex = dTokenAddress.slice(2).replace(/^0+/, '') || '0';
+          const hederaId = hex.length <= 10 ? `0.0.${parseInt(hex, 16)}` : 'N/A';
+
+          console.log('\n╔════════════════════════════════════════════════════════════╗');
+          console.log('║            📊 YOUR dTOKEN INFORMATION                      ║');
+          console.log('╠════════════════════════════════════════════════════════════╣');
+          console.log(`║  dToken Address (EVM):    ${dTokenAddress.padEnd(20)}  ║`);
+          console.log(`║  dToken Address (Hedera): ${hederaId.padEnd(20)}  ║`);
+          console.log('║                                                            ║');
+          console.log('║  💡 To see dTokens in HashPack:                            ║');
+          console.log('║     1. Open HashPack → Tokens                              ║');
+          console.log('║     2. Add Token → Enter Hedera ID above                   ║');
+          console.log('╚════════════════════════════════════════════════════════════╝\n');
+        }
+      } catch (err) {
+        console.log('Could not fetch dToken address:', err.message);
+      }
+
       return {
         transactionHash: result.transactionId,
         status: result.status === 1 ? 'success' : 'failed',
@@ -269,8 +294,8 @@ class DeraProtocolService {
    */
   async withdraw(asset, amount, to) {
     try {
-      const signer = await this.getSigner();
-      const poolWithSigner = this.poolContract.connect(signer);
+      // Get Hedera contract executor
+      const executor = await this.getHederaExecutor();
 
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(to);
@@ -280,18 +305,33 @@ class DeraProtocolService {
         await this.validateUserBalance(asset, amount, evmAddress, 'withdraw');
       }
 
-      console.log('Withdrawing from pool...', { asset, amount, evmAddress });
-      const tx = await poolWithSigner.withdraw(asset, amount, evmAddress);
-      const receipt = await tx.wait();
+      // Create ethers Interface for encoding
+      const poolInterface = new ethers.Interface(PoolABI.abi);
+
+      // Execute withdraw using Hedera transaction
+      console.log('💰 Withdrawing from pool via Hedera transaction...', {
+        asset,
+        amount: amount.toString(),
+        evmAddress
+      });
+
+      const result = await executor.executeAndWait(
+        this.contracts.POOL,
+        poolInterface,
+        'withdraw',
+        [asset, amount, evmAddress],
+        {
+          gasLimit: 300000
+        }
+      );
 
       return {
-        transactionHash: receipt.hash,
-        status: receipt.status === 1 ? 'success' : 'failed',
-        amountWithdrawn: receipt.events?.find(e => e.event === 'Withdraw')?.args?.amount,
-        receipt
+        transactionHash: result.transactionId,
+        status: result.status === 1 ? 'success' : 'failed',
+        receipt: result.receipt
       };
     } catch (error) {
-      console.error('Withdraw error:', error);
+      console.error('Withdraw (Hedera) error:', error);
       throw error;
     }
   }
@@ -306,26 +346,49 @@ class DeraProtocolService {
    */
   async borrow(asset, amount, referralCode = 0, onBehalfOf) {
     try {
-      const signer = await this.getSigner();
-      const poolWithSigner = this.poolContract.connect(signer);
+      // Get Hedera contract executor
+      const executor = await this.getHederaExecutor();
 
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
 
+      console.log('🔍 Borrow request:', {
+        asset,
+        amount: amount.toString(),
+        onBehalfOf: evmAddress
+      });
+
       // Validate user has borrowing capacity
       await this.validateUserBalance(asset, amount, evmAddress, 'borrow');
 
-      console.log('Borrowing from pool...', { asset, amount, referralCode, evmAddress });
-      const tx = await poolWithSigner.borrow(asset, amount, referralCode, evmAddress);
-      const receipt = await tx.wait();
+      // Create ethers Interface for encoding
+      const poolInterface = new ethers.Interface(PoolABI.abi);
+
+      // Execute borrow using Hedera transaction
+      console.log('💸 Borrowing from pool via Hedera transaction...', {
+        asset,
+        amount: amount.toString(),
+        referralCode,
+        evmAddress
+      });
+
+      const result = await executor.executeAndWait(
+        this.contracts.POOL,
+        poolInterface,
+        'borrow',
+        [asset, amount, referralCode, evmAddress],
+        {
+          gasLimit: 300000
+        }
+      );
 
       return {
-        transactionHash: receipt.hash,
-        status: receipt.status === 1 ? 'success' : 'failed',
-        receipt
+        transactionHash: result.transactionId,
+        status: result.status === 1 ? 'success' : 'failed',
+        receipt: result.receipt
       };
     } catch (error) {
-      console.error('Borrow error:', error);
+      console.error('Borrow (Hedera) error:', error);
       throw error;
     }
   }
@@ -339,8 +402,8 @@ class DeraProtocolService {
    */
   async repay(asset, amount, onBehalfOf) {
     try {
-      const signer = await this.getSigner();
-      const poolWithSigner = this.poolContract.connect(signer);
+      // Get Hedera contract executor
+      const executor = await this.getHederaExecutor();
 
       // Convert Hedera account ID to EVM address if needed
       const evmAddress = this.convertHederaAccountToEVM(onBehalfOf);
@@ -350,42 +413,59 @@ class DeraProtocolService {
         await this.validateUserBalance(asset, amount, evmAddress, 'repay');
       }
 
-      // Only check allowance and approve for ERC20 tokens (not native HBAR which is address(0))
+      // Create ethers Interface for encoding
+      const poolInterface = new ethers.Interface(PoolABI.abi);
+
+      // Check if this is native HBAR
       const isNativeToken = asset === ethers.ZeroAddress || asset === '0x0000000000000000000000000000000000000000';
 
+      // Handle token approval for ERC20 (not needed for native HBAR)
       if (!isNativeToken) {
-        // First, check allowance using provider (read-only operation)
-        // Use provider instead of signer for read operations to avoid HashConnect signer incompatibility
+        console.log('🔍 Checking token allowance for repayment...');
         const erc20ReadOnly = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
         const allowance = await erc20ReadOnly.allowance(evmAddress, this.contracts.POOL);
 
         if (allowance < amount) {
-          console.log('Approving Pool to spend tokens for repayment...');
-          // Use signer for write operations
-          const erc20WithSigner = new ethers.Contract(asset, ERC20ABI.abi, signer);
-          const approveTx = await erc20WithSigner.approve(this.contracts.POOL, amount);
-          await approveTx.wait();
-          console.log('Approval confirmed');
+          console.log('📝 Approving Pool to spend tokens for repayment...');
+          const erc20Interface = new ethers.Interface(ERC20ABI.abi);
+          const approveResult = await executor.executeAndWait(
+            asset,
+            erc20Interface,
+            'approve',
+            [this.contracts.POOL, amount],
+            { gasLimit: 100000 }
+          );
+          console.log('✅ Approval confirmed:', approveResult.transactionId);
         }
       } else {
         console.log('Native token (HBAR) - no approval needed for repayment');
       }
 
-      console.log('Repaying loan...', { asset, amount, evmAddress });
-      // For native tokens, include the value parameter to send HBAR with the transaction
-      const tx = isNativeToken
-        ? await poolWithSigner.repay(asset, amount, evmAddress, { value: amount })
-        : await poolWithSigner.repay(asset, amount, evmAddress);
-      const receipt = await tx.wait();
+      // Execute repay using Hedera transaction
+      console.log('💳 Repaying loan via Hedera transaction...', {
+        asset,
+        amount: amount.toString(),
+        evmAddress
+      });
+
+      const result = await executor.executeAndWait(
+        this.contracts.POOL,
+        poolInterface,
+        'repay',
+        [asset, amount, evmAddress],
+        {
+          gasLimit: 300000,
+          value: isNativeToken ? amount : undefined // Send HBAR for native token
+        }
+      );
 
       return {
-        transactionHash: receipt.hash,
-        status: receipt.status === 1 ? 'success' : 'failed',
-        amountRepaid: receipt.events?.find(e => e.event === 'Repay')?.args?.amount,
-        receipt
+        transactionHash: result.transactionId,
+        status: result.status === 1 ? 'success' : 'failed',
+        receipt: result.receipt
       };
     } catch (error) {
-      console.error('Repay error:', error);
+      console.error('Repay (Hedera) error:', error);
       throw error;
     }
   }
@@ -885,9 +965,26 @@ class DeraProtocolService {
       } else if (operation === 'borrow') {
         // Check available borrow capacity
         const accountData = await this.getUserAccountData(userAddress);
-        if (accountData.availableToBorrowUSD <= 0) {
-          throw new Error('No borrowing capacity available. Please supply collateral first.');
+
+        console.log('📊 Borrow validation - Account data:', {
+          totalCollateralUSD: accountData.totalCollateralUSD,
+          totalDebtUSD: accountData.totalDebtUSD,
+          availableToBorrowUSD: accountData.availableToBorrowUSD,
+          healthFactor: accountData.healthFactor
+        });
+
+        if (accountData.totalCollateralUSD <= 0) {
+          throw new Error('No collateral supplied. Please supply assets first and enable them as collateral.');
         }
+
+        if (accountData.availableToBorrowUSD <= 0) {
+          if (accountData.totalDebtUSD > 0) {
+            throw new Error('Maximum borrowing capacity reached. Your debt is at the limit of your collateral.');
+          } else {
+            throw new Error('No borrowing capacity. Please enable your supplied assets as collateral.');
+          }
+        }
+
         return; // Skip balance check for borrow
       }
 
@@ -1065,25 +1162,36 @@ class DeraProtocolService {
    */
   async toggleCollateral(asset, useAsCollateral, userAddress) {
     try {
-      const signer = await this.getSigner();
-      const poolWithSigner = this.poolContract.connect(signer);
+      // Get Hedera contract executor
+      const executor = await this.getHederaExecutor();
 
-      console.log('🔄 Toggling collateral:', {
+      // Create ethers Interface for encoding
+      const poolInterface = new ethers.Interface(PoolABI.abi);
+
+      // Execute setUserUseAssetAsCollateral using Hedera transaction
+      console.log('🔄 Toggling collateral via Hedera transaction...', {
         asset,
         useAsCollateral,
         userAddress
       });
 
-      const tx = await poolWithSigner.setUserUseAssetAsCollateral(asset, useAsCollateral);
-      const receipt = await tx.wait();
+      const result = await executor.executeAndWait(
+        this.contracts.POOL,
+        poolInterface,
+        'setUserUseAssetAsCollateral',
+        [asset, useAsCollateral],
+        {
+          gasLimit: 200000
+        }
+      );
 
       return {
-        transactionHash: receipt.hash,
-        status: receipt.status === 1 ? 'success' : 'failed',
-        receipt
+        transactionHash: result.transactionId,
+        status: result.status === 1 ? 'success' : 'failed',
+        receipt: result.receipt
       };
     } catch (error) {
-      console.error('Toggle collateral error:', error);
+      console.error('Toggle collateral (Hedera) error:', error);
       throw error;
     }
   }
