@@ -69,7 +69,13 @@ const BorrowTab = ({ assets, availableToBorrow, onBorrow }) => {
 
                 <button
                   onClick={() => onBorrow(asset.symbol)}
-                  className="bg-[var(--color-primary)] text-white px-6 py-2 rounded-md font-medium hover:bg-[var(--color-primary)]/90 transition-all shadow-xs"
+                  disabled={availableToBorrow <= 0}
+                  className={`px-6 py-2 rounded-md font-medium transition-all shadow-xs ${
+                    availableToBorrow <= 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90'
+                  }`}
+                  title={availableToBorrow <= 0 ? 'You must supply collateral before borrowing' : 'Borrow this asset'}
                 >
                   Borrow
                 </button>
