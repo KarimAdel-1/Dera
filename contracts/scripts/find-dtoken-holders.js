@@ -48,6 +48,7 @@ async function main() {
   // List of addresses to check
   const addressesToCheck = [
     { name: "Your Wallet (Deployer)", address: deployerAddress },
+    { name: "HashPack Wallet (0.0.7093470)", address: "0x00000000000000000000000000000000006C3cde" },
     { name: "Pool Contract", address: poolAddress },
     { name: "Zero Address", address: ethers.ZeroAddress },
   ];
