@@ -69,6 +69,7 @@ library AssetLogic {
     asset.variableBorrowIndex = uint128(WadRayMath.RAY);
     asset.supplyTokenAddress = supplyTokenAddress;
     asset.borrowTokenAddress = borrowTokenAddress;
+    asset.lastUpdateTimestamp = uint40(block.timestamp); // FIX: Initialize timestamp to prevent ExcessiveAccrualPeriod error
   }
 
   function updateInterestRatesAndVirtualBalance(DataTypes.PoolAssetData storage asset, DataTypes.AssetState memory assetState, address assetAddress, uint256 liquidityAdded, uint256 liquidityTaken, address interestRateStrategyAddress) internal {
