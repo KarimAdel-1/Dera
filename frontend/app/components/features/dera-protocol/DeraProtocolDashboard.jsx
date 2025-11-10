@@ -15,7 +15,7 @@ import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import deraProtocolService from '../../../../services/deraProtocolService';
-import { sanitizeNumericInput } from '../../../utils/validationHelpers';
+import { sanitizeNumericInput } from '../../../../utils/validationHelpers';
 
 const DeraProtocolDashboard = () => {
   const [activeTab, setActiveTab] = useState('supply');
