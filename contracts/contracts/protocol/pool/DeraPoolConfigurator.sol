@@ -15,6 +15,8 @@ import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.
  * @notice Concrete implementation of PoolConfigurator contract for Hedera deployment
  */
 contract DeraPoolConfigurator is PoolConfigurator {
+  using AssetConfiguration for DataTypes.AssetConfigurationMap;
+
   uint256 public constant DERA_POOL_CONFIGURATOR_REVISION = 0x1;
 
   /**
@@ -117,8 +119,6 @@ contract DeraPoolConfigurator is PoolConfigurator {
    * @param decimals The correct number of decimals for the asset (0-255)
    */
   function setAssetDecimals(address asset, uint8 decimals) external onlyPoolAdmin {
-    using AssetConfiguration for DataTypes.AssetConfigurationMap;
-
     DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
     currentConfig.setDecimals(decimals);
     _pool.setConfiguration(asset, currentConfig);
