@@ -1,6 +1,24 @@
 // Paste this into your browser console (F12) while on Dera Protocol page
 // This will show you the REAL on-chain collateral state vs UI state
 
+(async function() {
+  // Load ethers.js if not already available
+  if (typeof ethers === 'undefined') {
+    console.log('📦 Loading ethers.js...');
+    const script = document.createElement('script');
+    script.src = 'https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js';
+    document.head.appendChild(script);
+
+    await new Promise((resolve, reject) => {
+      script.onload = resolve;
+      script.onerror = reject;
+    });
+    console.log('✅ ethers.js loaded!');
+  }
+
+  await checkCollateralState();
+})();
+
 async function checkCollateralState() {
   console.log('\n🔍 COLLATERAL STATE DIAGNOSTIC');
   console.log('='.repeat(60));
@@ -119,6 +137,3 @@ async function checkCollateralState() {
 
   console.log('\n' + '='.repeat(60) + '\n');
 }
-
-// Run the diagnostic
-checkCollateralState();
