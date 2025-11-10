@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import deraProtocolService from '../../../../services/deraProtocolService';
 import toast from 'react-hot-toast';
+import { sanitizeNumericInput } from '../../../utils/validationHelpers';
 
 export default function LendingInterface({ userAddress }) {
   const [mode, setMode] = useState('supply'); // 'supply' or 'borrow'
@@ -44,55 +45,73 @@ export default function LendingInterface({ userAddress }) {
   };
 
   const handleSupply = async () => {
-    if (!selectedAsset || !amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid amount');
+    if (!selectedAsset) {
+      toast.error('Please select an asset');
+      return;
+    }
+
+    // Validate and sanitize amount
+    const sanitized = sanitizeNumericInput(amount);
+    if (!sanitized.isValid) {
+      toast.error(sanitized.error);
       return;
     }
 
     setLoading(true);
     try {
-      const amountInUnits = (
-        parseFloat(amount) * Math.pow(10, selectedAsset.decimals)
-      ).toString();
-      const txId = await deraProtocolService.supply(
+      const { ethers } = await import('ethers');
+      const amountInUnits = ethers.parseUnits(sanitized.value, selectedAsset.decimals);
+
+      const result = await deraProtocolService.supply(
         selectedAsset.address,
-        amountInUnits,
+        amountInUnits.toString(),
         userAddress,
         0
       );
 
-      toast.success(`Supply successful! TX: ${txId.substring(0, 20)}...`);
+      if (result && result.transactionHash) {
+        toast.success(`Supply successful! TX: ${result.transactionHash.substring(0, 20)}...`);
+      } else {
+        toast.success('Supply successful!');
+      }
       setAmount('');
       loadUserData();
     } catch (error) {
       console.error('Supply error:', error);
-      toast.error('Supply failed. Please try again.');
+      const errorMessage = error.message || 'Supply failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const handleBorrow = async () => {
-    if (!selectedAsset || !amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid amount');
+    if (!selectedAsset) {
+      toast.error('Please select an asset');
+      return;
+    }
+
+    // Validate and sanitize amount
+    const sanitized = sanitizeNumericInput(amount);
+    if (!sanitized.isValid) {
+      toast.error(sanitized.error);
       return;
     }
 
     setLoading(true);
     try {
-      const amountInUnits = (
-        parseFloat(amount) * Math.pow(10, selectedAsset.decimals)
-      ).toString();
+      const { ethers } = await import('ethers');
+      const amountInUnits = ethers.parseUnits(sanitized.value, selectedAsset.decimals);
 
       console.log('🚀 Starting borrow transaction...', {
         asset: selectedAsset.symbol,
-        amount: amount,
-        amountInUnits: amountInUnits
+        amount: sanitized.value,
+        amountInUnits: amountInUnits.toString()
       });
 
       const result = await deraProtocolService.borrow(
         selectedAsset.address,
-        amountInUnits,
+        amountInUnits.toString(),
         0,
         userAddress
       );
@@ -101,12 +120,12 @@ export default function LendingInterface({ userAddress }) {
 
       // Check if the borrow was successful
       if (result.status === 'success') {
-        toast.success(`Successfully borrowed ${amount} ${selectedAsset.symbol}! TX: ${result.transactionHash.substring(0, 20)}...`);
+        toast.success(`Successfully borrowed ${sanitized.value} ${selectedAsset.symbol}! TX: ${result.transactionHash.substring(0, 20)}...`);
         setAmount('');
         // Reload user data after a short delay to ensure blockchain state is updated
         setTimeout(() => loadUserData(), 2000);
       } else {
-        toast.error(`Borrow failed: Transaction reverted on-chain`);
+        toast.error('Borrow failed: Transaction reverted on-chain');
       }
     } catch (error) {
       console.error('❌ Borrow error:', error);
