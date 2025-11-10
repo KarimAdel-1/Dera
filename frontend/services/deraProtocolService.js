@@ -1033,6 +1033,44 @@ class DeraProtocolService {
           }
         }
 
+        // NEW: Validate borrow amount doesn't exceed available capacity
+        // Get asset price to calculate USD value of borrow amount
+        const assetPrice = await this.getAssetPrice(asset);
+        const assetPriceNum = parseFloat(assetPrice);
+
+        // Get asset decimals
+        let decimals = 18;
+        if (asset === '0x0000000000000000000000000000000000000000') {
+          decimals = 8; // HBAR
+        } else {
+          try {
+            const tokenContract = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+            decimals = await tokenContract.decimals();
+          } catch (e) {
+            console.warn('Could not get decimals, using default 18');
+          }
+        }
+
+        // Calculate USD value of borrow amount
+        const borrowAmountInTokens = parseFloat(ethers.formatUnits(amount, decimals));
+        const borrowAmountUSD = borrowAmountInTokens * assetPriceNum;
+
+        console.log('💵 Borrow amount validation:', {
+          borrowAmountInTokens,
+          assetPrice: assetPriceNum,
+          borrowAmountUSD,
+          availableToBorrowUSD: accountData.availableToBorrowUSD
+        });
+
+        if (borrowAmountUSD > accountData.availableToBorrowUSD) {
+          const maxBorrowTokens = (accountData.availableToBorrowUSD / assetPriceNum).toFixed(2);
+          const symbol = asset === '0x0000000000000000000000000000000000000000' ? 'HBAR' : 'tokens';
+          throw new Error(
+            `Borrow amount ($${borrowAmountUSD.toFixed(2)}) exceeds available borrowing capacity ($${accountData.availableToBorrowUSD.toFixed(2)}). ` +
+            `Maximum you can borrow: ${maxBorrowTokens} ${symbol}`
+          );
+        }
+
         return; // Skip balance check for borrow
       }
 
