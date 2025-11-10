@@ -31,7 +31,9 @@
     "redeploy-pool-only": "npx hardhat run scripts/redeploy-pool-only.js --network testnet && npx hardhat run scripts/redeploy-configurator.js --network testnet",
     "get:dtoken": "npx hardhat run scripts/get-dtoken-address.js --network testnet",
     "check:balance": "npx hardhat run scripts/check-user-dtoken-balance.js --network testnet",
-    "find:holders": "npx hardhat run scripts/find-dtoken-holders.js --network testnet"
+    "find:holders": "npx hardhat run scripts/find-dtoken-holders.js --network testnet",
+    "diagnose:hbar": "npx hardhat run scripts/diagnose-hbar-config.js --network testnet",
+    "fix:hbar": "npx hardhat run scripts/fix-hbar-collateral.js --network testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

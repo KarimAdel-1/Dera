@@ -1154,8 +1154,20 @@ class DeraProtocolService {
   async getUserCollateralStatus(asset, userAddress) {
     try {
       const address = this.convertHederaAccountToEVM(userAddress);
-      const isCollateral = await this.poolContract.getUserConfiguration(address, asset);
-      return Boolean(isCollateral);
+
+      // Get user configuration bitmap (takes only user address as parameter)
+      const userConfig = await this.poolContract.getUserConfiguration(address);
+
+      // Get asset data to find the asset ID
+      const assetData = await this.poolContract.getAssetData(asset);
+      const assetId = assetData.id;
+
+      // Check collateral bit in the bitmap
+      // Each asset has 2 bits: bit (assetId * 2) for borrowing, bit (assetId * 2 + 1) for collateral
+      const collateralBitPosition = (assetId * 2) + 1;
+      const isCollateral = (BigInt(userConfig.data) >> BigInt(collateralBitPosition)) & 1n;
+
+      return isCollateral === 1n;
     } catch (error) {
       console.warn(`Could not get collateral status for ${asset}:`, error.message);
       return false; // Default to not collateral if can't determine
