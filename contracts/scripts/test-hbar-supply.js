@@ -53,17 +53,24 @@ async function main() {
   console.log("STEP 3: Supply 250 HBAR");
   console.log("=".repeat(60) + "\n");
 
-  const supplyAmount = ethers.parseUnits("250", 8); // 250 HBAR with 8 decimals
-  console.log("💸 Supplying:", ethers.formatUnits(supplyAmount, 8), "HBAR");
+  // IMPORTANT: For Hedera EVM, we need to handle HBAR value correctly
+  // The amount parameter should be in 8 decimals (HBAR native)
+  // But msg.value in ethers.js expects 18 decimals (wei-equivalent)
+  const supplyAmountHBAR = ethers.parseUnits("250", 8); // 250 HBAR in 8 decimals
+  const supplyValueWei = ethers.parseEther("250");      // 250 HBAR in 18 decimals for msg.value
+
+  console.log("💸 Supplying:", ethers.formatUnits(supplyAmountHBAR, 8), "HBAR");
+  console.log("   Amount parameter (8 decimals):", supplyAmountHBAR.toString());
+  console.log("   Value parameter (18 decimals):", supplyValueWei.toString());
 
   try {
     const tx = await pool.supply(
       HBAR_ADDRESS,
-      supplyAmount,
+      supplyAmountHBAR,
       deployer.address,
       0,
       {
-        value: supplyAmount,
+        value: supplyValueWei,  // Use 18 decimal value for ethers.js
         gasLimit: 1000000
       }
     );
