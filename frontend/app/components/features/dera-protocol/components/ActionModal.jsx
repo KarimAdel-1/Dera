@@ -11,7 +11,7 @@ import {
   calculateMaxBorrow,
   calculateMaxSupply,
   formatNumberSafe
-} from '../../../../utils/validationHelpers';
+} from '../../../../../utils/validationHelpers';
 
 const ActionModal = ({ type, asset, assets, userAccount, onClose, onExecute, walletBalances = {} }) => {
   const [amount, setAmount] = useState('');
