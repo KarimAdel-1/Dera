@@ -603,14 +603,15 @@ class DeraProtocolService {
         return "0";
       }
       
-      // Check if asset has valid variable debt token address
-      if (!assetData || !assetData.variableDebtTokenAddress || assetData.variableDebtTokenAddress === '0x0000000000000000000000000000000000000000') {
-        console.warn(`Asset ${asset} not initialized in Pool or no variable debt token`);
+      // Check if asset has valid borrow token address
+      // Note: Contract returns 'borrowTokenAddress', not 'variableDebtTokenAddress'
+      if (!assetData || !assetData.borrowTokenAddress || assetData.borrowTokenAddress === '0x0000000000000000000000000000000000000000') {
+        console.warn(`Asset ${asset} not initialized in Pool or no borrow token`);
         return "0";
       }
-      
+
       // Query variable debt token balance
-      const debtToken = new ethers.Contract(assetData.variableDebtTokenAddress, ERC20ABI.abi, this.provider);
+      const debtToken = new ethers.Contract(assetData.borrowTokenAddress, ERC20ABI.abi, this.provider);
       const balance = await debtToken.balanceOf(address);
       
       return balance.toString();
@@ -640,19 +641,21 @@ class DeraProtocolService {
         throw new Error(`Asset ${asset} not found or not initialized in Pool`);
       }
 
+      // Map contract fields to expected format
+      // Note: Contract returns supplyTokenAddress & borrowTokenAddress (not dTokenAddress & variableDebtTokenAddress)
       return {
         configuration: data.configuration,
         liquidityIndex: data.liquidityIndex,
         liquidityRate: Number(ethers.formatUnits(data.currentLiquidityRate || 0, 27)), // Ray format (27 decimals)
-        borrowIndex: data.borrowIndex,
-        borrowRate: Number(ethers.formatUnits(data.currentBorrowRate || 0, 27)), // Ray format
+        variableBorrowIndex: data.variableBorrowIndex,
+        currentVariableBorrowRate: Number(ethers.formatUnits(data.currentVariableBorrowRate || 0, 27)), // Ray format
         lastUpdateTimestamp: Number(data.lastUpdateTimestamp || 0),
         id: data.id,
-        dTokenAddress: data.dTokenAddress,
-        stableDebtTokenAddress: data.stableDebtTokenAddress,
-        variableDebtTokenAddress: data.variableDebtTokenAddress,
-        supplyTokenAddress: data.supplyTokenAddress || data.dTokenAddress, // Fallback
-        borrowTokenAddress: data.borrowTokenAddress || data.variableDebtTokenAddress, // Fallback
+        supplyTokenAddress: data.supplyTokenAddress,
+        borrowTokenAddress: data.borrowTokenAddress,
+        // Aliases for backwards compatibility
+        dTokenAddress: data.supplyTokenAddress,
+        variableDebtTokenAddress: data.borrowTokenAddress,
       };
     } catch (error) {
       console.error('Get asset data error:', error);
