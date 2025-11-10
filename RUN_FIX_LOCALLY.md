@@ -1,21 +1,29 @@
-# How to Run the HBAR Decimals Fix Locally
+# How to Run the HBAR Fix Locally
 
 ## Problem Summary
 
-The root cause has been identified: **HBAR's decimals is set to 0** in the asset configuration bitmap (should be 8).
+**Multiple issues were discovered:**
 
-This causes:
-- `assetUnit = 10^0 = 1` instead of `10^8 = 100,000,000`
-- `getUserAccountData` returns all zeros
-- Cannot borrow against HBAR
-- Incorrect collateral calculations
+1. **HBAR's decimals was set to 0** in the asset configuration bitmap (should be 8)
+   - Caused `assetUnit = 10^0 = 1` instead of `10^8 = 100,000,000`
+
+2. **GenericLogic was skipping HBAR** due to checking `if (assetAddress == address(0))`
+   - Since HBAR's address IS `address(0)`, it was being skipped
+   - This made `getUserAccountData` return all zeros even after fixing decimals
+
+3. **After Pool redeployment, PoolConfigurator points to old Pool**
+   - When Pool was redeployed with fixed GenericLogic, PoolConfigurator's `_pool` variable still pointed to the old Pool
+   - This caused `finalizeInitAsset()` to fail
 
 ## The Solution
 
-We've added a new `setAssetDecimals()` function to the PoolConfigurator that allows updating the decimals configuration. This requires two steps:
+The fix requires multiple steps:
 
-1. **Upgrade PoolConfigurator**: Deploy new version with `setAssetDecimals()` function
-2. **Fix Decimals**: Call `setAssetDecimals(HBAR, 8)` to update configuration
+1. **Fix GenericLogic**: Change check from `assetAddress == address(0)` to `supplyTokenAddress == address(0)` ✅ DONE
+2. **Redeploy Pool**: Deploy Pool with fixed GenericLogic library ✅ DONE
+3. **Fix PoolConfigurator Pointer**: Update PoolConfigurator to point to new Pool
+4. **Re-register HBAR**: Register HBAR asset data in new Pool
+5. **Verify**: Test that getUserAccountData returns correct values
 
 ---
 
@@ -26,10 +34,11 @@ git pull origin claude/fix-hedera-contract-revert-011CUvtu98wNjvHAb1WeuAKo
 ```
 
 This includes:
-- `DeraPoolConfigurator.sol` - Now includes `setAssetDecimals()` function
-- `upgrade-pool-configurator.js` - Redeploys PoolConfigurator
-- `fix-hbar-decimals-simple.js` - Uses new function to fix decimals
-- Diagnostic scripts from previous investigation
+- Fixed `GenericLogic.sol` - Checks `supplyTokenAddress` instead of asset address
+- `redeploy-pool-only.js` - Redeploys Pool with fixed libraries
+- `fix-pool-configurator-pointer.js` - Updates PoolConfigurator to point to new Pool
+- `reinit-hbar-in-new-pool.js` - Re-registers HBAR in new Pool
+- Diagnostic and verification scripts
 
 ---
 
@@ -60,141 +69,164 @@ PRIVATE_KEY=your_private_key_here
 
 ---
 
-## Step 3: Upgrade PoolConfigurator
+## Step 3: Fix PoolConfigurator Pointer
 
-This deploys a new PoolConfigurator with the `setAssetDecimals()` function:
+**CRITICAL**: After Pool redeployment, PoolConfigurator's internal `_pool` variable still points to the old Pool. This step fixes it:
 
 ```bash
 cd contracts/
-npx hardhat run scripts/upgrade-pool-configurator.js --network testnet
+npx hardhat run scripts/fix-pool-configurator-pointer.js --network testnet
 ```
 
 **Expected Output:**
 
 ```
-🔄 Upgrading PoolConfigurator
+🔧 Fixing PoolConfigurator Pool Pointer
 ============================================================
-📍 Current Deployment:
+📍 Contract Addresses:
    Deployer: 0x...
-   Old PoolConfigurator: 0x...
-   PoolAddressesProvider: 0x...
-   Account balance: XXX HBAR
+   PoolConfigurator: 0x28E78CC73c96F566B0aFFeEb4ba5285D11B331a8
+   Expected Pool: 0xC9FD808D6d993Bd0DB611EebB847143709e21e3D
 
 📋 Checking Permissions...
    Pool Admin: ✅
 
 ============================================================
-STEP 1: Deploy New PoolConfigurator
+STEP 1: Check Current Pool Pointer
 ============================================================
 
-📚 Using ConfiguratorLogic library: 0x...
-🚀 Deploying new PoolConfigurator...
-✅ New PoolConfigurator deployed: 0x...
+📊 Current State:
+   PoolConfigurator points to: 0x794567E3F7B5a2f92C871A7F65e6451dC489372E
+   Expected Pool address: 0xC9FD808D6d993Bd0DB611EebB847143709e21e3D
+   Match: ❌
+
+❌ PoolConfigurator is pointing to WRONG Pool!
+   This is why finalizeInitAsset was failing.
 
 ============================================================
-STEP 2: Update PoolAddressesProvider
+STEP 2: Update Pool Pointer
 ============================================================
 
-📝 Updating PoolConfigurator address in AddressesProvider...
-✅ AddressesProvider updated
+🔧 Calling setPool() to update Pool address...
+✅ Pool pointer updated
    Transaction: 0x...
 
 ============================================================
-STEP 3: Initialize New PoolConfigurator
+STEP 3: Verify Update
 ============================================================
 
-🔧 Initializing new PoolConfigurator...
-✅ New PoolConfigurator initialized
-   Transaction: 0x...
+📊 Updated State:
+   PoolConfigurator now points to: 0xC9FD808D6d993Bd0DB611EebB847143709e21e3D
+   Expected Pool address: 0xC9FD808D6d993Bd0DB611EebB847143709e21e3D
+   Match: ✅
 
 ============================================================
-STEP 4: Verify New PoolConfigurator
+✅ SUCCESS! PoolConfigurator Fixed
 ============================================================
-
-📊 Verification:
-   Registered in AddressesProvider: 0x...
-   Matches new deployment: ✅
-
-🔍 Checking for setAssetDecimals function...
-   setAssetDecimals available: ✅
-
-============================================================
-✅ UPGRADE COMPLETE!
-============================================================
-
-📝 Summary:
-   Old PoolConfigurator: 0x...
-   New PoolConfigurator: 0x...
-   Added function: setAssetDecimals(address asset, uint8 decimals)
 
 🎯 Next Steps:
-1. Run: npx hardhat run scripts/fix-hbar-decimals-simple.js --network testnet
-2. This will use the new setAssetDecimals function to fix HBAR decimals
-3. Verify getUserAccountData returns correct values
-4. Test frontend to confirm collateral displays correctly
+1. Run: npx hardhat run scripts/reinit-hbar-in-new-pool.js --network testnet
+2. This should now work since PoolConfigurator points to correct Pool
+3. Then test with: npx hardhat run scripts/test-oracle-direct.js --network testnet
 ```
+
+**What this does:**
+- Checks which Pool the PoolConfigurator is pointing to
+- Updates it to point to the newly deployed Pool using `setPool()`
+- This is why `finalizeInitAsset()` was failing before - it was trying to initialize HBAR in the old Pool!
 
 ---
 
-## Step 4: Fix HBAR Decimals
+## Step 4: Re-register HBAR in New Pool
 
-Now that the upgraded PoolConfigurator is deployed, fix the decimals:
+Now that PoolConfigurator points to the correct Pool, re-register HBAR:
 
 ```bash
-npx hardhat run scripts/fix-hbar-decimals-simple.js --network testnet
+npx hardhat run scripts/reinit-hbar-in-new-pool.js --network testnet
 ```
 
 **Expected Output:**
 
 ```
-🔧 Fixing HBAR Decimals Configuration
+🔄 Re-initializing HBAR in new Pool
+
 ============================================================
 📍 Contract Addresses:
-   Pool: 0x...
-   Pool Configurator: 0x... (NEW!)
+   Old Pool: 0x794567E3F7B5a2f92C871A7F65e6451dC489372E
+   New Pool: 0xC9FD808D6d993Bd0DB611EebB847143709e21e3D
+   dHBAR Token: 0xac263D2538A40f262DE1ef0820c9D6dC496a6618
    Deployer: 0x...
 
 📋 Checking Permissions...
    Pool Admin: ✅
 
 ============================================================
-STEP 1: Check Current Configuration
+STEP 1: Get Asset Data from Old Pool
 ============================================================
 
-📊 Current Configuration:
-   LTV: 7500 basis points (75%)
-   Liquidation Threshold: 8000 basis points (80%)
-   Liquidation Bonus: 10500 basis points (105%)
-   Decimals: 0 ❌ WRONG!
+📊 Old Pool HBAR Data:
+   Supply Token: 0xac263D2538A40f262DE1ef0820c9D6dC496a6618
+   Borrow Token: 0x...
+   Liquidity Index: 1000000000000000000000000000
+   Asset ID: 1
+
+📊 Old Configuration:
+   Config Data: 0x...
 
 ============================================================
-STEP 2: Fix Decimals Configuration
+STEP 2: Initialize HBAR in New Pool
 ============================================================
 
-🔧 Setting decimals to 8 using setAssetDecimals()...
-
-⏳ Waiting for transaction confirmation...
-✅ Configuration updated
+🔧 Calling finalizeInitAsset for HBAR via PoolConfigurator...
+✅ HBAR initialized in new Pool
    Transaction: 0x...
 
 ============================================================
-STEP 3: Verify New Configuration
+STEP 3: Set Configuration via PoolConfigurator
 ============================================================
 
+📊 Configuration to set:
+   LTV: 7500 (75%)
+   Liquidation Threshold: 8000 (80%)
+   Liquidation Bonus: 10500 (105%)
+   Decimals: 8 (set during initialization)
+
+🔧 Configuring HBAR as collateral...
+✅ Collateral configuration set
+   Transaction: 0x...
+
+🔧 Setting borrowing enabled...
+✅ Borrowing enabled
+   Transaction: 0x...
+
+============================================================
+STEP 4: Verify New Pool
+============================================================
+
+📊 New Pool HBAR Data:
+   Supply Token: 0xac263D2538A40f262DE1ef0820c9D6dC496a6618
+   Borrow Token: 0x...
+   Match: ✅
+
 📊 New Configuration:
-   LTV: 7500 basis points (75%)
-   Liquidation Threshold: 8000 basis points (80%)
    Decimals: 8 ✅
 
-✅ SUCCESS! Decimals is now set to 8
+============================================================
+✅ SUCCESS! HBAR re-initialized in new Pool
+============================================================
 
-🎉 getUserAccountData should now return correct values!
-
-Next steps:
-1. Refresh your frontend
-2. Your collateral should now show as ~$20 USD
-3. Available to borrow should show as ~$15 USD
+🎯 Next Steps:
+1. Run: npx hardhat run scripts/test-oracle-direct.js --network testnet
+2. Should now show $20 collateral!
+3. Test frontend to verify everything works
 ```
+
+**What this does:**
+- Copies HBAR asset registration from old Pool to new Pool
+- Preserves the same dToken (dHBAR) address so user balances remain intact
+- Configures HBAR with same parameters (LTV 75%, liquidation threshold 80%)
+- Enables borrowing
+- Your 250 HBAR supply is safe and will now be recognized!
 
 ---
 
@@ -250,59 +282,69 @@ Check:
 2. You're connected to testnet, not mainnet
 3. The contract addresses in `deployment-info.json` are correct
 
-### Issue: "Decimals is already set to 8"
+### Issue: "PoolConfigurator is already pointing to the correct Pool"
 
-Great! The fix has already been applied. You can skip to Step 5 to verify everything works in the frontend.
+Great! The PoolConfigurator pointer is already fixed. You can skip to Step 4 (reinit-hbar-in-new-pool.js).
 
-### Issue: "setAssetDecimals is not a function"
+### Issue: "Asset already initialized" when running reinit script
 
-This means Step 3 (Upgrade PoolConfigurator) didn't complete successfully. Re-run:
-```bash
-npx hardhat run scripts/upgrade-pool-configurator.js --network testnet
-```
+This means HBAR has already been registered in the new Pool. You can skip to Step 5 to verify everything works.
+
+### Issue: "finalizeInitAsset failed" when running reinit script
+
+Make sure you ran Step 3 (fix-pool-configurator-pointer.js) first! The PoolConfigurator must point to the new Pool before reinit will work.
 
 ---
 
 ## What These Scripts Do
 
-### 1. upgrade-pool-configurator.js
+### 1. redeploy-pool-only.js (Already run)
 
 This script:
-1. Deploys a new `DeraPoolConfigurator` with the `setAssetDecimals()` function
-2. Updates `PoolAddressesProvider` to point to the new configurator
-3. Initializes the new configurator (handles Hedera address reuse if needed)
-4. Updates `deployment-info.json` to track the upgrade
+1. Recompiles contracts with the fixed GenericLogic
+2. Deploys all Pool libraries (SupplyLogic, BorrowLogic, LiquidationLogic, PoolLogic)
+3. Deploys new Pool contract linked to fixed libraries
+4. Updates PoolAddressesProvider to point to new Pool
+5. Initializes the new Pool (handles Hedera address reuse)
 
-The new function allows Pool Admin to update decimals:
+**The GenericLogic fix:**
 ```solidity
-function setAssetDecimals(address asset, uint8 decimals) external onlyPoolAdmin {
-  DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
-  currentConfig.setDecimals(decimals);
-  _pool.setConfiguration(asset, currentConfig);
-  emit AssetDecimalsUpdated(asset, decimals);
+// BEFORE (BUG): Skipped HBAR because its address is address(0)
+if (vars.currentReserveAddress == address(0)) {
+  continue; // ❌ This skips HBAR!
+}
+
+// AFTER (FIX): Check if dToken exists instead
+DataTypes.PoolAssetData storage currentReserve = poolAssets[vars.currentReserveAddress];
+if (currentReserve.supplyTokenAddress == address(0)) {
+  continue; // ✅ Only skips truly empty slots!
 }
 ```
 
-### 2. fix-hbar-decimals-simple.js
+### 2. fix-pool-configurator-pointer.js
 
 This script:
-1. Reads the current HBAR configuration
-2. Verifies decimals is currently 0
-3. Calls `poolConfigurator.setAssetDecimals(HBAR, 8)`
-4. Verifies the fix worked
+1. Checks which Pool the PoolConfigurator is pointing to
+2. Compares it to the expected new Pool address
+3. If different, calls `poolConfigurator.setPool(newPoolAddress)`
+4. Verifies the update succeeded
 
-This fixes the core calculation in `getUserAccountData`:
+**Why this is needed:**
+When Pool was redeployed, PoolAddressesProvider was updated, but PoolConfigurator has its own cached `_pool` variable that still pointed to the old Pool. This caused `finalizeInitAsset()` to fail because it was trying to initialize assets in the wrong Pool!
 
-```javascript
-// Before (decimals = 0):
-assetUnit = 10^0 = 1
-collateral = (balance × price) / 1 = OVERFLOW or WRONG VALUE
+### 3. reinit-hbar-in-new-pool.js
 
-// After (decimals = 8):
-assetUnit = 10^8 = 100,000,000
-collateral = (25000000000 × 8000000) / 100,000,000 = 2,000,000,000
-// = $20.00 USD ✅
-```
+This script:
+1. Reads HBAR asset data from the OLD Pool
+2. Calls `poolConfigurator.finalizeInitAsset()` to register HBAR in NEW Pool
+3. Configures HBAR as collateral with same parameters (LTV 75%, threshold 80%)
+4. Enables borrowing on HBAR
+5. Verifies the registration succeeded
+
+**What happens:**
+- Copies dToken address (0xac263D2538A40f262DE1ef0820c9D6dC496a6618) to new Pool
+- Your 250 HBAR balance in the dToken is preserved
+- New Pool now recognizes HBAR and can calculate collateral correctly
 
 ---
 
@@ -331,17 +373,31 @@ Once the decimals is corrected to 8:
 
 ## Summary
 
-**Current state:**
-- ❌ Decimals: 0
-- ❌ assetUnit: 1
-- ❌ Collateral calculation: BROKEN
-- ❌ getUserAccountData: returns zeros
+**What was wrong (discovered through investigation):**
+1. ❌ **Decimals bug**: HBAR decimals set to 0 instead of 8
+2. ❌ **GenericLogic bug**: Skipped HBAR because it checked `if (assetAddress == address(0))`
+3. ❌ **Pool redeployment side effect**: PoolConfigurator pointed to old Pool
+4. ❌ **Asset registration lost**: New Pool didn't have HBAR registered
 
-**After upgrade + fix:**
-- ✅ PoolConfigurator: Has setAssetDecimals function
-- ✅ Decimals: 8
-- ✅ assetUnit: 100,000,000
-- ✅ Collateral calculation: CORRECT
-- ✅ getUserAccountData: returns $20 collateral, $15 available
+**After running all fix scripts:**
+1. ✅ **GenericLogic fixed**: Now checks `supplyTokenAddress` instead of asset address
+2. ✅ **Pool redeployed**: New Pool with fixed libraries
+3. ✅ **PoolConfigurator updated**: Points to new Pool
+4. ✅ **HBAR re-registered**: Asset data copied to new Pool with decimals=8
+5. ✅ **getUserAccountData works**: Returns $20 collateral, $15 available to borrow
+
+**Steps to complete the fix:**
+```bash
+cd contracts/
+
+# Step 3: Fix PoolConfigurator pointer (REQUIRED FIRST!)
+npx hardhat run scripts/fix-pool-configurator-pointer.js --network testnet
+
+# Step 4: Re-register HBAR in new Pool
+npx hardhat run scripts/reinit-hbar-in-new-pool.js --network testnet
+
+# Step 5: Verify the fix
+npx hardhat run scripts/test-oracle-direct.js --network testnet
+```
 
 Run the scripts and let me know the output! 🚀
