@@ -22,6 +22,7 @@ async function main() {
   // Get contracts
   const oldPool = await ethers.getContractAt("DeraPool", OLD_POOL);
   const newPool = await ethers.getContractAt("DeraPool", NEW_POOL);
+  const poolConfigurator = await ethers.getContractAt("DeraPoolConfigurator", deploymentInfo.addresses.POOL_CONFIGURATOR);
   const aclManager = await ethers.getContractAt("ACLManager", deploymentInfo.addresses.ACL_MANAGER);
 
   // Check permissions
@@ -53,19 +54,20 @@ async function main() {
   console.log("STEP 2: Initialize HBAR in New Pool");
   console.log("=".repeat(60) + "\n");
 
-  console.log("🔧 Calling initAsset for HBAR...");
+  console.log("🔧 Calling finalizeInitAsset for HBAR via PoolConfigurator...");
   try {
-    const tx = await newPool.initAsset(
+    const tx = await poolConfigurator.finalizeInitAsset(
       HBAR_ADDRESS,
       oldAssetData.supplyTokenAddress,
       oldAssetData.borrowTokenAddress,
+      8, // decimals
       { gasLimit: 1000000 }
     );
     await tx.wait();
     console.log("✅ HBAR initialized in new Pool");
     console.log("   Transaction:", tx.hash);
   } catch (error) {
-    console.error("\n❌ initAsset failed:", error.message);
+    console.error("\n❌ finalizeInitAsset failed:", error.message);
     if (error.message.includes("Asset already initialized")) {
       console.log("   (Asset was already initialized - continuing)");
     } else {
@@ -74,21 +76,54 @@ async function main() {
   }
 
   console.log("\n=".repeat(60));
-  console.log("STEP 3: Set Configuration");
+  console.log("STEP 3: Set Configuration via PoolConfigurator");
   console.log("=".repeat(60) + "\n");
 
-  console.log("🔧 Setting HBAR configuration...");
+  // Extract configuration values from old config
+  const configData = BigInt(oldConfig.data);
+  const LTV_MASK = 0xFFFFn;
+  const LIQUIDATION_THRESHOLD_START = 16n;
+  const LIQUIDATION_BONUS_START = 32n;
+
+  const ltv = Number(configData & LTV_MASK);
+  const liquidationThreshold = Number((configData >> LIQUIDATION_THRESHOLD_START) & LTV_MASK);
+  const liquidationBonus = Number((configData >> LIQUIDATION_BONUS_START) & LTV_MASK);
+
+  console.log("📊 Configuration to set:");
+  console.log("   LTV:", ltv, `(${ltv/100}%)`);
+  console.log("   Liquidation Threshold:", liquidationThreshold, `(${liquidationThreshold/100}%)`);
+  console.log("   Liquidation Bonus:", liquidationBonus, `(${liquidationBonus/100}%)`);
+  console.log("   Decimals: 8 (set during initialization)");
+
+  console.log("\n🔧 Configuring HBAR as collateral...");
   try {
-    const tx = await newPool.setConfiguration(
+    const tx = await poolConfigurator.configureAssetAsCollateral(
       HBAR_ADDRESS,
-      oldConfig,
+      ltv,
+      liquidationThreshold,
+      liquidationBonus,
       { gasLimit: 500000 }
     );
     await tx.wait();
-    console.log("✅ Configuration set");
+    console.log("✅ Collateral configuration set");
     console.log("   Transaction:", tx.hash);
   } catch (error) {
-    console.error("\n❌ setConfiguration failed:", error.message);
+    console.error("\n❌ configureAssetAsCollateral failed:", error.message);
+    throw error;
+  }
+
+  console.log("\n🔧 Setting borrowing enabled...");
+  try {
+    const tx = await poolConfigurator.setAssetBorrowing(
+      HBAR_ADDRESS,
+      true,
+      { gasLimit: 300000 }
+    );
+    await tx.wait();
+    console.log("✅ Borrowing enabled");
+    console.log("   Transaction:", tx.hash);
+  } catch (error) {
+    console.error("\n❌ setAssetBorrowing failed:", error.message);
     throw error;
   }
 
