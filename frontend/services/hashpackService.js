@@ -350,7 +350,63 @@ class HederaContractExecutor {
               consensus_timestamp: txInfo.consensus_timestamp
             });
 
-            // Check if transaction failed
+            // CRITICAL: Check for CONTRACT_REVERT_EXECUTED
+            // In Hedera, transaction can be submitted but contract can revert!
+            if (txInfo.result === 'CONTRACT_REVERT_EXECUTED') {
+              // Try to get detailed revert reason from contract results API
+              try {
+                const mirrorNodeTxIdForContract = mirrorNodeTxId;
+                const contractResultResponse = await fetch(
+                  `${MIRROR_NODE_URL}/api/v1/contracts/results/${mirrorNodeTxIdForContract}`
+                );
+
+                if (contractResultResponse.ok) {
+                  const contractData = await contractResultResponse.json();
+                  let revertReason = 'Contract execution reverted';
+
+                  // Try to decode revert reason from call_result
+                  if (contractData.error_message) {
+                    revertReason = contractData.error_message;
+                  } else if (contractData.call_result && contractData.call_result.startsWith('0x08c379a0')) {
+                    // Standard Solidity revert with message
+                    // Skip function selector (0x08c379a0) and decode the string
+                    try {
+                      const hexData = contractData.call_result.slice(10); // Remove '0x08c379a0'
+                      const buffer = Buffer.from(hexData, 'hex');
+                      // String is ABI encoded: offset (32 bytes) + length (32 bytes) + data
+                      const length = parseInt(buffer.slice(32, 64).toString('hex'), 16);
+                      revertReason = buffer.slice(64, 64 + length).toString('utf8');
+                    } catch (decodeError) {
+                      console.warn('Could not decode revert reason:', decodeError);
+                    }
+                  }
+
+                  console.error('❌ CONTRACT REVERTED:', revertReason);
+                  const error = new Error(`Contract reverted: ${revertReason}`);
+                  error.status = 'CONTRACT_REVERT_EXECUTED';
+                  error.transactionId = txId;
+                  error.receipt = txInfo;
+                  error.revertReason = revertReason;
+                  throw error;
+                }
+              } catch (contractQueryError) {
+                // Fallback if contract result query fails
+                if (contractQueryError.status === 'CONTRACT_REVERT_EXECUTED') {
+                  throw contractQueryError; // Re-throw if it's the error we created above
+                }
+                console.warn('Could not query contract result:', contractQueryError);
+              }
+
+              // Throw generic revert error if we couldn't get details
+              console.error('❌ CONTRACT REVERTED (no details available)');
+              const error = new Error('Contract execution reverted');
+              error.status = 'CONTRACT_REVERT_EXECUTED';
+              error.transactionId = txId;
+              error.receipt = txInfo;
+              throw error;
+            }
+
+            // Check if transaction failed (other errors)
             if (txInfo.result !== 'SUCCESS') {
               const error = new Error(`Transaction failed: ${txInfo.result}`);
               error.status = txInfo.result;
