@@ -367,17 +367,46 @@ class HederaContractExecutor {
                   // Try to decode revert reason from call_result
                   if (contractData.error_message) {
                     revertReason = contractData.error_message;
-                  } else if (contractData.call_result && contractData.call_result.startsWith('0x08c379a0')) {
-                    // Standard Solidity revert with message
-                    // Skip function selector (0x08c379a0) and decode the string
-                    try {
-                      const hexData = contractData.call_result.slice(10); // Remove '0x08c379a0'
-                      const buffer = Buffer.from(hexData, 'hex');
-                      // String is ABI encoded: offset (32 bytes) + length (32 bytes) + data
-                      const length = parseInt(buffer.slice(32, 64).toString('hex'), 16);
-                      revertReason = buffer.slice(64, 64 + length).toString('utf8');
-                    } catch (decodeError) {
-                      console.warn('Could not decode revert reason:', decodeError);
+                  } else if (contractData.call_result) {
+                    const callResult = contractData.call_result;
+
+                    if (callResult.startsWith('0x08c379a0')) {
+                      // Standard Solidity revert with message: Error(string)
+                      try {
+                        const hexData = callResult.slice(10); // Remove '0x08c379a0'
+                        const buffer = Buffer.from(hexData, 'hex');
+                        // String is ABI encoded: offset (32 bytes) + length (32 bytes) + data
+                        const length = parseInt(buffer.slice(32, 64).toString('hex'), 16);
+                        revertReason = buffer.slice(64, 64 + length).toString('utf8');
+                      } catch (decodeError) {
+                        console.warn('Could not decode revert reason:', decodeError);
+                      }
+                    } else if (callResult.startsWith('0x4e487b71')) {
+                      // Panic(uint256) - arithmetic errors, array bounds, etc.
+                      try {
+                        const panicCode = parseInt(callResult.slice(10), 16);
+                        const panicReasons = {
+                          0x01: 'Assertion failed',
+                          0x11: 'Arithmetic overflow/underflow',
+                          0x12: 'Division by zero',
+                          0x21: 'Invalid enum value',
+                          0x22: 'Invalid storage array access',
+                          0x31: 'Pop on empty array',
+                          0x32: 'Array index out of bounds',
+                          0x41: 'Out of memory',
+                          0x51: 'Invalid internal function'
+                        };
+                        revertReason = panicReasons[panicCode] || `Panic (code: 0x${panicCode.toString(16)})`;
+                      } catch (decodeError) {
+                        console.warn('Could not decode panic code:', decodeError);
+                      }
+                    } else if (callResult.length === 10) {
+                      // 4-byte custom error selector only (no parameters)
+                      revertReason = `Custom error: ${callResult} (no parameters)`;
+                    } else {
+                      // Custom error with parameters
+                      const selector = callResult.slice(0, 10);
+                      revertReason = `Custom error: ${selector} with parameters`;
                     }
                   }
 
@@ -466,10 +495,11 @@ class HederaContractExecutor {
 
     // Hedera transactions reach consensus immediately after receipt
     // No need to wait like in Ethereum
+    // Spread result first, then override status to ensure numeric value
     return {
+      ...result,
       hash: result.transactionId,
-      status: result.status === 'SUCCESS' ? 1 : 0,
-      ...result
+      status: result.status === 'SUCCESS' ? 1 : 0
     };
   }
 }
