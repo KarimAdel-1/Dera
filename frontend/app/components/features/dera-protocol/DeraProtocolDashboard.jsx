@@ -15,6 +15,7 @@ import HCSEventHistory from './HCSEventHistory';
 import ProtocolAnalytics from './ProtocolAnalytics';
 import { useWalletManagement } from '../../../hooks/useWalletManagement';
 import deraProtocolService from '../../../../services/deraProtocolService';
+import { sanitizeNumericInput } from '../../../utils/validationHelpers';
 
 const DeraProtocolDashboard = () => {
   const [activeTab, setActiveTab] = useState('supply');
@@ -356,8 +357,14 @@ const DeraProtocolDashboard = () => {
         return;
       }
 
+      // Sanitize amount input before parsing
+      const sanitized = sanitizeNumericInput(amount.toString());
+      if (!sanitized.isValid) {
+        throw new Error(sanitized.error);
+      }
+
       // Convert amount to proper units with decimals
-      const amountInUnits = ethers.parseUnits(amount.toString(), assetData.decimals);
+      const amountInUnits = ethers.parseUnits(sanitized.value, assetData.decimals);
 
       console.log(`🚀 Executing ${type} transaction:`, {
         asset: assetSymbol,
