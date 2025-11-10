@@ -843,6 +843,29 @@ class DeraProtocolService {
   }
 
   /**
+   * Get available liquidity in the Pool for borrowing
+   * @param {string} asset - Asset address
+   * @returns {Promise<string>} Available liquidity in base units
+   */
+  async getPoolLiquidity(asset) {
+    try {
+      // For HBAR (native token), check the Pool contract's HBAR balance
+      if (asset === '0x0000000000000000000000000000000000000000') {
+        const poolBalance = await this.provider.getBalance(this.contracts.POOL);
+        return poolBalance.toString();
+      }
+
+      // For ERC20 tokens, check the token balance of the Pool contract
+      const tokenContract = new ethers.Contract(asset, ERC20ABI.abi, this.provider);
+      const balance = await tokenContract.balanceOf(this.contracts.POOL);
+      return balance.toString();
+    } catch (error) {
+      console.error('Get pool liquidity error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * ======================
    * HCS EVENT QUERIES
    * ======================
@@ -1069,6 +1092,35 @@ class DeraProtocolService {
             `Borrow amount ($${borrowAmountUSD.toFixed(2)}) exceeds available borrowing capacity ($${accountData.availableToBorrowUSD.toFixed(2)}). ` +
             `Maximum you can borrow: ${maxBorrowTokens} ${symbol}`
           );
+        }
+
+        // CRITICAL: Check if Pool has actual liquidity
+        console.log('🏦 Checking Pool liquidity...');
+        try {
+          const poolLiquidity = await this.getPoolLiquidity(asset);
+          const poolLiquidityInTokens = parseFloat(ethers.formatUnits(poolLiquidity, decimals));
+
+          console.log('💰 Pool liquidity check:', {
+            poolLiquidity: poolLiquidityInTokens,
+            requestedBorrow: borrowAmountInTokens
+          });
+
+          if (poolLiquidityInTokens < borrowAmountInTokens) {
+            const symbol = asset === '0x0000000000000000000000000000000000000000' ? 'HBAR' : 'tokens';
+            throw new Error(
+              `Insufficient pool liquidity! Pool only has ${poolLiquidityInTokens.toFixed(2)} ${symbol} available, ` +
+              `but you're trying to borrow ${borrowAmountInTokens.toFixed(2)} ${symbol}. ` +
+              `Please try a smaller amount or wait for more liquidity to be added.`
+            );
+          }
+
+          console.log('✅ Pool has sufficient liquidity');
+        } catch (liquidityError) {
+          // If we can't check liquidity, show a warning but allow the transaction
+          console.warn('⚠️ Could not verify pool liquidity:', liquidityError.message);
+          if (liquidityError.message.includes('Insufficient pool liquidity')) {
+            throw liquidityError; // Re-throw if it's our custom error
+          }
         }
 
         return; // Skip balance check for borrow
