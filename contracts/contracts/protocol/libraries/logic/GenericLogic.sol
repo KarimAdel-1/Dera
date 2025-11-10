@@ -87,14 +87,16 @@ library GenericLogic {
 
       vars.currentReserveAddress = assetsList[vars.i];
 
-      if (vars.currentReserveAddress == address(0)) {
+      DataTypes.PoolAssetData storage currentReserve = poolAssets[vars.currentReserveAddress];
+
+      // Check if asset is initialized by verifying supply token exists
+      // IMPORTANT: Cannot use currentReserveAddress != address(0) because HBAR IS address(0)
+      if (currentReserve.supplyTokenAddress == address(0)) {
         unchecked {
           ++vars.i;
         }
         continue;
       }
-
-      DataTypes.PoolAssetData storage currentReserve = poolAssets[vars.currentReserveAddress];
       (vars.ltv, vars.liquidationThreshold, , vars.decimals, ) = currentReserve.configuration.getParams();
 
       unchecked {
