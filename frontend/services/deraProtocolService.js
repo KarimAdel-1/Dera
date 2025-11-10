@@ -1160,12 +1160,12 @@ class DeraProtocolService {
 
       // Get asset data to find the asset ID
       const assetData = await this.poolContract.getAssetData(asset);
-      const assetId = assetData.id;
+      const assetId = Number(assetData.id); // Convert to Number for arithmetic
 
       // Check collateral bit in the bitmap
       // Each asset has 2 bits: bit (assetId * 2) for borrowing, bit (assetId * 2 + 1) for collateral
-      const collateralBitPosition = (assetId * 2) + 1;
-      const isCollateral = (BigInt(userConfig.data) >> BigInt(collateralBitPosition)) & 1n;
+      const collateralBitPosition = BigInt((assetId * 2) + 1);
+      const isCollateral = (BigInt(userConfig.data) >> collateralBitPosition) & 1n;
 
       return isCollateral === 1n;
     } catch (error) {
