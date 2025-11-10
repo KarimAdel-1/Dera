@@ -587,36 +587,46 @@ class DeraProtocolService {
     try {
       // Convert Hedera account ID to EVM address if needed
       const address = this.convertHederaAccountToEVM(userAddress);
-      
+      console.log(`🔍 Getting borrow balance for asset ${asset}, user ${userAddress} (EVM: ${address})`);
+
       // Try to get asset data from Pool - with better error handling
       let assetData;
       try {
         assetData = await this.poolContract.getAssetData(asset);
-        
+        console.log(`📊 Asset data for ${asset}:`, {
+          id: assetData.id?.toString(),
+          supplyToken: assetData.supplyTokenAddress,
+          borrowToken: assetData.borrowTokenAddress,
+          liquidityIndex: assetData.liquidityIndex?.toString(),
+          variableBorrowIndex: assetData.variableBorrowIndex?.toString()
+        });
+
         // Check if the returned data is valid (not all zeros)
         if (!assetData || (Array.isArray(assetData) && assetData.every(item => item.toString() === '0'))) {
-          console.warn(`Asset ${asset} returned empty data from Pool contract`);
+          console.warn(`⚠️ Asset ${asset} returned empty data from Pool contract`);
           return "0";
         }
       } catch (error) {
-        console.warn(`Asset ${asset} not found in Pool contract:`, error.message);
+        console.warn(`⚠️ Asset ${asset} not found in Pool contract:`, error.message);
         return "0";
       }
-      
+
       // Check if asset has valid borrow token address
       // Note: Contract returns 'borrowTokenAddress', not 'variableDebtTokenAddress'
       if (!assetData || !assetData.borrowTokenAddress || assetData.borrowTokenAddress === '0x0000000000000000000000000000000000000000') {
-        console.warn(`Asset ${asset} not initialized in Pool or no borrow token`);
+        console.warn(`⚠️ Asset ${asset} not initialized in Pool or no borrow token`);
         return "0";
       }
 
       // Query variable debt token balance
+      console.log(`🔎 Querying borrow token ${assetData.borrowTokenAddress} balance for ${address}`);
       const debtToken = new ethers.Contract(assetData.borrowTokenAddress, ERC20ABI.abi, this.provider);
       const balance = await debtToken.balanceOf(address);
-      
+
+      console.log(`💰 Borrow balance for ${asset}: ${balance.toString()}`);
       return balance.toString();
     } catch (error) {
-      console.error('Get user borrow balance error:', error);
+      console.error('❌ Get user borrow balance error:', error);
       return "0";
     }
   }
