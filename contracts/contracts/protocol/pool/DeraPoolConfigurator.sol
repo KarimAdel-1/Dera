@@ -6,6 +6,8 @@ import {IPoolAddressesProvider} from '../../interfaces/IPoolAddressesProvider.so
 import {IPool} from '../../interfaces/IPool.sol';
 import {IACLManager} from '../../interfaces/IACLManager.sol';
 import {Errors} from '../libraries/helpers/Errors.sol';
+import {DataTypes} from '../libraries/types/DataTypes.sol';
+import {AssetConfiguration} from '../libraries/configuration/AssetConfiguration.sol';
 
 /**
  * @title DeraPoolConfigurator
@@ -106,7 +108,26 @@ contract DeraPoolConfigurator is PoolConfigurator {
     emit AssetInitialized(underlyingAsset, dTokenProxy, variableDebtProxy);
   }
 
+  /**
+   * @notice Update the decimals configuration for an asset
+   * @dev EMERGENCY FUNCTION: Only use to fix incorrectly initialized asset decimals
+   * @dev This should rarely be needed - decimals are normally set during asset initialization
+   * @dev Only Pool Admin can call this function
+   * @param asset The address of the underlying asset
+   * @param decimals The correct number of decimals for the asset (0-255)
+   */
+  function setAssetDecimals(address asset, uint8 decimals) external onlyPoolAdmin {
+    using AssetConfiguration for DataTypes.AssetConfigurationMap;
+
+    DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+    currentConfig.setDecimals(decimals);
+    _pool.setConfiguration(asset, currentConfig);
+
+    emit AssetDecimalsUpdated(asset, decimals);
+  }
+
   event AssetInitialized(address indexed asset, address indexed dToken, address indexed vToken);
   event PoolUpdated(address indexed oldPool, address indexed newPool);
   event ProviderRecovered(address indexed oldProvider, address indexed newProvider);
+  event AssetDecimalsUpdated(address indexed asset, uint8 decimals);
 }

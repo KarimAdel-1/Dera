@@ -10,12 +10,12 @@ This causes:
 - Cannot borrow against HBAR
 - Incorrect collateral calculations
 
-## The Fix
+## The Solution
 
-The `fix-hbar-decimals.js` script has been created to correct this. It needs to be run from your local environment (not the sandboxed Claude Code environment) because it requires:
-1. Network access to Hedera testnet RPC
-2. Your private key for signing transactions
-3. Pool Admin permissions (which your deployer account has)
+We've added a new `setAssetDecimals()` function to the PoolConfigurator that allows updating the decimals configuration. This requires two steps:
+
+1. **Upgrade PoolConfigurator**: Deploy new version with `setAssetDecimals()` function
+2. **Fix Decimals**: Call `setAssetDecimals(HBAR, 8)` to update configuration
 
 ---
 
@@ -26,9 +26,10 @@ git pull origin claude/fix-hedera-contract-revert-011CUvtu98wNjvHAb1WeuAKo
 ```
 
 This includes:
-- `contracts/scripts/fix-hbar-decimals.js` - The fix script
-- `contracts/scripts/test-user-config-bits.js` - Diagnostic script (already run)
-- `contracts/scripts/test-oracle-direct.js` - Oracle test script (already run)
+- `DeraPoolConfigurator.sol` - Now includes `setAssetDecimals()` function
+- `upgrade-pool-configurator.js` - Redeploys PoolConfigurator
+- `fix-hbar-decimals-simple.js` - Uses new function to fix decimals
+- Diagnostic scripts from previous investigation
 
 ---
 
@@ -59,11 +60,88 @@ PRIVATE_KEY=your_private_key_here
 
 ---
 
-## Step 3: Run the Fix Script
+## Step 3: Upgrade PoolConfigurator
+
+This deploys a new PoolConfigurator with the `setAssetDecimals()` function:
 
 ```bash
 cd contracts/
-npx hardhat run scripts/fix-hbar-decimals.js --network testnet
+npx hardhat run scripts/upgrade-pool-configurator.js --network testnet
+```
+
+**Expected Output:**
+
+```
+🔄 Upgrading PoolConfigurator
+============================================================
+📍 Current Deployment:
+   Deployer: 0x...
+   Old PoolConfigurator: 0x...
+   PoolAddressesProvider: 0x...
+   Account balance: XXX HBAR
+
+📋 Checking Permissions...
+   Pool Admin: ✅
+
+============================================================
+STEP 1: Deploy New PoolConfigurator
+============================================================
+
+📚 Using ConfiguratorLogic library: 0x...
+🚀 Deploying new PoolConfigurator...
+✅ New PoolConfigurator deployed: 0x...
+
+============================================================
+STEP 2: Update PoolAddressesProvider
+============================================================
+
+📝 Updating PoolConfigurator address in AddressesProvider...
+✅ AddressesProvider updated
+   Transaction: 0x...
+
+============================================================
+STEP 3: Initialize New PoolConfigurator
+============================================================
+
+🔧 Initializing new PoolConfigurator...
+✅ New PoolConfigurator initialized
+   Transaction: 0x...
+
+============================================================
+STEP 4: Verify New PoolConfigurator
+============================================================
+
+📊 Verification:
+   Registered in AddressesProvider: 0x...
+   Matches new deployment: ✅
+
+🔍 Checking for setAssetDecimals function...
+   setAssetDecimals available: ✅
+
+============================================================
+✅ UPGRADE COMPLETE!
+============================================================
+
+📝 Summary:
+   Old PoolConfigurator: 0x...
+   New PoolConfigurator: 0x...
+   Added function: setAssetDecimals(address asset, uint8 decimals)
+
+🎯 Next Steps:
+1. Run: npx hardhat run scripts/fix-hbar-decimals-simple.js --network testnet
+2. This will use the new setAssetDecimals function to fix HBAR decimals
+3. Verify getUserAccountData returns correct values
+4. Test frontend to confirm collateral displays correctly
+```
+
+---
+
+## Step 4: Fix HBAR Decimals
+
+Now that the upgraded PoolConfigurator is deployed, fix the decimals:
+
+```bash
+npx hardhat run scripts/fix-hbar-decimals-simple.js --network testnet
 ```
 
 **Expected Output:**
@@ -73,7 +151,7 @@ npx hardhat run scripts/fix-hbar-decimals.js --network testnet
 ============================================================
 📍 Contract Addresses:
    Pool: 0x...
-   Pool Configurator: 0x...
+   Pool Configurator: 0x... (NEW!)
    Deployer: 0x...
 
 📋 Checking Permissions...
@@ -93,20 +171,9 @@ STEP 1: Check Current Configuration
 STEP 2: Fix Decimals Configuration
 ============================================================
 
-🔧 Setting decimals to 8...
+🔧 Setting decimals to 8 using setAssetDecimals()...
 
-Building new configuration bitmap:
-   LTV: 7500
-   Liquidation Threshold: 8000
-   Liquidation Bonus: 10500
-   Decimals: 8 ✅
-   Is Active: true
-   Is Frozen: false
-   Borrowing Enabled: true
-   Is Paused: false
-
-New Configuration Bitmap: 0x...
-
+⏳ Waiting for transaction confirmation...
 ✅ Configuration updated
    Transaction: 0x...
 
@@ -127,13 +194,11 @@ Next steps:
 1. Refresh your frontend
 2. Your collateral should now show as ~$20 USD
 3. Available to borrow should show as ~$15 USD
-
-============================================================
 ```
 
 ---
 
-## Step 4: Verify the Fix Worked
+## Step 5: Verify the Fix Worked
 
 ### Option A: Run Test Script
 
@@ -181,31 +246,50 @@ Make sure:
 ### Issue: "Transaction failed"
 
 Check:
-1. Your account has HBAR for gas fees (~0.1 HBAR)
+1. Your account has HBAR for gas fees (~1-2 HBAR for both scripts)
 2. You're connected to testnet, not mainnet
 3. The contract addresses in `deployment-info.json` are correct
 
 ### Issue: "Decimals is already set to 8"
 
-Great! The fix has already been applied. You can skip to Step 4 to verify everything works in the frontend.
+Great! The fix has already been applied. You can skip to Step 5 to verify everything works in the frontend.
+
+### Issue: "setAssetDecimals is not a function"
+
+This means Step 3 (Upgrade PoolConfigurator) didn't complete successfully. Re-run:
+```bash
+npx hardhat run scripts/upgrade-pool-configurator.js --network testnet
+```
 
 ---
 
-## What This Fix Does
+## What These Scripts Do
 
-The script:
+### 1. upgrade-pool-configurator.js
 
-1. **Reads** the current HBAR configuration bitmap from the Pool contract
-2. **Extracts** all existing values:
-   - LTV: 7500 (75%)
-   - Liquidation Threshold: 8000 (80%)
-   - Liquidation Bonus: 10500 (105%)
-   - Is Active: true
-   - Borrowing Enabled: true
-   - Other flags...
-3. **Rebuilds** the bitmap with the **correct decimals value (8)**
-4. **Updates** the configuration via `PoolConfigurator.setConfiguration()`
-5. **Verifies** the decimals is now 8
+This script:
+1. Deploys a new `DeraPoolConfigurator` with the `setAssetDecimals()` function
+2. Updates `PoolAddressesProvider` to point to the new configurator
+3. Initializes the new configurator (handles Hedera address reuse if needed)
+4. Updates `deployment-info.json` to track the upgrade
+
+The new function allows Pool Admin to update decimals:
+```solidity
+function setAssetDecimals(address asset, uint8 decimals) external onlyPoolAdmin {
+  DataTypes.AssetConfigurationMap memory currentConfig = _pool.getConfiguration(asset);
+  currentConfig.setDecimals(decimals);
+  _pool.setConfiguration(asset, currentConfig);
+  emit AssetDecimalsUpdated(asset, decimals);
+}
+```
+
+### 2. fix-hbar-decimals-simple.js
+
+This script:
+1. Reads the current HBAR configuration
+2. Verifies decimals is currently 0
+3. Calls `poolConfigurator.setAssetDecimals(HBAR, 8)`
+4. Verifies the fix worked
 
 This fixes the core calculation in `getUserAccountData`:
 
@@ -219,12 +303,6 @@ assetUnit = 10^8 = 100,000,000
 collateral = (25000000000 × 8000000) / 100,000,000 = 2,000,000,000
 // = $20.00 USD ✅
 ```
-
----
-
-## Alternative: Frontend-Based Fix
-
-If you can't run Hardhat scripts locally, we can create a frontend interface to call `setConfiguration` via HashPack. Let me know if you'd prefer this approach.
 
 ---
 
@@ -259,10 +337,11 @@ Once the decimals is corrected to 8:
 - ❌ Collateral calculation: BROKEN
 - ❌ getUserAccountData: returns zeros
 
-**After fix:**
+**After upgrade + fix:**
+- ✅ PoolConfigurator: Has setAssetDecimals function
 - ✅ Decimals: 8
 - ✅ assetUnit: 100,000,000
 - ✅ Collateral calculation: CORRECT
 - ✅ getUserAccountData: returns $20 collateral, $15 available
 
-Run the script and let me know the output! 🚀
+Run the scripts and let me know the output! 🚀
