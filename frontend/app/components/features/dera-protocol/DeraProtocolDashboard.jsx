@@ -206,10 +206,11 @@ const DeraProtocolDashboard = () => {
             let collateralEnabled = false;
             try {
               collateralEnabled = await deraProtocolService.getUserCollateralStatus(asset.address, evmAddress);
+              console.log(`📊 ${asset.symbol} collateral status from contract:`, collateralEnabled);
             } catch (error) {
               console.warn(`Could not get collateral status for ${asset.symbol}:`, error.message);
             }
-            
+
             supplies.push({
               asset: asset.symbol,
               amount,
@@ -593,7 +594,12 @@ const DeraProtocolDashboard = () => {
 
       console.log('✅ Collateral toggled:', result);
 
+      // Wait a moment for state to propagate on-chain before querying
+      console.log('⏳ Waiting for on-chain state to propagate...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // Reload account data and wallet balances
+      console.log('🔄 Refreshing account data...');
       await loadUserPositions(activeWallet.address);
       await fetchWalletBalances(activeWallet.address);
 
