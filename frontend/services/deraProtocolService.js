@@ -507,13 +507,17 @@ class DeraProtocolService {
 
       // data returns: totalCollateralBase, totalDebtBase, availableBorrowsBase,
       //               currentLiquidationThreshold, ltv, healthFactor
+
+      // Handle potential null values from contract
+      const safeValue = (val, defaultVal = 0n) => val != null ? val : defaultVal;
+
       return {
-        totalSuppliedUSD: Number(ethers.formatUnits(data[0], 8)), // Base currency is 8 decimals
-        totalBorrowedUSD: Number(ethers.formatUnits(data[1], 8)),
-        availableToBorrowUSD: Number(ethers.formatUnits(data[2], 8)),
-        currentLiquidationThreshold: Number(data[3]) / 100, // BPS to percentage
-        ltv: Number(data[4]) / 100, // BPS to percentage
-        healthFactor: Number(ethers.formatUnits(data[5], 18)),
+        totalSuppliedUSD: Number(ethers.formatUnits(safeValue(data[0]), 8)), // Base currency is 8 decimals
+        totalBorrowedUSD: Number(ethers.formatUnits(safeValue(data[1]), 8)),
+        availableToBorrowUSD: Number(ethers.formatUnits(safeValue(data[2]), 8)),
+        currentLiquidationThreshold: Number(safeValue(data[3])) / 100, // BPS to percentage
+        ltv: Number(safeValue(data[4])) / 100, // BPS to percentage
+        healthFactor: Number(ethers.formatUnits(safeValue(data[5], BigInt(2) ** BigInt(256) - BigInt(1)), 18)), // Max uint256 for infinity
       };
     } catch (error) {
       console.error('Get user account data error:', error);
