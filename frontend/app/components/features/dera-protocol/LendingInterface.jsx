@@ -83,19 +83,36 @@ export default function LendingInterface({ userAddress }) {
       const amountInUnits = (
         parseFloat(amount) * Math.pow(10, selectedAsset.decimals)
       ).toString();
-      const txId = await deraProtocolService.borrow(
+
+      console.log('🚀 Starting borrow transaction...', {
+        asset: selectedAsset.symbol,
+        amount: amount,
+        amountInUnits: amountInUnits
+      });
+
+      const result = await deraProtocolService.borrow(
         selectedAsset.address,
         amountInUnits,
         0,
         userAddress
       );
 
-      toast.success(`Borrow successful! TX: ${txId.substring(0, 20)}...`);
-      setAmount('');
-      loadUserData();
+      console.log('✅ Borrow result:', result);
+
+      // Check if the borrow was successful
+      if (result.status === 'success') {
+        toast.success(`Successfully borrowed ${amount} ${selectedAsset.symbol}! TX: ${result.transactionHash.substring(0, 20)}...`);
+        setAmount('');
+        // Reload user data after a short delay to ensure blockchain state is updated
+        setTimeout(() => loadUserData(), 2000);
+      } else {
+        toast.error(`Borrow failed: Transaction reverted on-chain`);
+      }
     } catch (error) {
-      console.error('Borrow error:', error);
-      toast.error('Borrow failed. Please try again.');
+      console.error('❌ Borrow error:', error);
+      // Show more specific error message if available
+      const errorMessage = error.message || 'Borrow failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

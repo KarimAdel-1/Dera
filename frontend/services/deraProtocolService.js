@@ -391,13 +391,35 @@ class DeraProtocolService {
         }
       );
 
+      console.log('📋 Borrow transaction result:', result);
+
+      // Check if transaction succeeded
+      if (result.status !== 1) {
+        console.error('❌ Borrow transaction reverted!', result);
+        throw new Error(`Borrow transaction failed with status ${result.status}. The contract may have reverted the transaction.`);
+      }
+
+      // Verify the borrow was successful by checking debt token balance
+      console.log('✅ Borrow transaction succeeded, verifying debt tokens...');
+
+      // Wait a moment for state to update
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if debt tokens were minted
+      const borrowBalance = await this.getUserBorrowBalance(asset, evmAddress);
+      if (borrowBalance === '0') {
+        console.warn('⚠️ Warning: Borrow transaction succeeded but no debt tokens detected. This may take a moment to reflect.');
+      } else {
+        console.log('✅ Debt tokens confirmed:', borrowBalance);
+      }
+
       return {
         transactionHash: result.transactionId,
-        status: result.status === 1 ? 'success' : 'failed',
+        status: 'success',
         receipt: result.receipt
       };
     } catch (error) {
-      console.error('Borrow (Hedera) error:', error);
+      console.error('❌ Borrow (Hedera) error:', error);
       throw error;
     }
   }
