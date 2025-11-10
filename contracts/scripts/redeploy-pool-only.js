@@ -56,8 +56,16 @@ async function main() {
   
   // Initialize Pool
   console.log("📍 Initializing Pool...");
-  await (await pool.initialize(deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER)).wait();
-  console.log("✅ Pool initialized");
+  try {
+    await (await pool.initialize(deploymentInfo.addresses.POOL_ADDRESSES_PROVIDER)).wait();
+    console.log("✅ Pool initialized");
+  } catch (error) {
+    if (error.message.includes("already been initialized")) {
+      console.log("⚠️  Pool already initialized (Hedera address reuse) - skipping");
+    } else {
+      throw error;
+    }
+  }
   
   // Update deployment info - update both addresses and deploymentLog for consistency
   deploymentInfo.addresses.POOL = poolAddress;
