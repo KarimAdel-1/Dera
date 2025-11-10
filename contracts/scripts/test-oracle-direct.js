@@ -15,8 +15,9 @@ async function main() {
   const oracle = await ethers.getContractAt("DeraOracle", oracleAddress);
   const pool = await ethers.getContractAt("DeraPool", poolAddress);
 
+  const [deployer] = await ethers.getSigners();
   const HBAR_ADDRESS = ethers.ZeroAddress;
-  const userAddress = "0x00000000000000000000000000000000006C3cde";
+  const userAddress = deployer.address; // Use deployer's address (who supplied the HBAR)
 
   console.log("\n" + "=".repeat(60));
   console.log("STEP 1: Direct Oracle Call");
