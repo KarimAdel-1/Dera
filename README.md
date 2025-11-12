@@ -2,7 +2,7 @@
 
 **Decentralized Lending Platform with Multi-Tier Liquidity and Sustainable Yield on Hedera**
 
-**Track:** DeFi / Hedera Ecosystem Tools
+**Track:** Onchain Finance & RWA
 
 **Hackathon Submission:** This project demonstrates comprehensive integration with Hedera services including HCS, HTS, Smart Contracts, and Node Staking to create a production-ready DeFi lending platform optimized for African markets.
 
